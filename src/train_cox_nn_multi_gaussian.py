@@ -9,7 +9,7 @@ from sksurv.linear_model import CoxPHSurvivalAnalysis
 from sksurv.metrics import concordance_index_censored
 from utility.training import scale_data
 from utility.evaluator import LifelinesEvaluator
-from trainer import train_multi_model
+from trainer import train_multi_model_gaussian
 from preprocessor import Preprocessor
 from utility.training import split_and_scale_data
 from torch.utils.data import DataLoader, TensorDataset
@@ -20,7 +20,7 @@ import warnings
 from get_data import make_synthetic
 from preprocess import split_data, scale_data
 from scipy.stats import entropy
-from models import MultiEventCoxPH
+from models import MultiEventCoxPHGaussian
 from inference import make_cox_prediction_multi
 from multi_evaluator import MultiEventEvaluator
 import math
@@ -71,9 +71,9 @@ if __name__ == "__main__":
     test_data[0] = scale_data(test_data[0], norm_mode='standard')
     
     # Train model
-    config = dotdict(cfg.PARAMS_COX_MULTI)
+    config = dotdict(cfg.PARAMS_COX_MULTI_GAUSSIAN)
     n_features = train_data[0].shape[1]
-    model = MultiEventCoxPH(in_features=n_features)
+    model = MultiEventCoxPHGaussian(in_features=n_features, config=config)
     data_train = pd.DataFrame(train_data[0])
     data_train["y1_time"] = pd.Series(train_data[1][:,0])
     data_train["y2_time"] = pd.Series(train_data[1][:,1])
@@ -90,12 +90,19 @@ if __name__ == "__main__":
     data_test["y1_event"] = pd.Series(test_data[2][:,0])
     data_test["y2_event"] = pd.Series(test_data[2][:,1])
     
-    model, log_vars = train_multi_model(model, data_train, data_valid, time_bins, config=config,
-                                        random_state=0, reset_model=True, device=device)
+    model = train_multi_model_gaussian(model, data_train, data_valid, time_bins, config=config,
+                                       random_state=0, reset_model=True, device=device)
 
+    #print(log_vars)
+    #print([math.exp(log_var) ** 0.5 for log_var in log_vars])
+    
+    #std_1 = torch.exp(model.log_vars[0])**0.5
+    #std_2 = torch.exp(model.log_vars[1])**0.5
+    #rint([std_1.item(), std_2.item()])
+    
     # Evaluate event prediction
     evaluator = MultiEventEvaluator(data_test, data_train, model, config, device)
-    surv_preds = evaluator.predict_survival_curves()
+    surv_preds = evaluator.predict_survival_curves_gaussian()
     for event_id in range(n_events):
         ci = evaluator.calculate_ci(surv_preds[event_id], event_id)
         mae = evaluator.calculate_mae(surv_preds[event_id], event_id, method="Hinge")

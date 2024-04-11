@@ -13,9 +13,9 @@ from tqdm import trange
 from torch.utils.data import DataLoader, TensorDataset
 from utility.survival import reformat_survival
 from utility.loss import mtlr_nll, cox_nll
-from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split
+from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split_multi, make_stratified_split_single
 from utility.data import MultiEventDataset
-from models import MultiTaskLossWrapper
+from models import CoxPH
 
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
@@ -27,6 +27,140 @@ def criterion(outputs, targets, log_vars, model, config):
     cox_loss = cox_nll(outputs[i], targets[i][:,0], targets[i][:,1], model, C1=config.c1)
     loss += precision * cox_loss + log_vars[i]
   return torch.mean(loss)
+
+"""
+def criterion_gaussian(outputs, targets, log_vars, model, config):
+    loss = 0
+    for i in range(len(outputs)):
+        precision = torch.exp(-log_vars[i])
+        cox_loss = cox_nll(outputs[i], targets[i][:,0], targets[i][:,1], model, C1=config.c1)
+        loss += cox_loss
+    return torch.mean(loss)
+"""
+
+def criterion_gaussian(outputs, targets, log_vars, model, config):
+    precision1 = torch.exp(-log_vars[0])
+    cox_loss1 = cox_nll(outputs[0], targets[0][:,0], targets[0][:,1], model, C1=config.c1)
+    
+    precision2 = torch.exp(-log_vars[1])
+    cox_loss2 = cox_nll(outputs[1], targets[1][:,0], targets[1][:,1], model, C1=config.c1)
+    
+    loss = precision1 * cox_loss1 + precision2 * cox_loss2 #+ torch.log(log_var1*log_var2)
+    
+    return loss
+
+def train_multi_model_gaussian(
+        model: nn.Module,
+        df_train: pd.DataFrame, # Dataframe with shape [x, Y1_T, Y2_T, Y1_E, Y2_E]
+        df_valid: pd.DataFrame,
+        time_bins: NumericArrayLike,
+        config: argparse.Namespace,
+        random_state: int,
+        reset_model: bool = True,
+        device: torch.device = torch.device("cuda")
+) -> nn.Module:
+    if config.verbose:
+        print(f"Training {model.get_name()}: reset mode is {reset_model}, number of epochs is {config.num_epochs}, "
+              f"learning rate is {config.lr}, C1 is {config.c1}, "
+              f"batch size is {config.batch_size}, device is {device}.")
+        
+    train_size, n_features = df_train.shape[0], df_train.shape[1]
+    val_size = df_valid.shape[0]
+    optimizer = optim.Adam(model.parameters(), lr=config.lr)
+
+    if reset_model:
+        model.reset_parameters()
+
+    model = model.to(device)
+    model.train()
+    best_val_nll = np.inf
+    best_ep = -1
+
+    pbar = trange(config.num_epochs, disable=not config.verbose)
+    
+    x_train_features = df_train.drop(["y1_time", "y2_time", "y1_event", "y2_event"], axis=1).to_numpy()
+    x_train_times = df_train[["y1_time", "y2_time"]].to_numpy()
+    x_train_events = df_train[["y1_event", "y2_event"]].to_numpy()
+    x_val_features = df_valid.drop(["y1_time", "y2_time", "y1_event", "y2_event"], axis=1).to_numpy()
+    x_val_times = df_valid[["y1_time", "y2_time"]].to_numpy()
+    x_val_events = df_valid[["y1_event", "y2_event"]].to_numpy()
+    
+    train_dataset = MultiEventDataset(n_features, x_train_features, x_train_times, x_train_events)
+    val_dataset = MultiEventDataset(n_features, x_train_features, x_train_times, x_train_events)
+    train_data_loader = DataLoader(train_dataset, shuffle=True, batch_size=config.batch_size)
+    val_data_loader = DataLoader(val_dataset, shuffle=True, batch_size=config.batch_size)
+    
+    start_time = datetime.now()
+    loss_list = []
+    
+    for i in pbar:
+        cumulative_loss = 0
+        
+        # Training
+        for X, Y1, Y2 in train_data_loader:
+            optimizer.zero_grad()
+            
+            logits_dists = model(X)
+            
+            n_samples = config.n_samples_train
+            logits_cpd1 = torch.stack([torch.reshape(logits_dists[0].sample(), (X.shape[0], 1)) for _ in range(n_samples)])
+            logits_cpd2 = torch.stack([torch.reshape(logits_dists[1].sample(), (X.shape[0], 1)) for _ in range(n_samples)])
+            log_var1 = torch.log(torch.mean(torch.var(logits_cpd1, axis=0, keepdims=True)))
+            log_var2 = torch.log(torch.mean(torch.var(logits_cpd2, axis=0, keepdims=True)))
+            logits_mean1 = torch.mean(logits_cpd1, axis=0)
+            logits_mean2 = torch.mean(logits_cpd2, axis=0)
+            logits_mean = [logits_dists[0].mean, logits_dists[1].mean]
+            
+            loss = criterion_gaussian(logits_mean, [Y1, Y2], [log_var1, log_var2], model, config)
+            cumulative_loss += loss.item()
+            
+            loss.backward()
+            optimizer.step()
+        
+        epoch_loss = cumulative_loss/len(train_data_loader)
+        loss_list.append(epoch_loss)
+        
+        # Validation
+        valid_loss = 0
+        for X, Y1, Y2 in val_data_loader:
+            
+            logits_dists = model(X)
+            
+            n_samples = config.n_samples_test
+            logits_cpd1 = torch.stack([torch.reshape(logits_dists[0].sample(), (X.shape[0], 1)) for _ in range(n_samples)])
+            logits_cpd2 = torch.stack([torch.reshape(logits_dists[1].sample(), (X.shape[0], 1)) for _ in range(n_samples)])
+            log_var1 = torch.log(torch.mean(torch.var(logits_cpd1, axis=0, keepdims=True)))
+            log_var2 = torch.log(torch.mean(torch.var(logits_cpd2, axis=0, keepdims=True)))
+            logits_mean1 = torch.mean(logits_cpd1, axis=0)
+            logits_mean2 = torch.mean(logits_cpd2, axis=0)
+            logits = [logits_dists[0].mean, logits_dists[1].mean]
+            
+            loss = criterion_gaussian(logits, [Y1, Y2], [log_var1, log_var2], model, config)
+            valid_loss += loss.item()
+        
+        total_val_loss = (valid_loss/len(val_data_loader))
+        print(f"Train loss: {epoch_loss} - Valid loss: {total_val_loss}")
+        
+        pbar.set_description(f"[epoch {i + 1: 4}/{config.num_epochs}]")
+        pbar.set_postfix_str(f"nll-loss = {loss_list[-1]:.4f}; "
+                             f"Validation nll = {total_val_loss:.4f};")
+        
+        if config.early_stop:
+            if best_val_nll > total_val_loss:
+                best_val_nll = total_val_loss
+                best_ep = i
+            if (i - best_ep) > config.patience:
+                print(f"Validation loss converges at {best_ep}-th epoch.")
+                break
+    
+    end_time = datetime.now()
+    training_time = end_time - start_time
+    print(f"Training time: {training_time.total_seconds()}")
+    model.eval()
+    model.calculate_baseline_survival(torch.tensor(x_train_features, dtype=torch.float32).to(device),
+                                      torch.tensor(x_train_times, dtype=torch.float32).to(device),
+                                      torch.tensor(x_train_events, dtype=torch.float32).to(device))
+    return model
 
 def train_multi_model(
         model: nn.Module,
@@ -136,9 +270,9 @@ def train_model(
         print(f"Training {model.get_name()}: reset mode is {reset_model}, number of epochs is {config.num_epochs}, "
               f"learning rate is {config.lr}, C1 is {config.c1}, "
               f"batch size is {config.batch_size}, device is {device}.")
-    data_train, _, data_val = make_stratified_split(data_train, stratify_colname='both',
-                                                    frac_train=0.9, frac_test=0.1,
-                                                    random_state=random_state)
+    data_train, _, data_val = make_stratified_split_single(data_train, stratify_colname='both',
+                                                           frac_train=0.9, frac_test=0.1,
+                                                           random_state=random_state)
 
     train_size = data_train.shape[0]
     val_size = data_val.shape[0]

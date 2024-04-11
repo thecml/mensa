@@ -13,36 +13,10 @@ from tqdm import trange
 from torch.utils.data import DataLoader, TensorDataset
 from utility.survival import reformat_survival
 from utility.loss import mtlr_nll, cox_nll, cox_nll2
-from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split, calculate_baseline_hazard
+from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split_multi, calculate_baseline_hazard
 from utility.data import MultiEventDataset
 
-class MultiTaskLossWrapper(nn.Module):
-    def __init__(self, task_num, model, config):
-        super(MultiTaskLossWrapper, self).__init__()
-        self.model = model
-        self.task_num = task_num
-        self.config = config
-        self.log_vars = nn.Parameter(torch.zeros((task_num)), requires_grad=True)
-        
-        #self.std_1 = torch.exp(self.log_vars[0])**0.5
-        #self.std_2 = torch.exp(self.log_vars[1])**0.5
-        #print([self.std_1.item(), self.std_2.item()])
-
-    def forward(self, input, targets):
-        loss = 0
-        outputs = self.model(input)
-        for i in range(len(outputs)):
-            precision = torch.exp(-self.log_vars[i])
-            nnl_loss = cox_nll(outputs[i], targets[i][:,0], targets[i][:,1],
-                               self.model, C1=self.config.c1)
-            loss += precision * nnl_loss + self.log_vars[i]
-
-        loss = torch.mean(loss)
-        return loss, self.log_vars.data.tolist()
-
 class CoxPH(nn.Module):
-    """Cox proportional hazard model for individualised survival prediction."""
-
     def __init__(self, in_features: int, config: argparse.Namespace):
         super().__init__()
         if in_features < 1:
@@ -73,8 +47,6 @@ class CoxPH(nn.Module):
         return self._get_name()
 
 class MultiEventCoxPH(nn.Module):
-    """Cox proportional hazard model for individualised survival prediction."""
-
     def __init__(self, in_features, n_hidden=100, n_output=1, config={}):
         super().__init__()
         
@@ -84,18 +56,101 @@ class MultiEventCoxPH(nn.Module):
         self.cum_baseline_hazards = list()
         self.baseline_survivals = list()
         
-        self.net1 = nn.Sequential(nn.Linear(in_features, n_hidden),
-                                  nn.ReLU(),
-                                  nn.Linear(n_hidden, n_output))
-        self.net2 = nn.Sequential(nn.Linear(in_features, n_hidden),
-                                  nn.ReLU(),
-                                  nn.Linear(n_hidden, n_output))
-
+        # Shared parameters
+        self.shared_layer = nn.Sequential(
+            nn.Linear(in_features, n_hidden),
+            nn.ReLU(),
+        )
+        self.fc2 = nn.Linear(n_hidden, n_output)
+        self.fc3 = nn.Linear(n_hidden, n_output)
+        
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return [self.net1(x), self.net2(x)] # two events
+        # Shared embedding
+        shared = self.shared_layer(x)
+        
+        # Output for event 1 and 2
+        out1 = self.fc2(shared)
+        out2 = self.fc3(shared)
+        
+        return [out1, out2] # two events
 
     def calculate_baseline_survival(self, x, t, e):
         outputs = self.forward(x)
+        for i in range(len(outputs)):
+            time_bins, cum_baseline_hazard, baseline_survival = calculate_baseline_hazard(outputs[i], t[:,i], e[:,i])
+            self.time_bins.append(time_bins)
+            self.cum_baseline_hazards.append(cum_baseline_hazard)
+            self.baseline_survivals.append(baseline_survival)
+            
+    def reset_parameters(self):
+        return self
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(in_features={self.in_features}"
+
+    def get_name(self):
+        return self._get_name()
+    
+class MultiEventCoxPHGaussian(nn.Module):
+    def __init__(self, in_features, n_hidden=100, n_output=1, config={}):
+        super().__init__()
+        
+        self.config = config
+        
+        self.time_bins = list()
+        self.cum_baseline_hazards = list()
+        self.baseline_survivals = list()
+        
+        # Shared parameters
+        self.shared_layer = nn.Sequential(
+            nn.Linear(in_features, n_hidden),
+            nn.ReLU(),
+        )
+    
+        # Mean parameters
+        self.mean_layer1 = nn.Sequential(
+            nn.Linear(n_hidden, 1),
+        )
+
+        self.mean_layer2 = nn.Sequential(
+            nn.Linear(n_hidden, 1),
+        )
+
+        # Standard deviation parameters
+        self.std_layer1 = nn.Sequential(
+            nn.Linear(n_hidden, 1),
+            nn.Softplus(),
+        )
+    
+        self.std_layer2 = nn.Sequential(
+            nn.Linear(n_hidden, 1),
+            nn.Softplus(),
+        )
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Shared embedding
+        shared = self.shared_layer(x)
+        
+        # Parametrization of the mean
+        mu1 = self.mean_layer1(shared)
+        mu2 = self.mean_layer2(shared)
+        
+        # Parametrization of the standard deviation
+        sigma1 = self.std_layer1(shared)
+        sigma2 = self.std_layer2(shared)
+        
+        return [torch.distributions.Normal(mu1, sigma1), torch.distributions.Normal(mu2, sigma2)] # two events
+        
+    def calculate_baseline_survival(self, x, t, e):
+        logits_dists = self.forward(x)
+        
+        n_samples = self.config.n_samples_test
+        logits_cpd1 = torch.stack([torch.reshape(logits_dists[0].sample(), (x.shape[0], 1)) for _ in range(n_samples)])
+        logits_cpd2 = torch.stack([torch.reshape(logits_dists[1].sample(), (x.shape[0], 1)) for _ in range(n_samples)])
+        logits_mean1 = torch.mean(logits_cpd1, axis=0)
+        logits_mean2 = torch.mean(logits_cpd2, axis=0)
+        outputs = [logits_dists[0].mean, logits_dists[1].mean]
+        
         for i in range(len(outputs)):
             time_bins, cum_baseline_hazard, baseline_survival = calculate_baseline_hazard(outputs[i], t[:,i], e[:,i])
             self.time_bins.append(time_bins)

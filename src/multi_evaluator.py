@@ -14,6 +14,30 @@ class MultiEventEvaluator():
         self.model = model
         self.config = config
         
+    def predict_survival_curves_gaussian(self):
+        self.model.eval()
+        start_time = datetime.now()
+        with torch.no_grad():
+            n_samples = self.config.n_samples_test
+            logits_dists = self.model(self.x_test)
+            logits_cpd1 = torch.stack([torch.reshape(logits_dists[0].sample(), (self.x_test.shape[0], 1)) for _ in range(n_samples)])
+            logits_cpd2 = torch.stack([torch.reshape(logits_dists[1].sample(), (self.x_test.shape[0], 1)) for _ in range(n_samples)])
+            logits_mean1 = torch.mean(logits_cpd1, axis=0)
+            logits_mean2 = torch.mean(logits_cpd2, axis=0)
+            outputs = [logits_dists[0].mean, logits_dists[1].mean]
+            end_time = datetime.now()
+            inference_time = end_time - start_time
+            if self.config.verbose:
+                print(f"Inference time: {inference_time.total_seconds()}")
+            n_events = 2
+            event_survival_curves = list()
+            for i in range(n_events):
+               survival_curves = cox_survival(self.model.baseline_survivals[i], outputs[i])
+               survival_curves = survival_curves.squeeze()
+               survival_curves = pd.DataFrame(survival_curves, columns=np.array(self.model.time_bins[i]))
+               event_survival_curves.append(survival_curves)
+            return event_survival_curves
+        
     def predict_survival_curves(self):
         self.model.eval()
         start_time = datetime.now()

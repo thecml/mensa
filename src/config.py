@@ -24,7 +24,7 @@ SYNTHETIC_SETTINGS = {
     'min_epoch': 50,
 }
 
-PARAMS_COX = {
+PARAMS_COX_MULTI = {
     'hidden_size': 32,
     'mu_scale': None,
     'rho_scale': -5,
@@ -34,11 +34,30 @@ PARAMS_COX = {
     'verbose': False,
     'lr': 0.005,
     'c1': 0.01,
-    'num_epochs': 10,
+    'num_epochs': 50,
     'dropout': 0.5,
     'n_samples_train': 10,
     'n_samples_test': 100,
     'batch_size': 32,
     'early_stop': True,
-    'patience': 50
+    'patience': 10
+}
+
+PARAMS_COX_MULTI_GAUSSIAN = {
+    'hidden_size': 32,
+    'mu_scale': None,
+    'rho_scale': -5,
+    'sigma1': 1,
+    'sigma2': 0.002,
+    'pi': 0.5,
+    'verbose': False,
+    'lr': 0.005,
+    'c1': 0.01,
+    'num_epochs': 50,
+    'dropout': 0.5,
+    'n_samples_train': 10,
+    'n_samples_test': 100,
+    'batch_size': 32,
+    'early_stop': True,
+    'patience': 10
 }

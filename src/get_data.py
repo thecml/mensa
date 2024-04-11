@@ -31,8 +31,8 @@ def make_synthetic(num_event):
         gamma_components.append(gamma_const[i] * np.ones((num_feat,)))
     gamma_components.append(gamma_const[-1] * np.ones((num_feat,)))
 
-    distr_noise = 0.4 
-    distr_noise2 = 0.4 
+    distr_noise = 0.8 #TODO: Check these
+    distr_noise2 = 0.1 
     
     time2_coeffs = np.array([0, 1, 1]) 
     event_times = [] 

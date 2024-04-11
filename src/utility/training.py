@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import config as cfg
 from torch.utils.data import DataLoader, TensorDataset
-from utility.survival import make_stratified_split, convert_to_structured, make_time_bins, make_event_times
+from utility.survival import make_stratified_split_multi, convert_to_structured, make_time_bins, make_event_times
 from sklearn.preprocessing import StandardScaler
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 from preprocessor import Preprocessor
@@ -12,7 +12,7 @@ import torch
 
 def split_and_scale_data(df, num_features, cat_features):
     # Split data in train/valid/test sets
-    df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='both', frac_train=0.7,
+    df_train, df_valid, df_test = make_stratified_split_multi(df, stratify_colname='both', frac_train=0.7,
                                                         frac_valid=0.1, frac_test=0.2, random_state=0)
     X_train = df_train[cat_features+num_features]
     X_valid = df_valid[cat_features+num_features]
