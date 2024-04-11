@@ -18,7 +18,7 @@ class MultiEventEvaluator():
         self.model.eval()
         start_time = datetime.now()
         with torch.no_grad():
-            pred = self.model.forward(self.x_test)
+            pred = self.model(self.x_test)
             end_time = datetime.now()
             inference_time = end_time - start_time
             if self.config.verbose:
