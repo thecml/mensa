@@ -7,9 +7,8 @@ import rpy2.robjects as robjects
 import scipy.integrate as integrate
 from sklearn.utils import shuffle
 from dataclasses import InitVar, dataclass, field
-from sklearn.utils import shuffle
 from skmultilearn.model_selection import iterative_train_test_split
-from sklearn.model_selection import train_test_split
+from typing import List, Tuple, Optional, Union
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -19,6 +18,108 @@ class dotdict(dict):
 
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
+
+def mtlr_survival(
+        logits: torch.Tensor,
+        with_sample: bool = True
+) -> torch.Tensor:
+    """Generates predicted survival curves from predicted logits.
+
+    Parameters
+    ----------
+    logits
+        Tensor with the time-logits (as returned by the MTLR module)
+        with size (n_samples, n_data, n_bins) or (n_data, n_bins).
+
+    Returns
+    -------
+    torch.Tensor
+        The predicted survival curves for each row in `pred` at timepoints used
+        during training.
+    """
+    # TODO: do not reallocate G in every call
+    if with_sample:
+        assert logits.dim() == 3, "The logits should have dimension with with size (n_samples, n_data, n_bins)"
+        G = torch.tril(torch.ones(logits.shape[2], logits.shape[2])).to(logits.device)
+        density = torch.softmax(logits, dim=2)
+        G_with_samples = G.expand(density.shape[0], -1, -1)
+
+        # b: n_samples; i: n_data; j: n_bin; k: n_bin
+        return torch.einsum('bij,bjk->bik', density, G_with_samples)
+    else:   # no sampling
+        assert logits.dim() == 2, "The logits should have dimension with with size (n_data, n_bins)"
+        G = torch.tril(torch.ones(logits.shape[1], logits.shape[1])).to(logits.device)
+        density = torch.softmax(logits, dim=1)
+        return torch.matmul(density, G)
+
+def cox_survival(
+        baseline_survival: torch.Tensor,
+        linear_predictor: torch.Tensor
+) -> torch.Tensor:
+    """
+    Calculate the individual survival distributions based on the baseline survival curves and the liner prediction values.
+    :param baseline_survival: (n_time_bins, )
+    :param linear_predictor: (n_samples, n_data)
+    :return:
+    The invidual survival distributions. shape = (n_samples, n_time_bins)
+    """
+    n_sample = linear_predictor.shape[0]
+    n_data = linear_predictor.shape[1]
+    risk_score = torch.exp(linear_predictor)
+    survival_curves = torch.empty((n_sample, n_data, baseline_survival.shape[0]), dtype=torch.float).to(linear_predictor.device)
+    for i in range(n_sample):
+        for j in range(n_data):
+            survival_curves[i, j, :] = torch.pow(baseline_survival, risk_score[i, j])
+    return survival_curves
+
+def calculate_baseline_hazard(
+        logits: torch.Tensor,
+        time: torch.Tensor,
+        event: torch.Tensor
+) -> (torch.Tensor, torch.Tensor, torch.Tensor):
+    """
+    Calculate the baseline cumulative hazard function and baseline survival function using Breslow estimator
+    :param logits: logit outputs calculated from the Cox-based network using training data.
+    :param time: Survival time of training data.
+    :param event: Survival indicator of training data.
+    :return:
+    uniq_times: time bins correspond of the baseline hazard/survival.
+    cum_baseline_hazard: cumulative baseline hazard
+    baseline_survival: baseline survival curve.
+    """
+    risk_score = torch.exp(logits)
+    order = torch.argsort(time)
+    risk_score = risk_score[order]
+    uniq_times, n_events, n_at_risk, _ = compute_unique_counts(event, time, order)
+
+    divisor = torch.empty(n_at_risk.shape, dtype=torch.float, device=n_at_risk.device)
+    value = torch.sum(risk_score)
+    divisor[0] = value
+    k = 0
+    for i in range(1, len(n_at_risk)):
+        d = n_at_risk[i - 1] - n_at_risk[i]
+        value -= risk_score[k:(k + d)].sum()
+        k += d
+        divisor[i] = value
+
+    assert k == n_at_risk[0] - n_at_risk[-1]
+
+    hazard = n_events / divisor
+    # Make sure the survival curve always starts at 1
+    if 0 not in uniq_times:
+        uniq_times = torch.cat([torch.tensor([0]).to(uniq_times.device), uniq_times], 0)
+        hazard = torch.cat([torch.tensor([0]).to(hazard.device), hazard], 0)
+    # TODO: torch.cumsum with cuda array will generate a non-monotonic array. Need to update when torch fix this bug
+    # See issue: https://github.com/pytorch/pytorch/issues/21780
+    cum_baseline_hazard = torch.cumsum(hazard.cpu(), dim=0).to(hazard.device)
+    baseline_survival = torch.exp(- cum_baseline_hazard)
+    if baseline_survival.isinf().any():
+        print(f"Baseline survival contains \'inf\', need attention. \n"
+              f"Baseline survival distribution: {baseline_survival}")
+        last_zero = torch.where(baseline_survival == 0)[0][-1].item()
+        baseline_survival[last_zero + 1:] = 0
+    baseline_survival = make_monotonic(baseline_survival)
+    return uniq_times, cum_baseline_hazard, baseline_survival
 
 def split_time_event(y):
     y_t = np.array(y['time'])
@@ -89,6 +190,7 @@ def multilabel_train_test_split(X, y, test_size, random_state=None):
 def make_stratified_split(
         df: pd.DataFrame,
         stratify_colname: str = 'event',
+        split_event: str = 'y1',
         frac_train: float = 0.5,
         frac_valid: float = 0.0,
         frac_test: float = 0.5,
@@ -110,10 +212,10 @@ def make_stratified_split(
         bins = np.linspace(start=stra_lab.min(), stop=stra_lab.max(), num=20)
         stra_lab = np.digitize(stra_lab, bins, right=True)
     elif stratify_colname == "both":
-        t = df["time"]
+        t = df[f"{split_event}_time"]
         bins = np.linspace(start=t.min(), stop=t.max(), num=20)
         t = np.digitize(t, bins, right=True)
-        e = df["event"]
+        e = df[f"{split_event}_event"]
         stra_lab = np.stack([t, e], axis=1)
     else:
         raise ValueError("unrecognized stratify policy")

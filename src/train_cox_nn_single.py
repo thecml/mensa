@@ -6,9 +6,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 from sksurv.metrics import concordance_index_censored
-from utility.training import scale_data
-from evaluator import LifelinesEvaluator
-from models import CoxPH, train_model, make_cox_prediction
+from utility.evaluator import LifelinesEvaluator
+from trainer import CoxPH, train_model, make_cox_prediction
 from preprocessor import Preprocessor
 from utility.training import split_and_scale_data
 from torch.utils.data import DataLoader, TensorDataset
@@ -16,7 +15,7 @@ import torch
 import random
 import warnings
 from get_data import make_synthetic
-from preprocess import split_data
+from preprocess import split_data, scale_data
 from scipy.stats import entropy
 
 class dotdict(dict):
@@ -34,23 +33,6 @@ random.seed(0)
 # Setup device
 device = "cpu" # use CPU
 device = torch.device(device)
-
-def scale_data(X, norm_mode):
-    num_Patient, num_Feature = np.shape(X)
-
-    if norm_mode == 'standard': #zero mean unit variance
-        for j in range(num_Feature):
-            if np.std(X[:,j]) != 0:
-                X[:,j] = (X[:,j] - np.mean(X[:, j]))/np.std(X[:,j])
-            else:
-                X[:,j] = (X[:,j] - np.mean(X[:, j]))
-    elif norm_mode == 'normal': #min-max normalization
-        for j in range(num_Feature):
-            X[:,j] = (X[:,j] - np.min(X[:,j]))/(np.max(X[:,j]) - np.min(X[:,j]))
-    else:
-        print("INPUT MODE ERROR!")
-    
-    return X
 
 if __name__ == "__main__":
     params = cfg.SYNTHETIC_SETTINGS

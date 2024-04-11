@@ -34,11 +34,11 @@ PARAMS_COX = {
     'verbose': False,
     'lr': 0.005,
     'c1': 0.01,
-    'num_epochs': 100,
+    'num_epochs': 10,
     'dropout': 0.5,
     'n_samples_train': 10,
     'n_samples_test': 100,
     'batch_size': 32,
-    'early_stop': False,
+    'early_stop': True,
     'patience': 50
 }

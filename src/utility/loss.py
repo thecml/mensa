@@ -146,3 +146,53 @@ def cox_nll(
             neg_log_loss += C1/2 * torch.norm(v, p=2)
 
     return neg_log_loss
+
+def cox_nll2(
+        risk_pred: torch.Tensor,
+        true_times: torch.Tensor,
+        true_indicator: torch.Tensor,
+        model: torch.nn.Module,
+        C1: float
+) -> torch.Tensor:
+    """Computes the negative log-likelihood of a batch of model predictions.
+
+    Parameters
+    ----------
+    risk_pred : torch.Tensor, shape (num_samples, )
+        Risk prediction from Cox-based model. It means the relative hazard ratio: \beta * x.
+    true_times : torch.Tensor, shape (num_samples, )
+        Tensor with the censor/event time.
+    true_indicator : torch.Tensor, shape (num_samples, )
+        Tensor with the censor indicator.
+    model
+        PyTorch Module with at least `MTLR` layer.
+    C1
+        The L2 regularization strength.
+
+    Returns
+    -------
+    torch.Tensor
+        The negative log likelihood.
+    """
+    eps = 1e-20
+    risk_pred = risk_pred.reshape(-1, 1)
+    true_times = true_times.reshape(-1, 1)
+    true_indicator = true_indicator.reshape(-1, 1)
+    mask = torch.ones(true_times.shape[0], true_times.shape[0]).to(true_times.device)
+    mask[(true_times.T - true_times) > 0] = 0
+    max_risk = risk_pred.max()
+    log_loss = torch.exp(risk_pred - max_risk) * mask
+    log_loss = torch.sum(log_loss, dim=0)
+    log_loss = torch.log(log_loss + eps).reshape(-1, 1) + max_risk
+    # Sometimes in the batch we got all censoring data, so the denominator gets 0 and throw nan.
+    # Solution: Consider increase the batch size. Afterall the nll should performed on the whole dataset.
+    # Based on equation 2&3 in https://arxiv.org/pdf/1606.00931.pdf
+    return risk_pred, log_loss, true_indicator
+    #neg_log_loss = -torch.sum((risk_pred - log_loss) * true_indicator) / torch.sum(true_indicator)
+
+    # L2 regularization
+    for k, v in model.named_parameters():
+        if "weight" in k:
+            neg_log_loss += C1/2 * torch.norm(v, p=2)
+
+    return neg_log_loss

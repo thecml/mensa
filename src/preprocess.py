@@ -2,6 +2,25 @@ import numpy as np
 from sklearn.model_selection import StratifiedShuffleSplit
 
 import get_data
+'''
+Scale data
+'''
+def scale_data(X, norm_mode):
+    num_Patient, num_Feature = np.shape(X)
+
+    if norm_mode == 'standard': #zero mean unit variance
+        for j in range(num_Feature):
+            if np.std(X[:,j]) != 0:
+                X[:,j] = (X[:,j] - np.mean(X[:, j]))/np.std(X[:,j])
+            else:
+                X[:,j] = (X[:,j] - np.mean(X[:, j]))
+    elif norm_mode == 'normal': #min-max normalization
+        for j in range(num_Feature):
+            X[:,j] = (X[:,j] - np.min(X[:,j]))/(np.max(X[:,j]) - np.min(X[:,j]))
+    else:
+        raise ValueError("Select norm mode")
+    
+    return X
 
 '''
 Reformat labels so that each label corresponds to a trajectory (e.g., event1 then event2, event1 only, event2 then event1)
