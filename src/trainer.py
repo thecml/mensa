@@ -24,7 +24,7 @@ def criterion(outputs, targets, log_vars, model, config):
   loss = 0
   for i in range(len(outputs)):
     precision = torch.exp(-log_vars[i])
-    cox_loss = cox_nll(outputs[i], targets[i][:,0], targets[i][:,1], model, C1=config.c1)
+    cox_loss = cox_nll(outputs[i], 1, 0, targets[i][:,0], targets[i][:,1], model, C1=config.c1)
     loss += precision * cox_loss + log_vars[i]
   return torch.mean(loss)
 
@@ -40,12 +40,12 @@ def criterion_gaussian(outputs, targets, log_vars, model, config):
 
 def criterion_gaussian(outputs, targets, log_vars, model, config):
     precision1 = torch.exp(-log_vars[0])
-    cox_loss1 = cox_nll(outputs[0], targets[0][:,0], targets[0][:,1], model, C1=config.c1)
+    cox_loss1 = cox_nll(outputs[0], precision1, log_vars[0], targets[0][:,0], targets[0][:,1], model, C1=config.c1)
     
     precision2 = torch.exp(-log_vars[1])
-    cox_loss2 = cox_nll(outputs[1], targets[1][:,0], targets[1][:,1], model, C1=config.c1)
+    cox_loss2 = cox_nll(outputs[1], precision2, log_vars[1], targets[1][:,0], targets[1][:,1], model, C1=config.c1)
     
-    loss = precision1 * cox_loss1 + precision2 * cox_loss2 #+ torch.log(log_var1*log_var2)
+    loss = cox_loss1 + cox_loss2
     
     return loss
 
@@ -305,13 +305,13 @@ def train_model(
             xi, ti, ei = xi.to(device), ti.to(device), ei.to(device)
             optimizer.zero_grad()
             y_pred = model.forward(xi)
-            nll_loss = cox_nll(y_pred, ti, ei, model, C1=config.c1)
+            nll_loss = cox_nll(y_pred, 1, 0, ti, ei, model, C1=config.c1)
 
             nll_loss.backward()
             optimizer.step()
             # here should have only one iteration
         logits_outputs = model.forward(x_val)
-        eval_nll = cox_nll(logits_outputs, t_val, e_val, model, C1=0)
+        eval_nll = cox_nll(logits_outputs, 1, 0, t_val, e_val, model, C1=0)
         pbar.set_description(f"[epoch {i + 1: 4}/{config.num_epochs}]")
         pbar.set_postfix_str(f"nll-loss = {nll_loss.item():.4f}; "
                                 f"Validation nll = {eval_nll.item():.4f};")

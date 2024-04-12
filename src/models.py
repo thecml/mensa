@@ -26,18 +26,26 @@ class CoxPH(nn.Module):
         self.time_bins = None
         self.cum_baseline_hazard = None
         self.baseline_survival = None
-        self.l1 = nn.Linear(self.in_features, 1)
+        n_hidden=100
+        
+        # Shared parameters
+        self.shared_layer = nn.Sequential(
+            nn.Linear(in_features, n_hidden),
+            nn.ReLU(),
+        )
+        self.fc1 = nn.Linear(n_hidden, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        outputs = self.l1(x)
-        return outputs
+        # Shared embedding
+        shared = self.shared_layer(x)
+        return self.fc1(shared)
 
     def calculate_baseline_survival(self, x, t, e):
         outputs = self.forward(x)
         self.time_bins, self.cum_baseline_hazard, self.baseline_survival = calculate_baseline_hazard(outputs, t, e)
 
     def reset_parameters(self):
-        self.l1.reset_parameters()
+        #self.l1.reset_parameters()
         return self
 
     def __repr__(self):

@@ -34,6 +34,7 @@ class MultiEventEvaluator():
             for i in range(n_events):
                survival_curves = cox_survival(self.model.baseline_survivals[i], outputs[i])
                survival_curves = survival_curves.squeeze()
+               survival_curves[:,0] = 1
                survival_curves = pd.DataFrame(survival_curves, columns=np.array(self.model.time_bins[i]))
                event_survival_curves.append(survival_curves)
             return event_survival_curves
@@ -52,6 +53,7 @@ class MultiEventEvaluator():
             for i in range(n_events):
                survival_curves = cox_survival(self.model.baseline_survivals[i], pred[i])
                survival_curves = survival_curves.squeeze()
+               survival_curves[:,0] = 1
                survival_curves = pd.DataFrame(survival_curves, columns=np.array(self.model.time_bins[i]))
                event_survival_curves.append(survival_curves)
             return event_survival_curves

@@ -100,6 +100,8 @@ def argmax_approx(
 
 def cox_nll(
         risk_pred: torch.Tensor,
+        precision: torch.Tensor,
+        log_var: torch.Tensor,
         true_times: torch.Tensor,
         true_indicator: torch.Tensor,
         model: torch.nn.Module,
@@ -138,7 +140,7 @@ def cox_nll(
     # Sometimes in the batch we got all censoring data, so the denominator gets 0 and throw nan.
     # Solution: Consider increase the batch size. Afterall the nll should performed on the whole dataset.
     # Based on equation 2&3 in https://arxiv.org/pdf/1606.00931.pdf
-    neg_log_loss = -torch.sum((risk_pred - log_loss) * true_indicator) / torch.sum(true_indicator)
+    neg_log_loss = -torch.sum(precision * (risk_pred - log_loss) * true_indicator) / torch.sum(true_indicator) + log_var
 
     # L2 regularization
     for k, v in model.named_parameters():

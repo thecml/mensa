@@ -1,23 +1,13 @@
 import pandas as pd
 import numpy as np
 import config as cfg
-from utility.survival import make_stratified_split_multi, convert_to_structured, make_time_bins, make_event_times
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sksurv.linear_model import CoxPHSurvivalAnalysis
-from sksurv.metrics import concordance_index_censored
+from utility.survival import make_time_bins
 from utility.evaluator import LifelinesEvaluator
-from inference import make_cox_prediction
-from trainer import train_model
-from models import CoxPH
-from preprocessor import Preprocessor
-from utility.training import split_and_scale_data
-from torch.utils.data import DataLoader, TensorDataset
+from data_loader import SyntheticDataLoader
 import torch
 import random
 import warnings
-from scipy.stats import entropy
-from data_loader import SyntheticDataLoader
+from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from utility.survival import scale_data
 
 class dotdict(dict):
@@ -68,15 +58,17 @@ if __name__ == "__main__":
         data_test["event"] = pd.Series(test_data[2].flatten()).astype(int)
 
         # Train model
-        config = dotdict(cfg.PARAMS_COX)
-        n_features = data_train.shape[1] - 2
-        model = CoxPH(in_features=n_features, config=config)
-        model = train_model(model, data_train, time_bins, config=config,
-                            random_state=0, reset_model=True, device=device)
-
+        config = dotdict(cfg.PARAMS_MTLR)
+        num_features = data_train.shape[1] - 2
+        num_time_bins = len(time_bins)
+        model = mtlr(in_features=num_features, num_time_bins=num_time_bins, config=config)
+        model = train_mtlr_model(model, data_train, data_valid, time_bins,
+                                 config, random_state=0, reset_model=True, device=device)
+        
         # Evaluate
         x_test = torch.tensor(data_test.drop(["time", "event"], axis=1).values, dtype=torch.float, device=device)
-        survival_outputs, time_bins, ensemble_outputs = make_cox_prediction(model, x_test, config=config)
+        survival_outputs, _, _ = make_mtlr_prediction(model, x_test, time_bins, config)
+        time_bins = torch.cat([torch.tensor([0]).to(time_bins.device), time_bins], 0)
         survival_outputs = pd.DataFrame(survival_outputs, columns=np.array(time_bins))
         lifelines_eval = LifelinesEvaluator(survival_outputs.T, test_data[1].flatten(), test_data[2].flatten(),
                                             train_data[1].flatten(), train_data[2].flatten())

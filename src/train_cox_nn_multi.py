@@ -1,29 +1,15 @@
 import pandas as pd
 import numpy as np
 import config as cfg
-from utility.survival import convert_to_structured, make_time_bins
-from utility.survival import make_event_times, calculate_baseline_hazard
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sksurv.linear_model import CoxPHSurvivalAnalysis
-from sksurv.metrics import concordance_index_censored
-from utility.training import scale_data
-from utility.evaluator import LifelinesEvaluator
+from utility.survival import make_time_bins
 from trainer import train_multi_model
-from preprocessor import Preprocessor
-from utility.training import split_and_scale_data
-from torch.utils.data import DataLoader, TensorDataset
-from pycox.evaluation import EvalSurv
 import torch
 import random
 import warnings
-from get_data import make_synthetic
-from preprocess import split_data, scale_data
-from scipy.stats import entropy
 from models import MultiEventCoxPH
-from inference import make_cox_prediction_multi
 from multi_evaluator import MultiEventEvaluator
-import math
+from data_loader import SyntheticDataLoader
+from utility.survival import scale_data
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -42,33 +28,23 @@ device = "cpu" # use CPU
 device = torch.device(device)
 
 if __name__ == "__main__":
-    params = cfg.SYNTHETIC_SETTINGS
-    n_events = params['num_events']
-    raw_data, event_times, labels = make_synthetic(n_events)
+    # Load data
+    dl = SyntheticDataLoader().load_data()
+    num_features, cat_features = dl.get_features()
+    data_packages = dl.split_data()
+    n_events = 2
     
-    if params['discrete'] == False:
-        min_time = np.min(event_times[event_times != -1]) 
-        max_time = np.max(event_times[event_times != -1]) 
-        time_range = max_time - min_time
-        bin_size = time_range / params['num_bins']
-        
-        binned_event_time = np.floor((event_times - min_time) / bin_size)
-        binned_event_time[binned_event_time == params['num_bins']] = params['num_bins'] - 1
-    dataset = [raw_data, binned_event_time, labels, min_time, max_time]
-    
-    data_packages = split_data(dataset[0], dataset[1], dataset[2])
-    
-    train_data = data_packages[0]
-    test_data = data_packages[1]
-    valid_data = data_packages[2]
+    train_data = [data_packages[0][0], data_packages[0][1], data_packages[0][2]]
+    test_data = [data_packages[1][0], data_packages[1][1], data_packages[1][2]]
+    valid_data = [data_packages[2][0], data_packages[2][1], data_packages[2][2]]
 
     # Make event times
-    time_bins = make_time_bins(train_data[1][:,0], event=train_data[2][:,0])
+    time_bins = make_time_bins(train_data[1], event=train_data[2])
 
     # Scale data
-    train_data[0] = scale_data(train_data[0], norm_mode='standard')
-    valid_data[0] = scale_data(valid_data[0], norm_mode='standard')
-    test_data[0] = scale_data(test_data[0], norm_mode='standard')
+    train_data[0] = scale_data(train_data[0].values, norm_mode='standard')
+    test_data[0] = scale_data(test_data[0].values, norm_mode='standard')
+    valid_data[0] = scale_data(valid_data[0].values, norm_mode='standard')
     
     # Train model
     config = dotdict(cfg.PARAMS_COX_MULTI)

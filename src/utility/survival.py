@@ -19,6 +19,40 @@ class dotdict(dict):
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
 
+'''
+Scale data  
+'''
+def scale_data(X, norm_mode):
+    num_Patient, num_Feature = np.shape(X)
+
+    if norm_mode == 'standard': #zero mean unit variance
+        for j in range(num_Feature):
+            if np.std(X[:,j]) != 0:
+                X[:,j] = (X[:,j] - np.mean(X[:, j]))/np.std(X[:,j])
+            else:
+                X[:,j] = (X[:,j] - np.mean(X[:, j]))
+    elif norm_mode == 'normal': #min-max normalization
+        for j in range(num_Feature):
+            X[:,j] = (X[:,j] - np.min(X[:,j]))/(np.max(X[:,j]) - np.min(X[:,j]))
+    else:
+        raise ValueError("Select norm mode")
+    
+    return X
+
+'''
+Reformat labels so that each label corresponds to a trajectory (e.g., event1 then event2, event1 only, event2 then event1)
+'''
+def get_trajectory_labels(labs):
+    unique_labs = np.unique(labs, axis=0)
+    new_labs = np.zeros((labs.shape[0],))
+    
+    for i in range(labs.shape[0]):
+        for j in range(unique_labs.shape[0]):
+            if np.all(unique_labs[j, :] == labs[i, :]):
+                new_labs[i] = j
+    
+    return new_labs
+
 def mtlr_survival(
         logits: torch.Tensor,
         with_sample: bool = True
@@ -332,8 +366,8 @@ def reformat_survival(
         time_bins: NumericArrayLike
 ) -> (torch.Tensor, torch.Tensor):
     '''Courtesy of https://github.com/shi-ang/BNN-ISD/tree/main'''
-    x = torch.tensor(dataset.drop(["Survival_time", "Event"], axis=1).values, dtype=torch.float)
-    y = encode_survival(dataset["Survival_time"].values, dataset["Event"].values, time_bins)
+    x = torch.tensor(dataset.drop(["time", "event"], axis=1).values, dtype=torch.float)
+    y = encode_survival(dataset["time"].values, dataset["event"].values, time_bins)
     return x, y
 
 def coverage(time_bins, upper, lower, true_times, true_indicator) -> float:
