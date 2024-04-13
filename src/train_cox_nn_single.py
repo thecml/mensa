@@ -17,7 +17,7 @@ import torch
 import random
 import warnings
 from scipy.stats import entropy
-from data_loader import SyntheticDataLoader
+from data_loader import SyntheticDataLoader, ALSDataLoader
 from utility.survival import scale_data
 
 class dotdict(dict):

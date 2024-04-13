@@ -107,10 +107,25 @@ class SyntheticDataLoader(BaseDataLoader):
             bin_size = time_range / params['num_bins']
             binned_event_time = np.floor((event_times - min_time) / bin_size)
             binned_event_time[binned_event_time == params['num_bins']] = params['num_bins'] - 1 
-        n_events = params['num_events']
         self.X = pd.DataFrame(raw_data)
         self.y_t = binned_event_time
         self.y_e = labs
+        return self
+
+class ALSDataLoader(BaseDataLoader):
+    """
+    Data loader for ALS dataset
+    """
+    def load_data(self):
+        df = pd.read_csv(f'{cfg.DATA_DIR}/als.csv')
+        columns_to_drop = [col for col in df.columns if
+                           any(substring in col for substring in ['Observed', 'Event'])]
+        events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
+        self.X = df.drop(columns=columns_to_drop)
+        times = [df[f'{event_col}_Observed'].values for event_col in events]
+        events = [df[f'{event_col}_Event'].values for event_col in events]
+        self.y_t = np.stack((times[0], times[1], times[2], times[3]), axis=1)
+        self.y_e = np.stack((events[0], events[1], events[2], events[3]), axis=1)
         return self
 
 class MimicDataLoader(BaseDataLoader):
@@ -127,9 +142,3 @@ class SeerDataLoader(BaseDataLoader):
     def load_data(self):
         pass
     
-class ALSDataLoader(BaseDataLoader):
-    """
-    Data loader for ALS dataset
-    """
-    def load_data(self):
-        pass

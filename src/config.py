@@ -1,3 +1,13 @@
+from pathlib import Path
+import numpy as np
+
+# Directories
+ROOT_DIR = Path(__file__).absolute().parent.parent
+DATA_DIR = Path.joinpath(ROOT_DIR, "data")
+MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
+CONFIGS_DIR = Path.joinpath(ROOT_DIR, 'configs')
+RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
+
 '''
 Record of all settings for datasets
 Definitions:
@@ -11,7 +21,6 @@ Definitions:
     max_time: latest event time (prediction horizon)
     min_epoch: minimum number of epochs to train for (while learning the model)
 '''
-
 SYNTHETIC_SETTINGS = {
     'num_events': 2,
     'num_bins': 20,

@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Raw ALS Data
+/data/PROACT_*
+
 # Distribution / packaging
 .Python
 build/
