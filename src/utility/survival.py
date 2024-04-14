@@ -19,6 +19,16 @@ class dotdict(dict):
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
 
+def convert_to_comp_risk(data):
+    times = np.min(data[1], axis=1)
+    events = list()
+    for x_val, time in zip(data[2], times):
+        if not np.any(x):
+            events.append(0)
+        else:
+            events.append(np.argmax(x)+1)
+    return (data[0], times, events)
+
 '''
 Scale data  
 '''
