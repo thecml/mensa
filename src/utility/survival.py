@@ -20,9 +20,10 @@ Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
 
 def convert_to_comp_risk(data):
+    #TODO: Implement this properly...
     times = np.min(data[1], axis=1)
     events = list()
-    for x_val, time in zip(data[2], times):
+    for x in data[2]:
         if not np.any(x):
             events.append(0)
         else:

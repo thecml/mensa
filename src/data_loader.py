@@ -24,6 +24,8 @@ class BaseDataLoader(ABC):
         self.y_e: List[np.ndarray] = None
         self.num_features: List[str] = None
         self.cat_features: List[str] = None
+        self.min_time = None
+        self.max_time = None
 
     @abstractmethod
     def load_data(self) -> None:
@@ -110,6 +112,8 @@ class SyntheticDataLoader(BaseDataLoader):
         self.X = pd.DataFrame(raw_data)
         self.y_t = binned_event_time
         self.y_e = labs
+        self.min_time = min_time
+        self.max_time = max_time
         return self
 
 class ALSDataLoader(BaseDataLoader):
