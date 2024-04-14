@@ -2,20 +2,15 @@ import pandas as pd
 import numpy as np
 import config as cfg
 from utility.survival import make_time_bins
-from trainer import train_multi_model
+from trainer import train_multi_model_gaussian
 import torch
 import random
 import warnings
-from models import MultiEventCoxPH
+from models import MultiEventCoxPHGaussian
 from multi_evaluator import MultiEventEvaluator
 from data_loader import SyntheticDataLoader
 from utility.survival import scale_data
-
-class dotdict(dict):
-    """dot.notation access to dictionary attributes"""
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
+from utility.data import dotdict
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -47,9 +42,9 @@ if __name__ == "__main__":
     valid_data[0] = scale_data(valid_data[0].values, norm_mode='standard')
     
     # Train model
-    config = dotdict(cfg.PARAMS_COX_MULTI)
+    config = dotdict(cfg.PARAMS_COX_MULTI_GAUSSIAN)
     n_features = train_data[0].shape[1]
-    model = MultiEventCoxPH(in_features=n_features)
+    model = MultiEventCoxPHGaussian(in_features=n_features, config=config)
     data_train = pd.DataFrame(train_data[0])
     data_train["y1_time"] = pd.Series(train_data[1][:,0])
     data_train["y2_time"] = pd.Series(train_data[1][:,1])
@@ -66,12 +61,19 @@ if __name__ == "__main__":
     data_test["y1_event"] = pd.Series(test_data[2][:,0])
     data_test["y2_event"] = pd.Series(test_data[2][:,1])
     
-    model, log_vars = train_multi_model(model, data_train, data_valid, time_bins, config=config,
-                                        random_state=0, reset_model=True, device=device)
+    model = train_multi_model_gaussian(model, data_train, data_valid, time_bins, config=config,
+                                       random_state=0, reset_model=True, device=device)
 
+    #print(log_vars)
+    #print([math.exp(log_var) ** 0.5 for log_var in log_vars])
+    
+    #std_1 = torch.exp(model.log_vars[0])**0.5
+    #std_2 = torch.exp(model.log_vars[1])**0.5
+    #rint([std_1.item(), std_2.item()])
+    
     # Evaluate event prediction
     evaluator = MultiEventEvaluator(data_test, data_train, model, config, device)
-    surv_preds = evaluator.predict_survival_curves()
+    surv_preds = evaluator.predict_survival_curves_gaussian()
     for event_id in range(n_events):
         ci = evaluator.calculate_ci(surv_preds[event_id], event_id)
         mae = evaluator.calculate_mae(surv_preds[event_id], event_id, method="Hinge")

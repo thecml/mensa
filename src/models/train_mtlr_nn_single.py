@@ -9,12 +9,7 @@ import random
 import warnings
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from utility.survival import scale_data
-
-class dotdict(dict):
-    """dot.notation access to dictionary attributes"""
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
+from utility.data import dotdict
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 

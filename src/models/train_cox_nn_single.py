@@ -19,12 +19,8 @@ import warnings
 from scipy.stats import entropy
 from data_loader import SyntheticDataLoader, ALSDataLoader
 from utility.survival import scale_data
-
-class dotdict(dict):
-    """dot.notation access to dictionary attributes"""
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
+from utility.data import dotdict
+from data_loader import get_data_loader
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -36,9 +32,11 @@ random.seed(0)
 device = "cpu" # use CPU
 device = torch.device(device)
 
+dataset_name = "rotterdam"
+
 if __name__ == "__main__":
     # Load data
-    dl = SyntheticDataLoader().load_data()
+    dl = get_data_loader(dataset_name).load_data()
     num_features, cat_features = dl.get_features()
     data_packages = dl.split_data()
     

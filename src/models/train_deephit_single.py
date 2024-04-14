@@ -12,6 +12,7 @@ from utility.survival import scale_data
 import pycox
 import torchtuples as tt
 from pycox.models import DeepHitSingle
+from utility.data import dotdict
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -24,6 +25,9 @@ device = "cpu" # use CPU
 device = torch.device(device)
 
 if __name__ == "__main__":
+    # Load config
+    config = dotdict(cfg.PARAMS_DEEPHIT_SINGLE)
+    
     # Load data
     dl = SyntheticDataLoader().load_data()
     num_features, cat_features = dl.get_features()
@@ -45,7 +49,7 @@ if __name__ == "__main__":
         val_data[0] = val_data[0].astype('float32')
         test_data[0] = test_data[0].astype('float32')
         
-        num_durations = 10
+        num_durations = config['num_durations']
         labtrans = DeepHitSingle.label_transform(num_durations)
         get_target = lambda df: (df[1], df[2])
         y_train = labtrans.fit_transform(*get_target(train_data))
@@ -59,19 +63,23 @@ if __name__ == "__main__":
         
         # Make model
         in_features = train_data[0].shape[1]
-        num_nodes = [32, 32]
+        num_nodes = config['num_nodes']
         out_features = labtrans.out_features
-        batch_norm = True
-        verbose = False
-        dropout = 0.1
+        batch_norm = config['batch_norm']
+        verbose = config['verbose']
+        dropout = config['dropout']
         net = tt.practical.MLPVanilla(in_features, num_nodes, out_features, batch_norm, dropout)
         
         # Train
-        model = DeepHitSingle(net, tt.optim.Adam, alpha=0.2, sigma=0.1, duration_index=labtrans.cuts)
-        batch_size = 32
-        model.optimizer.set_lr(0.01)
-        epochs = 100
-        callbacks = [tt.callbacks.EarlyStopping()]
+        model = DeepHitSingle(net, tt.optim.Adam, alpha=config['alpha'],
+                              sigma=config['sigma'], duration_index=labtrans.cuts)
+        batch_size = config['batch_size']
+        model.optimizer.set_lr(config['hr'])
+        epochs = config['epochs']
+        if config['early_stop']:
+            callbacks = [tt.callbacks.EarlyStopping(patience=config['patience'])]
+        else:
+            callbacks = []
         model.fit(train_data[0], y_train, batch_size, epochs, callbacks, verbose=verbose, val_data=val)
         
         # Predict

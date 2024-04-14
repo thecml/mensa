@@ -16,6 +16,7 @@ from pycox.models import DeepHitSingle
 from pycox.preprocessing.label_transforms import LabTransDiscreteTime
 from pycox.models import DeepHit
 from utility.survival import convert_to_comp_risk
+from utility.data import dotdict
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -28,6 +29,9 @@ device = "cpu" # use CPU
 device = torch.device(device)
 
 if __name__ == "__main__":
+    # Load config
+    config = dotdict(cfg.PARAMS_DEEPHIT_MULTI)
+    
     # Load data
     url = 'https://raw.githubusercontent.com/chl8856/DeepHit/master/sample%20data/SYNTHETIC/synthetic_comprisk.csv'
     df_train = pd.read_csv(url)
@@ -50,7 +54,7 @@ if __name__ == "__main__":
             events[is_event == 0] = 0
             return durations, events.astype('int64')
     
-    num_durations = 10
+    num_durations = config['num_durations']
     labtrans = LabTransform(num_durations)
     get_target = lambda df: (df['time'].values, df['label'].values)
     
@@ -60,31 +64,30 @@ if __name__ == "__main__":
     durations_test, events_test = get_target(df_test)
     val = (x_val, y_val)
     
-    print(y_train[0][:6])
-    print(y_train[1][:6])
-    print(labtrans.cuts)
-    
     # Make net
     in_features = x_train.shape[1]
-    num_nodes_shared = [64, 64]
-    num_nodes_indiv = [32]
+    num_nodes_shared = config['num_nodes_shared']
+    num_nodes_indiv = config['num_nodes_indiv']
     num_risks = y_train[1].max()
     out_features = len(labtrans.cuts)
-    batch_norm = True
-    dropout = 0.1
+    batch_norm = config['batch_norm']
+    dropout = config['dropout']
     net = CauseSpecificNet(in_features, num_nodes_shared, num_nodes_indiv, num_risks,
                            out_features, batch_norm, dropout)
         
     # Train net
-    optimizer = tt.optim.AdamWR(lr=0.01, decoupled_weight_decay=0.01,
-                                cycle_eta_multiplier=0.8)
-    model = DeepHit(net, optimizer, alpha=0.2, sigma=0.1,
+    optimizer = tt.optim.AdamWR(lr=config['lr'],
+                                decoupled_weight_decay=config['weight_decay'],
+                                cycle_eta_multiplier=config['eta_multiplier'])
+    model = DeepHit(net, optimizer, alpha=config['alpha'], sigma=config['sigma'],
                     duration_index=labtrans.cuts)
-    epochs = 10
-    batch_size = 32
-    callbacks = [tt.callbacks.EarlyStoppingCycle()]
-    verbose = True
-    
+    epochs = config['epochs']
+    batch_size = config['batch_size']
+    verbose = config['verbose']
+    if config['early_stop']:
+        callbacks = [tt.callbacks.EarlyStopping(patience=config['patience'])]
+    else:
+        callbacks = []
     model.fit(x_train, y_train, batch_size, epochs, callbacks, verbose, val_data=val)
     
     # Predict

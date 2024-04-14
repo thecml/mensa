@@ -6,8 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
-# Raw ALS Data
+# Data
+/data/rotterdam.csv
+/data/seer_processed.csv
 /data/PROACT_*
+/data/als.csv
 
 # Distribution / packaging
 .Python

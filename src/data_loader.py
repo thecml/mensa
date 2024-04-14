@@ -100,7 +100,7 @@ class SyntheticDataLoader(BaseDataLoader):
     Data loader for synthetic data
     """
     def load_data(self):
-        params = cfg.SYNTHETIC_SETTINGS
+        params = cfg.SYNTHETIC_DATA_SETTINGS
         raw_data, event_times, labs = make_synthetic(params['num_events'])
         if params['discrete'] == False:
             min_time = np.min(event_times[event_times != -1]) 
@@ -144,5 +144,37 @@ class SeerDataLoader(BaseDataLoader):
     Data loader for SEER dataset
     """
     def load_data(self):
-        pass
+        df = pd.read_csv(f'{cfg.DATA_DIR}/seer_processed.csv')
+        self.X = df.drop(['duration', 'event_heart', 'event_breast'], axis=1)
+        events = ['heart', 'breast']
+        events = [df[f'event_{event_col}'].values for event_col in events]
+        self.y_t = df[f'duration'].values
+        self.y_e = np.stack((events[0], events[1]), axis=1)
+        return self
+
+class RotterdamDataLoader(BaseDataLoader):
+    """
+    Data loader for Rotterdam dataset
+    """
+    def load_data(self):
+        df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
+        self.X = df.drop(['rtime', 'recur', 'dtime', 'death'], axis=1)
+        times = [df['recur'].values, df['death'].values]
+        events = [df['rtime'].values, df['dtime'].values]
+        self.y_t = np.stack((times[0], times[1]), axis=1)
+        self.y_e = np.stack((events[0], events[1]), axis=1)
+        return self
     
+def get_data_loader(dataset_name:str) -> BaseDataLoader:
+    if dataset_name == "seer":
+        return SeerDataLoader()
+    elif dataset_name == "als":
+        return ALSDataLoader()
+    elif dataset_name == "mimic":
+        return MimicDataLoader()
+    elif dataset_name == "rotterdam":
+        return RotterdamDataLoader()
+    elif dataset_name == "synthetic":
+        return SyntheticDataLoader()
+    else:
+        raise ValueError("Data loader not found")

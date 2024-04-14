@@ -6,6 +6,12 @@ import torch.nn as nn
 import copy
 from torch.utils.data import Dataset, DataLoader
 
+class dotdict(dict):
+    """dot.notation access to dictionary attributes"""
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
 class MultiEventDataset(Dataset):
     def __init__(self, feature_num, X, Y_T, Y_E):
         self.feature_num = feature_num

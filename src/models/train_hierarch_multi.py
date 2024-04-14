@@ -13,12 +13,9 @@ from utility.survival import scale_data
 from hierarchical.data_settings import all_settings
 from hierarchical.hyperparams import all_hyperparams
 from hierarchical import util
-
-class dotdict(dict):
-    """dot.notation access to dictionary attributes"""
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
+from utility.data import dotdict
+import config as cfg
+from utility.hierarch import format_hyperparams
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -49,11 +46,16 @@ if __name__ == "__main__":
     test_data[0] = scale_data(test_data[0].values, norm_mode='standard')
     valid_data[0] = scale_data(valid_data[0].values, norm_mode='standard')
     
-    data_settings = all_settings[dataset_name]
+    data_settings = cfg.SYNTHETIC_DATA_SETTINGS # if Synthetic
     data_settings['min_time'], data_settings['max_time'] = dl.min_time, dl.max_time
     
-    hyperparams = all_hyperparams[dataset_name][approach]
-    verbose = True
-    mod = util.get_model_and_output(approach, train_data, test_data, valid_data, data_settings, hyperparams, verbose)
+    if 'direct_full':
+        params = cfg.PARAMS_DIRECT_FULL
+    else:
+        params = cfg.PARAMS_HIERARCH_FULL
+    hyperparams = format_hyperparams(params)
+    verbose = params['verbose']
+    mod = util.get_model_and_output(approach, train_data, test_data, valid_data,
+                                    data_settings, hyperparams, verbose)
     
     print(dataset_name + ',', approach, hyperparams)
