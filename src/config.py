@@ -8,9 +8,12 @@ MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
 CONFIGS_DIR = Path.joinpath(ROOT_DIR, 'configs')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 COX_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'cox')
+COXBOOST_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'coxboost')
+RSF_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'rsf')
 MTLR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mtlr')
 DEEPCR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deepcr')
-DEEPHIT_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deephit')
+DEEPHIT_SINGLE_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deephit-single')
+DEEPHIT_MULTI_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deephit-multi')
 HIERACH_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'hierach')
 MENSA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mensa')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
@@ -38,7 +41,7 @@ SYNTHETIC_DATA_SETTINGS = {
     'event_groups': {0:[0, 1], 1:[0, 1]},
     'min_time': 0,
     'max_time': 20,
-    'min_epoch': 50,
+    'min_epoch': 5, #50
 }
 
 PARAMS_DIRECT_FULL = {
@@ -180,4 +183,8 @@ PARAMS_DEEPHIT_MULTI = {
     'epochs': 100,
     'early_stop': True,
     'patience': 10,
+}
+
+PARAMS_MENSA = {
+    
 }

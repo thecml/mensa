@@ -9,6 +9,8 @@ from sklearn.utils import shuffle
 from dataclasses import InitVar, dataclass, field
 from skmultilearn.model_selection import iterative_train_test_split
 from typing import List, Tuple, Optional, Union
+from sksurv.linear_model.coxph import BreslowEstimator
+from utility.preprocessor import Preprocessor
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -30,25 +32,32 @@ def convert_to_comp_risk(data):
             events.append(np.argmax(x)+1)
     return (data[0], times, events)
 
-'''
-Scale data  
-'''
-def scale_data(X, norm_mode):
-    num_Patient, num_Feature = np.shape(X)
+def calculate_event_times(t_train, e_train):
+    unique_times = compute_unique_counts(torch.Tensor(e_train), torch.Tensor(t_train))[0]
+    if 0 not in unique_times:
+        unique_times = torch.cat([torch.tensor([0]).to(unique_times.device), unique_times], 0)
+    return unique_times.numpy() 
 
-    if norm_mode == 'standard': #zero mean unit variance
-        for j in range(num_Feature):
-            if np.std(X[:,j]) != 0:
-                X[:,j] = (X[:,j] - np.mean(X[:, j]))/np.std(X[:,j])
-            else:
-                X[:,j] = (X[:,j] - np.mean(X[:, j]))
-    elif norm_mode == 'normal': #min-max normalization
-        for j in range(num_Feature):
-            X[:,j] = (X[:,j] - np.min(X[:,j]))/(np.max(X[:,j]) - np.min(X[:,j]))
-    else:
-        raise ValueError("Select norm mode")
-    
-    return X
+def compute_survival_curve(model, X_train, X_test, e_train, t_train, event_times):
+    train_logits = model.predict(X_train).reshape(-1)
+    test_logits = model.predict(X_test).reshape(-1)
+    breslow = BreslowEstimator().fit(train_logits, e_train, t_train)
+    surv_fn = breslow.get_survival_function(test_logits)
+    breslow_surv_times = np.row_stack([fn(event_times) for fn in surv_fn])
+    return breslow_surv_times
+
+'''
+Impute missing values and scale
+'''
+def impute_and_scale(X_train, X_valid, X_test, cat_features, num_features) \
+    -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    preprocessor = Preprocessor(cat_feat_strat='mode', num_feat_strat='mean')
+    transformer = preprocessor.fit(X_train, cat_feats=cat_features, num_feats=num_features,
+                                   one_hot=True, fill_value=-1)
+    X_train = transformer.transform(X_train)
+    X_valid = transformer.transform(X_valid)
+    X_test = transformer.transform(X_test)
+    return (X_train, X_valid, X_test)
 
 '''
 Reformat labels so that each label corresponds to a trajectory (e.g., event1 then event2, event1 only, event2 then event1)

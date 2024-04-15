@@ -81,8 +81,11 @@ if __name__ == "__main__":
                                     'Event': f'{event_name}_Event'}, axis=1)
         df = pd.merge(df, event_df, on="subject_id", how='left')
     
+    # Drop subject id
+    df = df.drop('subject_id', axis=1)
+    
     # Reset index
     df = df.reset_index(drop=True)
-        
+    
     # Save df
     df.to_csv(f'{cfg.DATA_DIR}/als.csv')

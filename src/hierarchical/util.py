@@ -364,16 +364,18 @@ def produce_model(method, train_package, val_package, test_package, settings, hy
         
     all_parameters = mod.get_parameters()
     train_network(mod, all_parameters, loss, train_hyperparams, train_package, val_package, event_ranks, \
-              num_events, terminal_events, num_extra_bins, min_epochs, verbose=True)
+        num_events, terminal_events, num_extra_bins, min_epochs, verbose=True)
     test_curves = get_surv_curves(torch.Tensor(test_data), mod)
-    test_results = eval_overall(test_curves, test_event_time, test_labs, num_events, num_time_bins, mod.num_extra_bin, terminal_events, event_ranks)
-    print('test results')
-    print(test_results)
+    return test_curves
     
-    bootstrap_results(test_curves, test_event_time, test_labs, num_events, num_time_bins, \
-                      mod.num_extra_bin, terminal_events, event_ranks, 1000)
+    #test_results = eval_overall(test_curves, test_event_time, test_labs, num_events, num_time_bins, mod.num_extra_bin, terminal_events, event_ranks)
+    #print('test results')
+    #print(test_results)
     
-    return 1
+    #bootstrap_results(test_curves, test_event_time, test_labs, num_events, num_time_bins, \
+    #                  mod.num_extra_bin, terminal_events, event_ranks, 1000)
+    
+    #return 1
 
 
 '''
@@ -391,16 +393,17 @@ def produce_sim(test_package, settings):
     
     sim = simulation.simulator(num_time_bins, event_groups, min_time, max_time)
     test_curves = sim.get_surv_curves(test_data, test_labs)
+    return test_curves
     
-    test_labs = test_package[2]
-    test_results = eval_overall(test_curves, test_event_time, test_labs, num_events, num_time_bins, sim.num_extra_bin, terminal_events, event_ranks)
-    print('test results')
-    print(test_results)
+    #test_labs = test_package[2]
+    #test_results = eval_overall(test_curves, test_event_time, test_labs, num_events, num_time_bins, sim.num_extra_bin, terminal_events, event_ranks)
+    #print('test results')
+    #print(test_results)
     
-    bootstrap_results(test_curves, test_event_time, test_labs, num_events, num_time_bins, \
-                      sim.num_extra_bin, terminal_events, event_ranks, 1000)
+    #bootstrap_results(test_curves, test_event_time, test_labs, num_events, num_time_bins, \
+    #                  sim.num_extra_bin, terminal_events, event_ranks, 1000)
 
-    return 1
+    #return 1
 
 
 def bootstrap_results(mod_out, times, labs, num_events, num_bin, num_extra_bin, term_events, event_ranks, num_boots=1000):
@@ -436,12 +439,11 @@ def bootstrap_results(mod_out, times, labs, num_events, num_bin, num_extra_bin, 
 produce an event or non-event specific model (combines above 2 functions into 1)
 '''
 def get_model_and_output(method, train_package, test_package, val_package, params, hyperparams, verbose):
-    mod = 0 
     if 'sim' in method:
-        mod = produce_sim(test_package, params)
+        test_curves = produce_sim(test_package, params)
     elif 'hierarch' in method or 'direct' in method:
-        mod = produce_model(method, train_package, val_package, test_package, params, hyperparams)
-    return mod
+        test_curves = produce_model(method, train_package, val_package, test_package, params, hyperparams)
+    return test_curves
 
 
 ################################################################################################### 

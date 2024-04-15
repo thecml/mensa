@@ -10,7 +10,7 @@ from utility.evaluator import LifelinesEvaluator
 from inference import make_cox_prediction
 from trainer import train_model
 from models import CoxPH
-from preprocessor import Preprocessor
+from utility.preprocessor import Preprocessor
 from utility.training import split_and_scale_data
 from torch.utils.data import DataLoader, TensorDataset
 import torch
@@ -18,7 +18,7 @@ import random
 import warnings
 from scipy.stats import entropy
 from data_loader import SyntheticDataLoader, ALSDataLoader
-from utility.survival import scale_data
+from utility.survival import impute_and_scale
 from utility.data import dotdict
 from data_loader import get_data_loader
 
@@ -50,9 +50,9 @@ if __name__ == "__main__":
         time_bins = make_time_bins(train_data[1], event=train_data[2])
 
         # Scale data
-        train_data[0] = scale_data(train_data[0].values, norm_mode='standard')
-        test_data[0] = scale_data(test_data[0].values, norm_mode='standard')
-        val_data[0] = scale_data(val_data[0].values, norm_mode='standard')
+        train_data[0] = impute_and_scale(train_data[0].values, norm_mode='standard')
+        test_data[0] = impute_and_scale(test_data[0].values, norm_mode='standard')
+        val_data[0] = impute_and_scale(val_data[0].values, norm_mode='standard')
 
         # Format data
         data_train = pd.DataFrame(train_data[0])

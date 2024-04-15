@@ -8,7 +8,7 @@ import torch
 import random
 import warnings
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from utility.survival import scale_data
+from utility.survival import impute_and_scale
 from utility.data import dotdict
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
@@ -37,9 +37,9 @@ if __name__ == "__main__":
         time_bins = make_time_bins(train_data[1], event=train_data[2])
 
         # Scale data
-        train_data[0] = scale_data(train_data[0].values, norm_mode='standard')
-        test_data[0] = scale_data(test_data[0].values, norm_mode='standard')
-        val_data[0] = scale_data(val_data[0].values, norm_mode='standard')
+        train_data[0] = impute_and_scale(train_data[0].values, norm_mode='standard')
+        test_data[0] = impute_and_scale(test_data[0].values, norm_mode='standard')
+        val_data[0] = impute_and_scale(val_data[0].values, norm_mode='standard')
 
         # Format data
         data_train = pd.DataFrame(train_data[0])

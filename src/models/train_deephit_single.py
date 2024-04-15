@@ -8,7 +8,7 @@ import torch
 import random
 import warnings
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from utility.survival import scale_data
+from utility.survival import impute_and_scale
 import pycox
 import torchtuples as tt
 from pycox.models import DeepHitSingle
@@ -40,9 +40,9 @@ if __name__ == "__main__":
         val_data = [data_packages[2][0], data_packages[2][1][:,event_id], data_packages[2][2][:,event_id]]
 
         # Scale data
-        train_data[0] = scale_data(train_data[0].values, norm_mode='standard')
-        val_data[0] = scale_data(val_data[0].values, norm_mode='standard')        
-        test_data[0] = scale_data(test_data[0].values, norm_mode='standard')
+        #train_data[0] = impute_and_scale(train_data[0].values, norm_mode='standard')
+        #val_data[0] = impute_and_scale(val_data[0].values, norm_mode='standard')        
+        #test_data[0] = impute_and_scale(test_data[0].values, norm_mode='standard')
 
         # Convert types        
         train_data[0] = train_data[0].astype('float32')

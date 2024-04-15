@@ -3,7 +3,6 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from abc import ABC, abstractmethod
 from typing import Tuple, List
-from preprocessor import Preprocessor
 from pathlib import Path
 import config as cfg
 from utility.survival import convert_to_structured
@@ -110,6 +109,8 @@ class SyntheticDataLoader(BaseDataLoader):
             binned_event_time = np.floor((event_times - min_time) / bin_size)
             binned_event_time[binned_event_time == params['num_bins']] = params['num_bins'] - 1 
         self.X = pd.DataFrame(raw_data)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
         self.y_t = binned_event_time
         self.y_e = labs
         self.min_time = min_time
@@ -121,11 +122,21 @@ class ALSDataLoader(BaseDataLoader):
     Data loader for ALS dataset
     """
     def load_data(self):
-        df = pd.read_csv(f'{cfg.DATA_DIR}/als.csv')
+        df = pd.read_csv(f'{cfg.DATA_DIR}/als.csv', index_col=0)
+        df = df.dropna(subset=['Speech_Observed', 'Swallowing_Observed',
+                               'Handwriting_Observed', 'Walking_Observed'])
+        df = df.loc[(df['Speech_Observed'] > 0) & (df['Swallowing_Observed'] > 0)
+                    & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)]
         columns_to_drop = [col for col in df.columns if
                            any(substring in col for substring in ['Observed', 'Event'])]
         events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
-        self.X = df.drop(columns=columns_to_drop)
+        df_x = df[['SOO', 'FVC_Min', 'FVC_Max', 'FVC_Mean']].copy(deep=True) #TODO: Include more features
+        obj_cols = ['SOO']
+        for col in obj_cols:
+            df_x[col] = df_x[col].astype('category')
+        self.num_features = self._get_num_features(df_x)
+        self.cat_features = self._get_cat_features(df_x)
+        self.X = df_x
         times = [df[f'{event_col}_Observed'].values for event_col in events]
         events = [df[f'{event_col}_Event'].values for event_col in events]
         self.y_t = np.stack((times[0], times[1], times[2], times[3]), axis=1)
@@ -146,6 +157,8 @@ class SeerDataLoader(BaseDataLoader):
     def load_data(self):
         df = pd.read_csv(f'{cfg.DATA_DIR}/seer_processed.csv')
         self.X = df.drop(['duration', 'event_heart', 'event_breast'], axis=1)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
         events = ['heart', 'breast']
         events = [df[f'event_{event_col}'].values for event_col in events]
         self.y_t = df[f'duration'].values
@@ -159,6 +172,8 @@ class RotterdamDataLoader(BaseDataLoader):
     def load_data(self):
         df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
         self.X = df.drop(['rtime', 'recur', 'dtime', 'death'], axis=1)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
         times = [df['recur'].values, df['death'].values]
         events = [df['rtime'].values, df['dtime'].values]
         self.y_t = np.stack((times[0], times[1]), axis=1)

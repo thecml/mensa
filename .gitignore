@@ -7,10 +7,15 @@ __pycache__/
 *.so
 
 # Data
-/data/rotterdam.csv
 /data/seer_processed.csv
 /data/PROACT_*
 /data/als.csv
+
+# Results
+sota_results.csv
+sota_single_results.csv
+sota_multi_results.csv
+mensa_results.csv
 
 # Distribution / packaging
 .Python

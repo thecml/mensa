@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from utility.survival import make_stratified_split_multi, convert_to_structured, make_time_bins, make_event_times
 from sklearn.preprocessing import StandardScaler
 from sksurv.linear_model import CoxPHSurvivalAnalysis
-from preprocessor import Preprocessor
+from utility.preprocessor import Preprocessor
 import torch
 
 def split_and_scale_data(df, num_features, cat_features):

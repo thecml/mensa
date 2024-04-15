@@ -9,7 +9,7 @@ import warnings
 from models import MultiEventCoxPH
 from multi_evaluator import MultiEventEvaluator
 from data_loader import SyntheticDataLoader
-from utility.survival import scale_data
+from utility.survival import impute_and_scale
 from hierarchical.data_settings import all_settings
 from hierarchical.hyperparams import all_hyperparams
 from hierarchical import util
@@ -42,9 +42,9 @@ if __name__ == "__main__":
     valid_data = [data_packages[2][0], data_packages[2][1], data_packages[2][2]]
 
     # Scale data
-    train_data[0] = scale_data(train_data[0].values, norm_mode='standard')
-    test_data[0] = scale_data(test_data[0].values, norm_mode='standard')
-    valid_data[0] = scale_data(valid_data[0].values, norm_mode='standard')
+    train_data[0] = impute_and_scale(train_data[0].values, norm_mode='standard')
+    test_data[0] = impute_and_scale(test_data[0].values, norm_mode='standard')
+    valid_data[0] = impute_and_scale(valid_data[0].values, norm_mode='standard')
     
     data_settings = cfg.SYNTHETIC_DATA_SETTINGS # if Synthetic
     data_settings['min_time'], data_settings['max_time'] = dl.min_time, dl.max_time
@@ -55,7 +55,8 @@ if __name__ == "__main__":
         params = cfg.PARAMS_HIERARCH_FULL
     hyperparams = format_hyperparams(params)
     verbose = params['verbose']
-    mod = util.get_model_and_output(approach, train_data, test_data, valid_data,
-                                    data_settings, hyperparams, verbose)
+    test_curves = util.get_model_and_output(approach, train_data, test_data, valid_data,
+                                            data_settings, hyperparams, verbose)
+    # test_curves = List of arrays with shape (n_samples, n_bins) with len n_events
     
     print(dataset_name + ',', approach, hyperparams)
