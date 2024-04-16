@@ -37,7 +37,7 @@ np.random.seed(0)
 random.seed(0)
 
 DATASETS = ["als"] #"mimic", "seer", "rotterdam"
-MODELS = ["direct-full", "hierarch-full"] # "direct-full", "hierarch-full"
+MODELS = ["direct-full", "hierarch-full"] # "direct-full", "hierarch-full", "mensa"
 
 results = pd.DataFrame()
 
@@ -48,10 +48,15 @@ device = torch.device(device)
 if __name__ == "__main__":
     # For each dataset
     for dataset_name in DATASETS:
-
         # Load data and split it
         dl = get_data_loader(dataset_name).load_data()
         num_features, cat_features = dl.get_features()
+        
+        # Make time bins
+        data = dl.get_data()
+        time_bins = make_time_bins(data[1][:,0], event=data[2][:,0])
+        
+        # Split data
         data_pkg = dl.split_data(train_size=0.7, valid_size=0.5)
         n_events = dl.n_events
         train_data = [data_pkg[0][0], data_pkg[0][1], data_pkg[0][2]]
@@ -71,7 +76,7 @@ if __name__ == "__main__":
         train_data[0] = np.array(X_train)
         valid_data[0] = np.array(X_valid)
         test_data[0] = np.array(X_test)
-        
+
         # Train model
         for model_name in MODELS:
             train_start_time = time()
@@ -81,14 +86,17 @@ if __name__ == "__main__":
                 data_settings = get_hiearch_data_settings(dataset_name)
                 hyperparams = format_hyperparams(model_settings)
                 verbose = model_settings['verbose']
-                model = util.get_model_and_output(model_name, train_data, test_data, valid_data,
-                                                  data_settings, hyperparams, verbose)
+                train_data_hierarch = [train_data[0], np.digitize(train_data[1], bins=time_bins), train_data[2]]
+                valid_data_hierarch = [valid_data[0], np.digitize(valid_data[1], bins=time_bins), valid_data[2]]
+                test_data_hierarch = [test_data[0], np.digitize(test_data[1], bins=time_bins), test_data[2]]
+                model = util.get_model_and_output(model_name, train_data_hierarch, test_data_hierarch,
+                                                  valid_data_hierarch, data_settings, hyperparams, verbose)
             train_time = time() - train_start_time
             
             # Compute survival function
             test_start_time = time()
             if model_name in ["direct-full", "hierarch-full"]:
-                surv_preds = util.get_surv_curves(torch.Tensor(test_data), model)
+                surv_preds = util.get_surv_curves(torch.Tensor(train_data_hierarch[0]), model)
             else:
                 raise NotImplementedError()
             test_time = time() - test_start_time
@@ -101,7 +109,7 @@ if __name__ == "__main__":
                 y_test_event = test_data[2][:,event_id]
                 surv_pred_event = surv_preds[event_id]
                 lifelines_eval = LifelinesEvaluator(surv_pred_event.T, y_test_time, y_test_event,
-                                               y_train_time, y_train_event)
+                                                    y_train_time, y_train_event)
                 ci = lifelines_eval.concordance()[0]
                 ibs = lifelines_eval.integrated_brier_score()
                 d_calib = lifelines_eval.d_calibration()[0]
@@ -121,3 +129,5 @@ if __name__ == "__main__":
                 
                 # Save results
                 results.to_csv(Path.joinpath(cfg.RESULTS_DIR, f"sota_single_results.csv"), index=False)
+                
+                

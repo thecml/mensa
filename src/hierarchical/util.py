@@ -305,7 +305,7 @@ def get_surv_curves(inp_data, model, data_processed=False, return_tensor=False):
             surv_curves[j][:, i][surv_curves[j][:, i] < 0] = 0
     
     if not return_tensor:
-        return [surv_curves[i].numpy() for i in range(len(surv_curves))]
+        return [surv_curves[i].detach().numpy() for i in range(len(surv_curves))]
     return surv_curves
     
     

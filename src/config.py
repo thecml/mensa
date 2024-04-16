@@ -31,15 +31,15 @@ format (elements in order):
     number of extra time bins (that represent t > T, for individuals who do not experience event by end of horizon) 
 '''
 PARAMS_DIRECT_FULL = {
-    'theta_layer_size': [20],
-    'layer_size_fine_bins': [(48, 4), (48, 5)],
-    'lr': 0.010,
-    'reg_constant': 0.02,
-    'n_batches': 5,
-    'backward_c_optim': True,
-    'hierarchical_loss': True,
-    'alpha': 0.0001,
-    'sigma': 100,
+    'theta_layer_size': [20], # size of the shared layer
+    'layer_size_fine_bins': [(20, 4), (20, 5)], #product of the second number has to equal the number of bins
+    'lr': 0.010, # ranges 0.0001 - 0.01
+    'reg_constant': 0.02, # 0.01, 0.02, 0.05
+    'n_batches': 5, # batch size = trainset/n_batches
+    'backward_c_optim': False, # global
+    'hierarchical_loss': False,
+    'alpha': 0.0001, # 0.0001, 0.05, 0.0005, and 0.001
+    'sigma': 100, #10, 100, 1000
     'use_theta': True,
     'use_deephit': False,
     'n_extra_bins': 1,
@@ -52,7 +52,7 @@ PARAMS_HIERARCH_FULL = {
     'lr': 0.025,
     'reg_constant': 0.05,
     'n_batches': 5,
-    'backward_c_optim': True,
+    'backward_c_optim': False,
     'hierarchical_loss': True,
     'alpha': 0.0001,
     'sigma': 100,
