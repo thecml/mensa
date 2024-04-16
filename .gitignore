@@ -17,6 +17,9 @@ sota_single_results.csv
 sota_multi_results.csv
 mensa_results.csv
 
+# NN weights
+weight*
+
 # Distribution / packaging
 .Python
 build/

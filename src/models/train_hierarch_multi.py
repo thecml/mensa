@@ -57,6 +57,7 @@ if __name__ == "__main__":
     verbose = params['verbose']
     test_curves = util.get_model_and_output(approach, train_data, test_data, valid_data,
                                             data_settings, hyperparams, verbose)
+    # Evaluation
     # test_curves = List of arrays with shape (n_samples, n_bins) with len n_events
     
-    print(dataset_name + ',', approach, hyperparams)
+    print(dataset_kname + ',', approach, hyperparams)

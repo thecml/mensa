@@ -5,7 +5,7 @@ batch_norm: True
 verbose: False
 dropout: 0.1
 alpha: 0.2
-sigma: 0.1,
+sigma: 0.1
 batch_size: 32
 lr: 0.01
 epochs: 100

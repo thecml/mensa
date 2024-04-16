@@ -49,11 +49,9 @@ def make_rsf_model(config):
 def make_deephit_single_model(config, in_features, out_features, duration_index):
     num_nodes = config['num_nodes']
     batch_norm = config['batch_norm']
-    verbose = config['verbose']
     dropout = config['dropout']
     net = tt.practical.MLPVanilla(in_features, num_nodes, out_features, batch_norm, dropout)
     model = DeepHitSingle(net, tt.optim.Adam, alpha=config['alpha'],
                           sigma=config['sigma'], duration_index=duration_index)
-    batch_size = config['batch_size']
-    model.optimizer.set_lr(config['hr'])
+    model.optimizer.set_lr(config['lr'])
     return model

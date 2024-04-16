@@ -170,7 +170,7 @@ def get_basic_c(mod_out, event_times, labs, num_events, num_bins, num_extra_bin,
 proposed metric: consistency
 '''
 def get_proposed_metric(mod_out, event_times, labs, num_events, num_bin, num_extra_bin, terminal_events, event_ranks):
-    num_samples = mod_out[0].shape[0] 
+    num_samples = mod_out[0].shape[0]
     
     #initialize ctds
     for_numerators = np.zeros((num_events,))

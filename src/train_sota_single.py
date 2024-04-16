@@ -31,7 +31,7 @@ np.random.seed(0)
 random.seed(0)
 
 DATASETS = ["als", "mimic", "seer", "rotterdam"]
-MODELS = ["cox", "coxboost", "rsf", "deephit-single"]
+MODELS = ["deephit-single"] #"cox", "coxboost", "rsf", "mtlr"
 
 results = pd.DataFrame()
 
@@ -65,16 +65,16 @@ if __name__ == "__main__":
             y_test = convert_to_structured(test_data[1], test_data[2])
             
             # Make event times
-            #time_bins = make_time_bins(train_data[1], event=train_data[2])
-            time_bins = calculate_event_times(y_train['time'].copy(), y_train['event'])
+            time_bins = make_time_bins(train_data[1], event=train_data[2])
+            #time_bins = calculate_event_times(y_train['time'].copy(), y_train['event'])
         
             # Scale data
             X_train, X_valid, X_test = impute_and_scale(X_train, X_valid, X_test, cat_features, num_features)
             
             # Convert to array
-            X_train_arr = np.array(X_train)
-            X_valid_arr = np.array(X_valid)
-            X_test_arr = np.array(X_test)
+            X_train_arr = np.array(X_train, dtype=np.float32)
+            X_valid_arr = np.array(X_valid, dtype=np.float32)
+            X_test_arr = np.array(X_test, dtype=np.float32)
         
             # Train models
             for model_name in MODELS:
@@ -100,11 +100,26 @@ if __name__ == "__main__":
                 elif model_name == "deephit-single":
                     config = load_config(cfg.DEEPHIT_SINGLE_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                     in_features = X_train_arr.shape[1]
-                    
-                    
-                    model = make_deephit_single_model(config, in_features, out_features, duration_index)
+                    num_durations = config['num_durations']
+                    labtrans = DeepHitSingle.label_transform(num_durations)
+                    get_target = lambda y: (y['time'], y['event'])
+                    y_train_dh = labtrans.fit_transform(*get_target(y_train))
+                    y_valid_dh = labtrans.transform(*get_target(y_valid))
+                    out_features = labtrans.out_features
+                    duration_index = labtrans.cuts
+                    model = make_deephit_single_model(config, in_features, len(time_bins), time_bins.numpy())
+                    batch_size = config['batch_size']
+                    model.optimizer.set_lr(config['lr'])
+                    epochs = config['epochs']
+                    if config['early_stop']:
+                        callbacks = [tt.callbacks.EarlyStopping(patience=config['patience'])]
+                    else:
+                        callbacks = []
+                    verbose = config['verbose']
+                    val_dh = (X_valid_arr, y_valid_dh)
                     train_start_time = time()
-                    model.fit(X_train_arr, y_train)
+                    model.fit(X_train_arr, y_train_dh, batch_size, epochs, callbacks,
+                              verbose=verbose, val_data=val_dh)
                     train_time = time() - train_start_time
             
                 # Compute survival function
@@ -112,15 +127,14 @@ if __name__ == "__main__":
                 if model_name in ['cox', 'coxboost', 'rsf']:
                     surv_preds = model.predict_survival_function(X_test_arr)
                     surv_preds = np.row_stack([fn(time_bins) for fn in surv_preds])
+                    surv_preds = pd.DataFrame(surv_preds, columns=time_bins.numpy())
                 elif model_name == "deephit-single":
-                    print(0)
+                    surv_preds = model.predict_surv_df(X_test_arr)
+                    surv_preds = pd.DataFrame(surv_preds.T, columns=time_bins.numpy())
                 else:
-                    raise NotADirectoryError()
+                    raise NotImplementedError()
                 test_time = time() - test_start_time
 
-                # Make dataframe
-                surv_preds = pd.DataFrame(surv_preds, columns=time_bins)
-                
                 # Compute metrics
                 lifelines_eval = LifelinesEvaluator(surv_preds.T, test_data[1].flatten(), test_data[2].flatten(),
                                                     train_data[1].flatten(), train_data[2].flatten())
@@ -128,13 +142,12 @@ if __name__ == "__main__":
                 mae_pseudo = lifelines_eval.mae(method="Pseudo_obs")
                 ibs = lifelines_eval.integrated_brier_score()
                 d_calib = lifelines_eval.d_calibration()[0]
-                ev = EvalSurv(surv_preds.T, y_test["time"], y_test["event"], censor_surv="km")
-                ci = ev.concordance_td() # TODO: Decide on CI or CTD
+                ci = lifelines_eval.concordance()[0]
                 
                 # Save to df
                 metrics = [ci, ibs, mae_hinge, mae_pseudo, d_calib, train_time, test_time]
                 res_df = pd.DataFrame(np.column_stack(metrics), columns=["CI", "IBS", "MAEHinge", "MAEPseudo",
-                                                                            "DCalib", "TrainTime", "TestTime"])
+                                                                         "DCalib", "TrainTime", "TestTime"])
                 res_df['ModelName'] = model_name
                 res_df['DatasetName'] = dataset_name
                 res_df['EventId'] = event_id

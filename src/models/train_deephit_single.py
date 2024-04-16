@@ -74,7 +74,7 @@ if __name__ == "__main__":
         model = DeepHitSingle(net, tt.optim.Adam, alpha=config['alpha'],
                               sigma=config['sigma'], duration_index=labtrans.cuts)
         batch_size = config['batch_size']
-        model.optimizer.set_lr(config['hr'])
+        model.optimizer.set_lr(config['lr'])
         epochs = config['epochs']
         if config['early_stop']:
             callbacks = [tt.callbacks.EarlyStopping(patience=config['patience'])]
