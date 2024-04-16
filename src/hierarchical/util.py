@@ -76,7 +76,7 @@ def get_censored_loss(num_time_bins, num_extra_bins, output, censored_ind, time_
 training function for neural nets
 '''
 def train_network(mod, mod_params, loss_fx, hyperparams, train_package, val_package, ranks, \
-                  num_event, terminal_events, num_extra, min_epochs, verbose=True):
+                  num_event, terminal_events, num_extra, min_epochs, max_epochs, verbose=True):
     #unpack
     num_time_bins = mod.num_bins
     train_data, train_times, train_labels = train_package[0], train_package[1], train_package[2]
@@ -87,8 +87,6 @@ def train_network(mod, mod_params, loss_fx, hyperparams, train_package, val_pack
     #setup
     l_rate, l2_const, num_batch = hyperparams[0], hyperparams[1], hyperparams[2]
     optimizer = optim.Adam(mod_params, lr=l_rate, weight_decay=l2_const) 
-    #min_epochs = 50
-    max_epochs = 200
     loss_diff = 1
     loss_prev = 1000
     ctd_tol = 1e-3
@@ -307,7 +305,7 @@ def get_surv_curves(inp_data, model, data_processed=False, return_tensor=False):
             surv_curves[j][:, i][surv_curves[j][:, i] < 0] = 0
     
     if not return_tensor:
-        return [surv_curves[i].detach().numpy() for i in range(len(surv_curves))]
+        return [surv_curves[i].numpy() for i in range(len(surv_curves))]
     return surv_curves
     
     
@@ -340,6 +338,7 @@ def produce_model(method, train_package, val_package, test_package, settings, hy
     event_ranks, event_groups = settings['event_ranks'], settings['event_groups']
     terminal_events = settings['terminal_events']
     min_epochs = settings['min_epoch']
+    max_epochs = settings['max_epoch']
     
     layer_sizes = [test_data.shape[1]] + hyperparams[0]
     event_net_sizes = [(hyperparams[0][-1], 1)] + hyperparams[1]
@@ -363,10 +362,9 @@ def produce_model(method, train_package, val_package, test_package, settings, hy
         loss = direct.direct_loss(terminal_events, event_ranks, loss_hyperparams)
         
     all_parameters = mod.get_parameters()
-    train_network(mod, all_parameters, loss, train_hyperparams, train_package, val_package, event_ranks, \
-        num_events, terminal_events, num_extra_bins, min_epochs, verbose=True)
-    test_curves = get_surv_curves(torch.Tensor(test_data), mod)
-    return test_curves
+    model = train_network(mod, all_parameters, loss, train_hyperparams, train_package, val_package, event_ranks, \
+                          num_events, terminal_events, num_extra_bins, min_epochs, max_epochs, verbose=True)
+    return model
     
     #test_results = eval_overall(test_curves, test_event_time, test_labs, num_events, num_time_bins, mod.num_extra_bin, terminal_events, event_ranks)
     #print('test results')
@@ -440,10 +438,11 @@ produce an event or non-event specific model (combines above 2 functions into 1)
 '''
 def get_model_and_output(method, train_package, test_package, val_package, params, hyperparams, verbose):
     if 'sim' in method:
-        test_curves = produce_sim(test_package, params)
+        #test_curves = produce_sim(test_package, params)
+        raise NotImplementedError()
     elif 'hierarch' in method or 'direct' in method:
-        test_curves = produce_model(method, train_package, val_package, test_package, params, hyperparams)
-    return test_curves
+        model = produce_model(method, train_package, val_package, test_package, params, hyperparams)
+    return model
 
 
 ################################################################################################### 

@@ -280,11 +280,10 @@ def multilabel_train_test_split(X, y, test_size, random_state=None):
 def make_stratified_split_single(
         df: pd.DataFrame,
         stratify_colname: str = 'event',
-        split_event: str = 'y1',
         frac_train: float = 0.5,
         frac_valid: float = 0.0,
         frac_test: float = 0.5,
-        random_state: int = 0
+        random_state: int = None
 ) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
     '''Courtesy of https://github.com/shi-ang/BNN-ISD/tree/main'''
     assert frac_train >= 0 and frac_valid >= 0 and frac_test >= 0, "Check train validation test fraction."

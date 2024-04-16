@@ -10,7 +10,6 @@ from models import MultiEventCoxPH
 from multi_evaluator import MultiEventEvaluator
 from data_loader import SyntheticDataLoader
 from utility.survival import impute_and_scale
-from hierarchical.data_settings import all_settings
 from hierarchical.hyperparams import all_hyperparams
 from hierarchical import util
 from utility.data import dotdict
@@ -34,7 +33,7 @@ if __name__ == "__main__":
     # Load data
     dl = SyntheticDataLoader().load_data()
     num_features, cat_features = dl.get_features()
-    data_packages = dl.split_data()
+    data_packages = dl.split_data(train_size=0.7, valid_size=0.5)
     n_events = 2
     
     train_data = [data_packages[0][0], data_packages[0][1], data_packages[0][2]]

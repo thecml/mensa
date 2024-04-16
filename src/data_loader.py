@@ -10,6 +10,7 @@ from utility.data import make_synthetic
 import numpy as np
 from sklearn.model_selection import StratifiedShuffleSplit
 from utility.survival import get_trajectory_labels
+from hierarchical.data_settings import *
 
 class BaseDataLoader(ABC):
     """
@@ -92,17 +93,17 @@ class BaseDataLoader(ABC):
 
         #package for convenience
         train_package = [train_data, train_event_time, train_labs]
-        test_package = [test_data, test_event_time, test_labs]
         validation_package = [val_data, val_event_time, val_labs]
+        test_package = [test_data, test_event_time, test_labs]
 
-        return train_package, test_package, validation_package
+        return train_package, validation_package, test_package
 
 class SyntheticDataLoader(BaseDataLoader):
     """
     Data loader for synthetic data
     """
     def load_data(self):
-        params = cfg.SYNTHETIC_DATA_SETTINGS
+        params = synthetic_settings
         raw_data, event_times, labs = make_synthetic(params['num_events'])
         if params['discrete'] == False:
             min_time = np.min(event_times[event_times != -1]) 
@@ -130,6 +131,8 @@ class ALSDataLoader(BaseDataLoader):
                            any(substring in col for substring in ['Observed', 'Event'])]
         df = df.loc[(df['Speech_Observed'] > 0) & (df['Swallowing_Observed'] > 0)
                     & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)]
+        df = df.loc[(df['Speech_Observed'] <= 3000) & (df['Swallowing_Observed'] <= 3000)
+                    & (df['Handwriting_Observed'] <= 3000) & (df['Walking_Observed'] <= 3000)]
         events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
         obj_cols = ['SOO']
         for col in obj_cols:
@@ -190,7 +193,28 @@ def get_data_loader(dataset_name:str) -> BaseDataLoader:
         return MimicDataLoader()
     elif dataset_name == "rotterdam":
         return RotterdamDataLoader()
-    elif dataset_name == "synthetic":
-        return SyntheticDataLoader()
     else:
-        raise ValueError("Data loader not found")
+        raise ValueError("Dataset not found")
+    
+def get_hiearch_model_settings(model_name):
+    if model_name == "direct-full":
+        return cfg.PARAMS_DIRECT_FULL
+    elif model_name == "hierarch-full":
+        return cfg.PARAMS_HIERARCH_FULL
+    else:
+        raise ValueError("Model not found")
+
+def get_hiearch_data_settings(dataset_name):
+    if dataset_name == "seer":
+        return seer_settings
+    elif dataset_name == "als":
+        return als_settings
+    elif dataset_name == "mimic":
+        return mimic_settings
+    elif dataset_name == "rotterdam":
+        return rotterdam_settings
+    else:
+        raise ValueError("Dataset not found")
+    
+    
+    

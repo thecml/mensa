@@ -33,7 +33,7 @@ np.random.seed(0)
 random.seed(0)
 
 DATASETS = ["als"] #"mimic", "seer", "rotterdam"
-MODELS = ["cox"] #"cox", "coxboost", "rsf", "mtlr"
+MODELS = ["cox"] #"cox", "coxboost", "rsf", "mtlr", "deephit-single"
 
 results = pd.DataFrame()
 
@@ -48,13 +48,13 @@ if __name__ == "__main__":
         # Load data and split it
         dl = get_data_loader(dataset_name).load_data()
         num_features, cat_features = dl.get_features()
-        df = dl.split_data(train_size=0.7, valid_size=0.5)
+        data_pkg = dl.split_data(train_size=0.7, valid_size=0.5)
         
         n_events = dl.n_events
         for event_id in range(n_events):
-            train_data = [df[0][0], df[0][1][:,event_id], df[0][2][:,event_id]]
-            valid_data = [df[1][0], df[1][1][:,event_id], df[1][2][:,event_id]]
-            test_data = [df[2][0], df[2][1][:,event_id], df[2][2][:,event_id]]
+            train_data = [data_pkg[0][0], data_pkg[0][1][:,event_id], data_pkg[0][2][:,event_id]]
+            valid_data = [data_pkg[1][0], data_pkg[1][1][:,event_id], data_pkg[1][2][:,event_id]]
+            test_data = [data_pkg[2][0], data_pkg[2][1][:,event_id], data_pkg[2][2][:,event_id]]
             
             # Define X matrices
             X_train = train_data[0]
@@ -78,8 +78,8 @@ if __name__ == "__main__":
             X_test_arr = np.array(X_test, dtype=np.float32)
         
             # Train models
-            train_start_time = time()
             for model_name in MODELS:
+                train_start_time = time()
                 print(f"Training {model_name}")
                 if model_name == "cox":
                     config = load_config(cfg.COX_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")

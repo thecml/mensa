@@ -13,40 +13,26 @@ RSF_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'rsf')
 MTLR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mtlr')
 DEEPCR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deepcr')
 DEEPHIT_SINGLE_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deephit-single')
-DEEPHIT_MULTI_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deephit-multi')
+DEEPHIT_CR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deephit-cr')
 HIERACH_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'hierach')
 MENSA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mensa')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 
 # This contains DEFAULT parameters for the models
 '''
-Record of all settings for datasets
-Definitions:
-    location: where the data is stored
-    features: where in location (see above) the covariates/features are stored
-    terminal event: event such that no other events can occur after it
-    discrete: whether the time values are discrete
-    event ranks: each key represents and event, the values are the events that prevent it
-    event groups: each key represents the position in a trajectory (e.g., first, second, ...), values represent which events can occur in that position
-    min_time: earliest event time
-    max_time: latest event time (prediction horizon)
-    min_epoch: minimum number of epochs to train for (while learning the model)
+record of all hyper parameters 
+format (elements in order):
+    size of the layers in theta (ignored if using independent models)
+    (size of layer, how many fine bins each coarse bin from the previous grain gets split into)
+    learning rate, regularization constant, number of batches
+    backward c index optimization, hierarchical loss, alpha, sigma for l_g
+    boolean for whether to use theta (whether to joint model or not)
+    boolean for whether to use deephit
+    number of extra time bins (that represent t > T, for individuals who do not experience event by end of horizon) 
 '''
-SYNTHETIC_DATA_SETTINGS = {
-    'num_events': 2,
-    'num_bins': 20,
-    'terminal_events': [1],
-    'discrete': False,
-    'event_ranks': {0:[], 1:[]},
-    'event_groups': {0:[0, 1], 1:[0, 1]},
-    'min_time': 0,
-    'max_time': 20,
-    'min_epoch': 5, #50
-}
-
 PARAMS_DIRECT_FULL = {
     'theta_layer_size': [20],
-    'layer_size_fine_bins': [(20, 4), (20, 5)],
+    'layer_size_fine_bins': [(48, 4), (48, 5)],
     'lr': 0.010,
     'reg_constant': 0.02,
     'n_batches': 5,
