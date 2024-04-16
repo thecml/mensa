@@ -149,6 +149,19 @@ class MimicDataLoader(BaseDataLoader):
     Data loader for MIMIC dataset
     """
     def load_data(self):
+        with open(cfg.DATA_DIR+'/mimic_dict.pkl', 'rb') as f:
+            mimic_dict = pickle.load(f)
+        self.X = mimic_dict['X']
+        self.y_t = mimic_dict['T']
+        self.y_e = mimic_dict['X']        
+        return self
+
+    def split_data(self,
+                   train_size: float,
+                   valid_size: float):
+        '''
+        Since MIMIC one patient has multiple events, we need to split by patients.
+        '''
         pass
 
 class SeerDataLoader(BaseDataLoader):
