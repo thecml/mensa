@@ -152,7 +152,76 @@ class MimicDataLoader(BaseDataLoader):
     Data loader for MIMIC dataset
     """
     def load_data(self):
-        pass
+        '''
+        t and e order, followed by arf, shock, death
+        '''
+        with open(cfg.DATA_DIR+'/mimic_dict.pkl', 'rb') as f:
+            mimic_dict = pickle.load(f)
+        column_names = [f'x_{i}' for i in range(mimic_dict['X'].shape[1])]
+
+        self.X = pd.DataFrame(mimic_dict['X'], columns=column_names)
+        self.y_t = mimic_dict['T']
+        self.y_e = mimic_dict['E']        
+        return self
+
+    def split_data(self,
+                   train_size: float,
+                   valid_size: float):
+        '''
+        Since MIMIC one patient has multiple events, we need to split by patients.
+        '''
+        with open(cfg.DATA_DIR+'/mimic_dict.pkl', 'rb') as f:
+            mimic_dict = pickle.load(f)
+        raw_data = mimic_dict['X']
+        event_time = mimic_dict['T']
+        labs = mimic_dict['E']        
+        not_early = mimic_dict['not_early']
+        
+        pat_map = pd.read_csv(cfg.DATA_DIR+'/pat_to_visit.csv').to_numpy() #
+        pat_map = pat_map[not_early, :]
+        print('num unique pats', np.unique(pat_map[:, 0]).shape)
+        traj_labs = get_trajectory_labels(labs)
+        
+        #split into training/test
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=train_size)
+        train_i, test_i = next(splitter.split(raw_data, traj_labs))
+        
+        train_pats = pat_map[train_i, 0]
+        train_i = np.where(np.isin(pat_map[:, 0], train_pats))[0]
+        test_i = np.setdiff1d(np.arange(raw_data.shape[0]), train_i)
+    
+        train_data = raw_data[train_i, :]
+        train_labs = labs[train_i, :]
+        train_event_time = event_time[train_i, :]
+        
+        pretest_data = raw_data[test_i, :]
+        pretest_labs = labs[test_i, :]
+        pretest_event_time = event_time[test_i, :]
+        pretest_pats = pat_map[test_i, 0]
+        
+        #further split test set into test/validation
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size)
+        test_i, val_i = next(splitter.split(pretest_data, pretest_labs))
+        test_pats = pretest_pats[test_i]
+        test_i = np.where(np.isin(pretest_pats, test_pats))[0]
+        val_i = np.setdiff1d(np.arange(pretest_pats.shape[0]), test_i)
+    
+        test_data = pretest_data[test_i, :]
+        test_labs = pretest_labs[test_i, :]
+        test_event_time = pretest_event_time[test_i, :]
+        
+        val_data = pretest_data[val_i, :]
+        val_labs = pretest_labs[val_i, :]
+        val_event_time = pretest_event_time[val_i, :]
+        
+        #package for convenience
+        train_package = [train_data, train_event_time, train_labs]
+        test_package = [test_data, test_event_time, test_labs]
+        validation_package = [val_data, val_event_time, val_labs]
+    
+        return train_package, test_package, validation_package
+
+        
 
 class SeerDataLoader(BaseDataLoader):
     """
