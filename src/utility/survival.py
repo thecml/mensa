@@ -46,6 +46,42 @@ def compute_survival_curve(model, X_train, X_test, e_train, t_train, event_times
     breslow_surv_times = np.row_stack([fn(event_times) for fn in surv_fn])
     return breslow_surv_times
 
+def make_stratified_split_multi(
+        df: pd.DataFrame,
+        stratify_colname: str = 'event',
+        frac_train: float = 0.5,
+        frac_valid: float = 0.0,
+        frac_test: float = 0.5,
+        random_state: int = 0
+) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
+    '''Courtesy of https://github.com/shi-ang/BNN-ISD/tree/main'''
+    assert frac_train >= 0 and frac_valid >= 0 and frac_test >= 0, "Check train validation test fraction."
+    frac_sum = frac_train + frac_valid + frac_test
+    frac_train = frac_train / frac_sum
+    frac_valid = frac_valid / frac_sum
+    frac_test = frac_test / frac_sum
+
+    X = df[0].values  # Contains all columns.
+    columns = df[0].columns
+    labs = df[2]
+    
+    if labs.shape[1] > 1: 
+        traj_labs = get_trajectory_labels(labs)
+
+    x_train, _, x_temp, y_temp = multilabel_train_test_split(X, y=traj_labs, test_size=(1.0 - frac_train),
+                                                             random_state=random_state)
+    if frac_valid == 0:
+        x_val, x_test = [], x_temp
+    else:
+        x_val, _, x_test, _ = multilabel_train_test_split(x_temp, y=y_temp,
+                                                          test_size=frac_test / (frac_valid + frac_test),
+                                                          random_state=random_state)
+    df_train = pd.DataFrame(data=x_train, columns=columns)
+    df_val = pd.DataFrame(data=x_val, columns=columns)
+    df_test = pd.DataFrame(data=x_test, columns=columns)
+    assert len(df) == len(df_train) + len(df_val) + len(df_test)
+    return df_train, df_val, df_test
+
 '''
 Impute missing values and scale
 '''
@@ -248,7 +284,7 @@ def make_stratified_split_single(
         frac_train: float = 0.5,
         frac_valid: float = 0.0,
         frac_test: float = 0.5,
-        random_state: int = None
+        random_state: int = 0
 ) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
     '''Courtesy of https://github.com/shi-ang/BNN-ISD/tree/main'''
     assert frac_train >= 0 and frac_valid >= 0 and frac_test >= 0, "Check train validation test fraction."
@@ -270,53 +306,6 @@ def make_stratified_split_single(
         bins = np.linspace(start=t.min(), stop=t.max(), num=20)
         t = np.digitize(t, bins, right=True)
         e = df["event"]
-        stra_lab = np.stack([t, e], axis=1)
-    else:
-        raise ValueError("unrecognized stratify policy")
-
-    x_train, _, x_temp, y_temp = multilabel_train_test_split(X, y=stra_lab, test_size=(1.0 - frac_train),
-                                                             random_state=random_state)
-    if frac_valid == 0:
-        x_val, x_test = [], x_temp
-    else:
-        x_val, _, x_test, _ = multilabel_train_test_split(x_temp, y=y_temp,
-                                                          test_size=frac_test / (frac_valid + frac_test),
-                                                          random_state=random_state)
-    df_train = pd.DataFrame(data=x_train, columns=columns)
-    df_val = pd.DataFrame(data=x_val, columns=columns)
-    df_test = pd.DataFrame(data=x_test, columns=columns)
-    assert len(df) == len(df_train) + len(df_val) + len(df_test)
-    return df_train, df_val, df_test
-
-def make_stratified_split_multi(
-        df: pd.DataFrame,
-        stratify_colname: str = 'event',
-        split_event: str = 'y1',
-        frac_train: float = 0.5,
-        frac_valid: float = 0.0,
-        frac_test: float = 0.5,
-        random_state: int = None
-) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
-    '''Courtesy of https://github.com/shi-ang/BNN-ISD/tree/main'''
-    assert frac_train >= 0 and frac_valid >= 0 and frac_test >= 0, "Check train validation test fraction."
-    frac_sum = frac_train + frac_valid + frac_test
-    frac_train = frac_train / frac_sum
-    frac_valid = frac_valid / frac_sum
-    frac_test = frac_test / frac_sum
-
-    X = df.values  # Contains all columns.
-    columns = df.columns
-    if stratify_colname == 'event':
-        stra_lab = df[stratify_colname]
-    elif stratify_colname == 'time':
-        stra_lab = df[stratify_colname]
-        bins = np.linspace(start=stra_lab.min(), stop=stra_lab.max(), num=20)
-        stra_lab = np.digitize(stra_lab, bins, right=True)
-    elif stratify_colname == "both":
-        t = df[f"{split_event}_time"]
-        bins = np.linspace(start=t.min(), stop=t.max(), num=20)
-        t = np.digitize(t, bins, right=True)
-        e = df[f"{split_event}_event"]
         stra_lab = np.stack([t, e], axis=1)
     else:
         raise ValueError("unrecognized stratify policy")

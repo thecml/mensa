@@ -4,7 +4,7 @@ import config as cfg
 from pathlib import Path
 
 def annotate_event(group, event_col):
-    event_observed = 1 if any(group[event_col] == 1) else 0
+    event_observed = True if any(group[event_col] == 1) else False
     if event_observed:
         delta_sum_observed = group.loc[group[event_col] == 1, 'DeltaSum'].iloc[0]
     else:
@@ -27,7 +27,20 @@ if __name__ == "__main__":
     # Create dataframe with subjects
     df = pd.DataFrame()
     df['subject_id'] = alsfrs_df['subject_id'].unique()
-
+    
+    # Annotate events
+    threshold = 2
+    event_names = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
+    event_cols = ['Q1_Speech', 'Q3_Swallowing', 'Q4_Handwriting', 'Q8_Walking']
+    alsfrs_df['DeltaSum'] = alsfrs_df.groupby('subject_id')['ALSFRS_Delta'].cumsum()
+    for event_name, event_col in zip(event_names, event_cols):
+        alsfrs_df[f'Event_{event_name}'] = (alsfrs_df[event_col] <= threshold).astype(int)
+        event_df = alsfrs_df.groupby('subject_id').apply(annotate_event, f'Event_{event_name}').reset_index()
+        event_df = event_df.rename({'DeltaSum_Observed':f'{event_name}_Observed',
+                                    'Event': f'{event_name}_Event'}, axis=1)
+        #event_df = event_df.loc[event_df[f'{event_name}_Observed']]
+        df = pd.merge(df, event_df, on="subject_id", how='left').dropna()
+    
     # Record site of onset
     filter_col = [col for col in history_df if col.startswith('Site_of_Onset__')]
     history_df['SOO'] = history_df[filter_col].values.argmax(1)+1
@@ -49,6 +62,7 @@ if __name__ == "__main__":
     fvc_df = fvc_df.drop_duplicates(subset='subject_id')
     df = pd.merge(df, fvc_df[['subject_id', 'FVC_Min', 'FVC_Max', 'FVC_Mean']], on="subject_id", how="left")
     
+    """
     # Record handgrip strength
     handgrip_str_df = handgrip_str_df.drop_duplicates(subset='subject_id').copy(deep=True)
     handgrip_str_df.rename({'Test_Result': 'Handgrip_Strength'}, axis=1, inplace=True)
@@ -68,19 +82,8 @@ if __name__ == "__main__":
     muscle_test_res = pd.concat([muscle_test_res['subject_id'], muscle_test_res[test_cols].add_suffix('_Strength')], axis=1)
     muscle_test_res.columns = muscle_test_res.columns.str.replace(' ', '_')
     df = pd.merge(df, muscle_test_res, on="subject_id", how='left')
-    
-    # Annotate events
-    threshold = 2
-    event_names = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
-    event_cols = ['Q1_Speech', 'Q3_Swallowing', 'Q4_Handwriting', 'Q8_Walking']
-    alsfrs_df['DeltaSum'] = alsfrs_df.groupby('subject_id')['ALSFRS_Delta'].cumsum()
-    for event_name, event_col in zip(event_names, event_cols):
-        alsfrs_df[f'Event_{event_col}'] = (alsfrs_df[event_col] <= threshold).astype(int)
-        event_df = alsfrs_df.groupby('subject_id').apply(annotate_event, event_col).reset_index()
-        event_df = event_df.rename({'DeltaSum_Observed':f'{event_name}_Observed',
-                                    'Event': f'{event_name}_Event'}, axis=1)
-        df = pd.merge(df, event_df, on="subject_id", how='left')
-    
+    """
+
     # Drop subject id
     df = df.drop('subject_id', axis=1)
     

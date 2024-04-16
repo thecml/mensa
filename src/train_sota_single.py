@@ -20,6 +20,8 @@ from utility.survival import compute_survival_curve, calculate_event_times
 from Evaluations.util import make_monotonic, check_monotonicity
 from utility.evaluator import LifelinesEvaluator
 import torchtuples as tt
+from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
+from utility.survival import make_stratified_split_multi
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -30,8 +32,8 @@ np.seterr(invalid='ignore')
 np.random.seed(0)
 random.seed(0)
 
-DATASETS = ["als", "mimic", "seer", "rotterdam"]
-MODELS = ["deephit-single"] #"cox", "coxboost", "rsf", "mtlr"
+DATASETS = ["als"] #"mimic", "seer", "rotterdam"
+MODELS = ["cox"] #"cox", "coxboost", "rsf", "mtlr"
 
 results = pd.DataFrame()
 
@@ -46,9 +48,9 @@ if __name__ == "__main__":
         # Load data and split it
         dl = get_data_loader(dataset_name).load_data()
         num_features, cat_features = dl.get_features()
-        df = dl.split_data()
+        df = dl.split_data(train_size=0.7, valid_size=0.5)
         
-        n_events = df[0][0].shape[1]
+        n_events = dl.n_events
         for event_id in range(n_events):
             train_data = [df[0][0], df[0][1][:,event_id], df[0][2][:,event_id]]
             valid_data = [df[1][0], df[1][1][:,event_id], df[1][2][:,event_id]]
@@ -66,7 +68,6 @@ if __name__ == "__main__":
             
             # Make event times
             time_bins = make_time_bins(train_data[1], event=train_data[2])
-            #time_bins = calculate_event_times(y_train['time'].copy(), y_train['event'])
         
             # Scale data
             X_train, X_valid, X_test = impute_and_scale(X_train, X_valid, X_test, cat_features, num_features)
@@ -77,26 +78,21 @@ if __name__ == "__main__":
             X_test_arr = np.array(X_test, dtype=np.float32)
         
             # Train models
+            train_start_time = time()
             for model_name in MODELS:
                 print(f"Training {model_name}")
                 if model_name == "cox":
                     config = load_config(cfg.COX_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                     model = make_cox_model(config)
-                    train_start_time = time()
                     model.fit(X_train_arr, y_train)
-                    train_time = time() - train_start_time
                 elif model_name == "coxboost":
                     config = load_config(cfg.COXBOOST_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                     model = make_coxboost_model(config)
-                    train_start_time = time()
                     model.fit(X_train_arr, y_train)
-                    train_time = time() - train_start_time
                 elif model_name == "rsf":
                     config = load_config(cfg.RSF_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                     model = make_rsf_model(config)
-                    train_start_time = time()
                     model.fit(X_train_arr, y_train)
-                    train_time = time() - train_start_time
                 elif model_name == "deephit-single":
                     config = load_config(cfg.DEEPHIT_SINGLE_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                     in_features = X_train_arr.shape[1]
@@ -117,11 +113,23 @@ if __name__ == "__main__":
                         callbacks = []
                     verbose = config['verbose']
                     val_dh = (X_valid_arr, y_valid_dh)
-                    train_start_time = time()
                     model.fit(X_train_arr, y_train_dh, batch_size, epochs, callbacks,
                               verbose=verbose, val_data=val_dh)
-                    train_time = time() - train_start_time
-            
+                elif model_name == "mtlr":
+                    data_train = X_train.copy()
+                    data_train["time"] = pd.Series(y_train['time'])
+                    data_train["event"] = pd.Series(y_train['event']).astype(int)
+                    data_valid = X_valid.copy()
+                    data_valid["time"] = pd.Series(y_valid['time'])
+                    data_valid["event"] = pd.Series(y_valid['event']).astype(int)
+                    config = dotdict(load_config(cfg.MTLR_CONFIGS_DIR, f"{dataset_name.lower()}.yaml"))
+                    n_features = X_train_arr.shape[1]
+                    num_time_bins = len(time_bins)
+                    model = mtlr(in_features=n_features, num_time_bins=num_time_bins, config=config)
+                    model = train_mtlr_model(model, data_train, data_valid, time_bins,
+                                             config, random_state=0, reset_model=True, device=device)
+                train_time = time() - train_start_time
+                    
                 # Compute survival function
                 test_start_time = time()
                 if model_name in ['cox', 'coxboost', 'rsf']:
@@ -131,6 +139,16 @@ if __name__ == "__main__":
                 elif model_name == "deephit-single":
                     surv_preds = model.predict_surv_df(X_test_arr)
                     surv_preds = pd.DataFrame(surv_preds.T, columns=time_bins.numpy())
+                elif model_name == "mtlr":
+                    data_test = X_test.copy()
+                    data_test["time"] = pd.Series(y_test['time'])
+                    data_test["event"] = pd.Series(y_test['event']).astype(int)
+                    mtlr_test_data = torch.tensor(data_test.drop(["time", "event"], axis=1).values,
+                                                  dtype=torch.float32, device=device)
+                    survival_outputs, _, _ = make_mtlr_prediction(model, mtlr_test_data, time_bins, config)
+                    surv_preds = survival_outputs.numpy()
+                    time_bins_th = torch.cat([torch.tensor([0]).to(time_bins.device), time_bins], 0)
+                    surv_preds = pd.DataFrame(surv_preds, columns=time_bins_th.numpy())
                 else:
                     raise NotImplementedError()
                 test_time = time() - test_start_time

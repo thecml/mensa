@@ -25,6 +25,7 @@ class BaseDataLoader(ABC):
         self.cat_features: List[str] = None
         self.min_time = None
         self.max_time = None
+        self.n_events = None
 
     @abstractmethod
     def load_data(self) -> None:
@@ -50,7 +51,9 @@ class BaseDataLoader(ABC):
     def _get_cat_features(self, data) -> List[str]:
         return data.select_dtypes(['category']).columns.tolist()
 
-    def split_data(self, test_size: float=0.4, valid_size: float=0.5) \
+    def split_data(self,
+                   train_size: float,
+                   valid_size: float) \
         -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Split data into training, validation, and test sets (from Donna's paper)
@@ -64,7 +67,7 @@ class BaseDataLoader(ABC):
             traj_labs = get_trajectory_labels(labs)
 
         #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=test_size)
+        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size)
         train_i, test_i = next(splitter.split(raw_data, traj_labs))
 
         train_data = raw_data.iloc[train_i, :]
@@ -123,24 +126,22 @@ class ALSDataLoader(BaseDataLoader):
     """
     def load_data(self):
         df = pd.read_csv(f'{cfg.DATA_DIR}/als.csv', index_col=0)
-        df = df.dropna(subset=['Speech_Observed', 'Swallowing_Observed',
-                               'Handwriting_Observed', 'Walking_Observed'])
-        df = df.loc[(df['Speech_Observed'] > 0) & (df['Swallowing_Observed'] > 0)
-                    & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)]
         columns_to_drop = [col for col in df.columns if
                            any(substring in col for substring in ['Observed', 'Event'])]
+        df = df.loc[(df['Speech_Observed'] > 0) & (df['Swallowing_Observed'] > 0)
+                    & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)]
         events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
-        df_x = df[['SOO', 'FVC_Min', 'FVC_Max', 'FVC_Mean']].copy(deep=True) #TODO: Include more features
         obj_cols = ['SOO']
         for col in obj_cols:
-            df_x[col] = df_x[col].astype('category')
-        self.num_features = self._get_num_features(df_x)
-        self.cat_features = self._get_cat_features(df_x)
-        self.X = df_x
+            df[col] = df[col].astype('category')        
+        self.X = df.drop(columns_to_drop, axis=1)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
         times = [df[f'{event_col}_Observed'].values for event_col in events]
         events = [df[f'{event_col}_Event'].values for event_col in events]
         self.y_t = np.stack((times[0], times[1], times[2], times[3]), axis=1)
         self.y_e = np.stack((events[0], events[1], events[2], events[3]), axis=1)
+        self.n_events = self.y_e.shape[1]
         return self
 
 class MimicDataLoader(BaseDataLoader):
