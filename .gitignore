@@ -14,6 +14,7 @@ __pycache__/
 
 # Results
 sota_results.csv
+sota_comp_results.csv
 sota_single_results.csv
 sota_multi_results.csv
 mensa_results.csv

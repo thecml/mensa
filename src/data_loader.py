@@ -78,7 +78,7 @@ class ALSDataLoader(BaseDataLoader):
         events = [df[f'{event_col}_Event'].values for event_col in events]
         self.y_t = np.stack((times[0], times[1], times[2], times[3]), axis=1)
         self.y_e = np.stack((events[0], events[1], events[2], events[3]), axis=1)
-        self.n_events = self.y_e.shape[1]
+        self.n_events = 4
         return self
 
     def split_data(self, train_size: float, valid_size: float):
@@ -136,7 +136,8 @@ class MimicDataLoader(BaseDataLoader):
 
         self.X = pd.DataFrame(mimic_dict['X'], columns=column_names)
         self.y_t = mimic_dict['T']
-        self.y_e = mimic_dict['E']        
+        self.y_e = mimic_dict['E']
+        self.n_events = 2
         return self
 
     def split_data(self,
@@ -145,14 +146,14 @@ class MimicDataLoader(BaseDataLoader):
         '''
         Since MIMIC one patient has multiple events, we need to split by patients.
         '''
-        with open(cfg.DATA_DIR+'/mimic_dict.pkl', 'rb') as f:
+        with open(str(Path(cfg.DATA_DIR)) + "/" + '/mimic_dict.pkl', 'rb') as f:
             mimic_dict = pickle.load(f)
         raw_data = mimic_dict['X']
         event_time = mimic_dict['T']
         labs = mimic_dict['E']        
         not_early = mimic_dict['not_early']
         
-        pat_map = pd.read_csv(cfg.DATA_DIR+'/pat_to_visit.csv').to_numpy() #
+        pat_map = pd.read_csv(str(Path(cfg.DATA_DIR)) + "/" + 'pat_to_visit.csv').to_numpy() #
         pat_map = pat_map[not_early, :]
         print('num unique pats', np.unique(pat_map[:, 0]).shape)
         traj_labs = get_trajectory_labels(labs)
@@ -209,6 +210,7 @@ class SeerDataLoader(BaseDataLoader):
         events = [df[f'event_{event_col}'].values for event_col in events]
         self.y_t = np.stack((df[f'duration'].values, df[f'duration'].values), axis=1)
         self.y_e = np.stack((events[0], events[1]), axis=1)
+        self.n_events = 2
         return self
     
     def split_data(self,
@@ -267,12 +269,51 @@ class RotterdamDataLoader(BaseDataLoader):
         events = [df['recur'].values, df['death'].values]
         self.y_t = np.stack((times[0], times[1]), axis=1)
         self.y_e = np.stack((events[0], events[1]), axis=1)
+        self.n_events = 2
         return self
     
     def split_data(self,
                    train_size: float,
                    valid_size: float):
-        pass
+        # Split multi event data
+        raw_data = self.X
+        event_time = self.y_t
+        labs = self.y_e
+        
+        traj_labs = labs
+        if labs.shape[1] > 1: 
+            traj_labs = get_trajectory_labels(labs)
+
+        #split into training/test
+        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size)
+        train_i, test_i = next(splitter.split(raw_data, traj_labs))
+
+        train_data = raw_data.iloc[train_i, :]
+        train_labs = labs[train_i, :]
+        train_event_time = event_time[train_i, :]
+
+        pretest_data = raw_data.iloc[test_i, :]
+        pretest_labs = labs[test_i, :]
+        pretest_event_time = event_time[test_i, :]
+
+        #further split test set into test/validation
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size)
+        new_pretest_labs = get_trajectory_labels(pretest_labs)
+        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
+        test_data = pretest_data.iloc[test_i, :]
+        test_labs = pretest_labs[test_i, :]
+        test_event_time = pretest_event_time[test_i, :]
+
+        val_data = pretest_data.iloc[val_i, :]
+        val_labs = pretest_labs[val_i, :]
+        val_event_time = pretest_event_time[val_i, :]
+
+        #package for convenience
+        train_pkg = [train_data, train_event_time, train_labs]
+        valid_pkg = [val_data, val_event_time, val_labs]
+        test_pkg = [test_data, test_event_time, test_labs]
+
+        return (train_pkg, valid_pkg, test_pkg)
     
 def get_data_loader(dataset_name:str) -> BaseDataLoader:
     if dataset_name == "seer":

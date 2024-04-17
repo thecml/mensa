@@ -21,16 +21,9 @@ class dotdict(dict):
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
 
-def convert_to_comp_risk(data):
-    #TODO: Implement this properly...
-    times = np.min(data[1], axis=1)
-    events = list()
-    for x in data[2]:
-        if not np.any(x):
-            events.append(0)
-        else:
-            events.append(np.argmax(x)+1)
-    return (data[0], times, events)
+def convert_to_competing_risk(data):
+    return np.array([next((i+1 for i, val in enumerate(subarr)
+                           if val == 1), 0) for subarr in data])
 
 def calculate_event_times(t_train, e_train):
     unique_times = compute_unique_counts(torch.Tensor(e_train), torch.Tensor(t_train))[0]
@@ -429,6 +422,15 @@ def make_event_times (t_train, e_train):
         unique_times = torch.cat([torch.tensor([0]).to(unique_times.device), unique_times], 0)
     return unique_times.numpy()
 
+def make_time_bins_hierarchical(event_times, num_bins):
+    min_time = np.min(event_times[event_times != -1]) 
+    max_time = np.max(event_times[event_times != -1]) 
+    time_range = max_time - min_time
+    bin_size = time_range / num_bins
+    binned_event_time = np.floor((event_times - min_time) / bin_size)
+    binned_event_time[binned_event_time == num_bins] = num_bins - 1
+    return binned_event_time
+    
 def make_time_bins(
         times: NumericArrayLike,
         num_bins: Optional[int] = None,

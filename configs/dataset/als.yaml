@@ -1,7 +1,7 @@
 num_events: 4
 num_bins: 56
 terminal_events: []
-discrete: True
+discrete: False
 event_ranks: {0: [], 1: [], 2: [], 3: []}
 event_groups: {0: [0, 1, 2, 3],
               1: [0, 1, 2, 3],

@@ -15,4 +15,4 @@ sigma: 100 #10 100 1000
 use_theta: True
 use_deephit: False
 n_extra_bins: 1
-verbose: True
+verbose: False
