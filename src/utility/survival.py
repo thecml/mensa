@@ -85,7 +85,8 @@ def make_stratified_split_multi(
 '''
 Impute missing values and scale
 '''
-def impute_and_scale(X_train, X_valid, X_test, cat_features, num_features) \
+def preprocess_data(X_train, X_valid, X_test, cat_features,
+                    num_features, as_array=False) \
     -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     preprocessor = Preprocessor(cat_feat_strat='mode', num_feat_strat='mean')
     transformer = preprocessor.fit(X_train, cat_feats=cat_features, num_feats=num_features,
@@ -93,6 +94,8 @@ def impute_and_scale(X_train, X_valid, X_test, cat_features, num_features) \
     X_train = transformer.transform(X_train)
     X_valid = transformer.transform(X_valid)
     X_test = transformer.transform(X_test)
+    if as_array:
+        return (np.array(X_train), np.array(X_valid), np.array(X_test))
     return (X_train, X_valid, X_test)
 
 '''

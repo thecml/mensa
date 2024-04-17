@@ -1,4 +1,4 @@
-# Deephit-cr
+# deephit-comp
 num_nodes_shared: [64, 64]
 num_nodes_indiv: [32]
 batch_norm: True

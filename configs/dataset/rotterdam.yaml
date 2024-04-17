@@ -1,0 +1,10 @@
+num_events: 2
+num_bins: 39
+terminal_events: [1]
+discrete: True
+event_ranks: {0: [1], 1: []}
+event_groups: {0: [0, 1], 1: [1]}
+min_time: 1
+max_time: 39
+min_epoch: 1
+max_epoch: 5

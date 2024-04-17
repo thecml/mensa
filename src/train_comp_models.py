@@ -12,8 +12,8 @@ from utility.survival import coverage
 from scipy.stats import chisquare
 from utility.survival import convert_to_structured
 from utility.data import dotdict
-from data_loader import get_data_loader, get_hiearch_data_settings, get_hiearch_model_settings
-from utility.survival import make_time_bins, impute_and_scale
+from data_loader import get_data_loader
+from utility.survival import make_time_bins, preprocess_data
 from sota_builder import *
 import config as cfg
 from utility.survival import compute_survival_curve, calculate_event_times
@@ -24,7 +24,7 @@ from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from utility.survival import make_stratified_split_multi
 from utility.survival import make_stratified_split_single
 from utility.data import dotdict
-from hierarchical import util
+from hierarch import util
 from utility.hierarch import format_hyperparams
 from multi_evaluator import MultiEventEvaluator
 from pycox.preprocessing.label_transforms import LabTransDiscreteTime
@@ -39,7 +39,7 @@ np.random.seed(0)
 random.seed(0)
 
 DATASETS = ["seer"] #"mimic", "seer", "rotterdam"
-MODELS = ["deephit-cr"] # "direct-full", "hierarch-full"
+MODELS = ["deephit-comp"] # "direct-full", "hierarch-full"
 
 results = pd.DataFrame()
 
@@ -90,7 +90,7 @@ if __name__ == "__main__":
         for model_name in MODELS:
             train_start_time = time()
             print(f"Training {model_name}")
-            if model_name == "deephit-cr":
+            if model_name == "deephit-comp":
                 config = load_config(cfg.DEEPHIT_CR_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                 labtrans = LabTransform(len(time_bins))
                 get_target = lambda df: (df['time'].values, df['event'].values) 
@@ -116,7 +116,7 @@ if __name__ == "__main__":
             
             # Compute survival function
             test_start_time = time()
-            if model_name == "deephit-cr":
+            if model_name == "deephit-comp":
                 # The survival function obtained with predict_surv_df is the probability of surviving any of the events,
                 # and does, therefore, not distinguish between the event types. This means that we evaluate this "single-event case" as before.
                 surv = model.predict_surv_df(x_test)

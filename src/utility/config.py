@@ -23,7 +23,7 @@ def load_model_config(dataset_name: str, model_name: str) -> dict:
     elif model_name == "deephit":
         config = load_config(cfg.DEEPHIT_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
     elif model_name == "hierach":
-        config = load_config(cfg.HIERACH_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
+        config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
     elif model_name == "mensa":
         config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
     else:

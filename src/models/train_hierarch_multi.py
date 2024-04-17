@@ -9,9 +9,9 @@ import warnings
 from models import MultiEventCoxPH
 from multi_evaluator import MultiEventEvaluator
 from data_loader import SyntheticDataLoader
-from utility.survival import impute_and_scale
-from hierarchical.hyperparams import all_hyperparams
-from hierarchical import util
+from utility.survival import preprocess_data
+from hierarch.hyperparams import all_hyperparams
+from hierarch import util
 from utility.data import dotdict
 import config as cfg
 from utility.hierarch import format_hyperparams
@@ -41,9 +41,9 @@ if __name__ == "__main__":
     valid_data = [data_packages[2][0], data_packages[2][1], data_packages[2][2]]
 
     # Scale data
-    train_data[0] = impute_and_scale(train_data[0].values, norm_mode='standard')
-    test_data[0] = impute_and_scale(test_data[0].values, norm_mode='standard')
-    valid_data[0] = impute_and_scale(valid_data[0].values, norm_mode='standard')
+    train_data[0] = preprocess_data(train_data[0].values, norm_mode='standard')
+    test_data[0] = preprocess_data(test_data[0].values, norm_mode='standard')
+    valid_data[0] = preprocess_data(valid_data[0].values, norm_mode='standard')
     
     data_settings = cfg.SYNTHETIC_DATA_SETTINGS # if Synthetic
     data_settings['min_time'], data_settings['max_time'] = dl.min_time, dl.max_time

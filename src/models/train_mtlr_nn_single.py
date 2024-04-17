@@ -3,12 +3,11 @@ import numpy as np
 import config as cfg
 from utility.survival import make_time_bins
 from utility.evaluator import LifelinesEvaluator
-from data_loader import SyntheticDataLoader
 import torch
 import random
 import warnings
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from utility.survival import impute_and_scale
+from utility.survival import preprocess_data
 from utility.data import dotdict
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
@@ -37,9 +36,9 @@ if __name__ == "__main__":
         time_bins = make_time_bins(train_data[1], event=train_data[2])
 
         # Scale data
-        train_data[0] = impute_and_scale(train_data[0].values, norm_mode='standard')
-        test_data[0] = impute_and_scale(test_data[0].values, norm_mode='standard')
-        val_data[0] = impute_and_scale(val_data[0].values, norm_mode='standard')
+        train_data[0] = preprocess_data(train_data[0].values, norm_mode='standard')
+        test_data[0] = preprocess_data(test_data[0].values, norm_mode='standard')
+        val_data[0] = preprocess_data(val_data[0].values, norm_mode='standard')
 
         # Format data
         data_train = pd.DataFrame(train_data[0])

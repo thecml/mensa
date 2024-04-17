@@ -10,6 +10,7 @@ __pycache__/
 /data/seer_processed.csv
 /data/PROACT_*
 /data/als.csv
+/data/mimic*
 
 # Results
 sota_results.csv

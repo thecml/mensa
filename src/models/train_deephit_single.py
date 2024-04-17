@@ -8,7 +8,7 @@ import torch
 import random
 import warnings
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from utility.survival import impute_and_scale
+from utility.survival import preprocess_data
 import pycox
 import torchtuples as tt
 from pycox.models import DeepHitSingle
