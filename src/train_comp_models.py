@@ -39,7 +39,7 @@ np.seterr(invalid='ignore')
 np.random.seed(0)
 random.seed(0)
 
-DATASETS = ["rotterdam"] # "mimic", "seer", "rotterdam"
+DATASETS = ["seer"] # "mimic", "seer", "rotterdam"
 MODELS = ["deephit-comp", "direct-full", "hierarch-full"]
 
 results = pd.DataFrame()
@@ -47,9 +47,6 @@ results = pd.DataFrame()
 # Setup device
 device = "cpu" # use CPU
 device = torch.device(device)
-
-# Don't save models
-torch.save = None
 
 class LabTransform(LabTransDiscreteTime): # for DeepHit CR
     def transform(self, durations, events):
@@ -74,6 +71,9 @@ if __name__ == "__main__":
         
         # Split data
         train_data, valid_data, test_data = dl.split_data(train_size=0.7, valid_size=0.5)
+        train_data = [train_data[0][:5000], train_data[1][:5000], train_data[2][:5000]]
+        valid_data = [valid_data[0][:5000], valid_data[1][:5000], valid_data[2][:5000]]
+        test_data = [test_data[0][:5000], test_data[1][:5000], test_data[2][:5000]]
         n_events = dl.n_events
         
         # Impute and scale data
@@ -86,39 +86,37 @@ if __name__ == "__main__":
             print(f"Training {model_name}")
             if model_name == "deephit-comp":
                 config = load_config(cfg.DEEPHIT_CR_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
-                labtrans = LabTransform(len(time_bins))
+                labtrans = LabTransform(len(time_bins)+1)
                 get_target = lambda df: (df['time'].values, df['event'].values)
-                df_train = pd.DataFrame(train_data[0])
-                df_train['time'] = train_data[1][:,0]
-                df_train['event'] = convert_to_competing_risk(train_data[2])
-                df_train = df_train.astype(np.float32)
-                df_valid = pd.DataFrame(valid_data[0])
-                df_valid['time'] = valid_data[1][:,0]
-                df_valid['event'] = convert_to_competing_risk(valid_data[2])
-                df_valid = df_valid.astype(np.float32)
-                df_test = pd.DataFrame(test_data[0])
-                df_test['time'] = test_data[1][:,0]
-                df_test['event'] = convert_to_competing_risk(test_data[2])
-                df_test = df_test.astype(np.float32)
+                df_train = pd.DataFrame(train_data[0]).astype(np.float32)
+                df_train['time'] = np.digitize(train_data[1][:,0], bins=time_bins).astype(int)
+                df_train['event'] = convert_to_competing_risk(train_data[2]).astype(int)
+                df_valid = pd.DataFrame(valid_data[0]).astype(np.float32)
+                df_valid['time'] = np.digitize(valid_data[1][:,0], bins=time_bins).astype(int)
+                df_valid['event'] = convert_to_competing_risk(valid_data[2]).astype(int)
+                df_test = pd.DataFrame(test_data[0]).astype(np.float32)
+                df_test['time'] = np.digitize(test_data[1][:,0], bins=time_bins).astype(int)
+                df_test['event'] = convert_to_competing_risk(test_data[2]).astype(int)
                 y_train = labtrans.fit_transform(*get_target(df_train))
                 y_val = labtrans.transform(*get_target(df_valid))
-                durations_train, events_train = get_target(df_train)
-                durations_test, events_test = get_target(df_test)
-                val = (valid_data[0].astype('float32'), y_val)
+                y_test = labtrans.transform(*get_target(df_test))
+                y_train = (df_train['time'].values, df_train['event'].values)
+                val = (df_valid.drop(['time', 'event'], axis=1).values,
+                       (df_valid['time'].values, df_valid['event'].values))
                 in_features = train_data[0].shape[1]
                 duration_index = labtrans.cuts
                 out_features = len(labtrans.cuts)
-                num_risks = y_train[1].max()
+                num_risks = int(df_train['event'].max())
                 model = make_deephit_cr_model(config, in_features, out_features, num_risks, duration_index)
                 epochs = config['epochs']
                 batch_size = config['batch_size']
                 verbose = config['verbose']
-                if config['early_stop']:
+                if config['early_stop']: 
                     callbacks = [tt.callbacks.EarlyStopping(patience=config['patience'])]
                 else:
                     callbacks = []
-                model.fit(train_data[0].astype('float32'), y_train,
-                          batch_size, epochs, callbacks, verbose, val_data=val)
+                model.fit(df_train.drop(['time', 'event'], axis=1).values,
+                          y_train, batch_size, epochs, callbacks, verbose, val_data=val)
             elif model_name in ["direct-full", "hierarch-full"]:
                 data_settings = load_config(cfg.DATASET_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                 if model_name == "direct-full":
@@ -138,27 +136,38 @@ if __name__ == "__main__":
                                                   valid_data_hierarch, data_settings, hyperparams, verbose)
             else:
                 raise NotImplementedError()
-            train_time = time() - train_start_time   
-                
-            # Predict survival function
-            test_start_time = time()
-            if model_name == "deephit-comp":
-                # The survival function obtained with predict_surv_df is the probability of surviving any of the events,
-                # and does, therefore, not distinguish between the event types. This means that we evaluate this "single-event case" as before.
-                surv = model.predict_surv_df(test_data[0].astype('float32'))
-                survival_outputs = pd.DataFrame(surv.T)
-            elif model_name in ["direct-full", "hierarch-full"]:
-                surv_preds = util.get_surv_curves(torch.Tensor(test_data_hierarch[0]), model)
-            else:
-                raise NotImplementedError()
-            test_time = time() - test_start_time
-            
+            train_time = time() - train_start_time
+
             # Evaluate
             for event_id in range(n_events):
                 if model_name == "deephit-comp":
-                    lifelines_eval = LifelinesEvaluator(survival_outputs.T, durations_test, events_test,
-                                                        durations_train, events_train)
+                    train_obs = df_train.loc[(df_train['event'] == event_id+1) | (df_train['event'] == 0)]
+                    test_obs = df_test.loc[(df_train['event'] == event_id+1) | (df_test['event'] == 0)]
+                    x_test = test_obs.drop(['time', 'event'], axis=1).values.astype('float32')
+                    y_train_time, y_train_event = train_obs['time'], train_obs['event']
+                    y_test_time, y_test_event = test_obs['time'], test_obs['event']
+                    test_start_time = time()
+                    surv = model.predict_surv_df(x_test)
+                    test_time = time() - test_start_time
+                    survival_outputs = pd.DataFrame(surv.T)
+                    lifelines_eval = LifelinesEvaluator(survival_outputs.T, y_test_time, y_test_event,
+                                                        y_train_time, y_train_event)
+                    ci = lifelines_eval.concordance()[0]
+                    ibs = lifelines_eval.integrated_brier_score()
+                    d_calib = lifelines_eval.d_calibration()[0]
+                    mae_hinge = lifelines_eval.mae(method="Hinge")
+                    mae_pseudo = lifelines_eval.mae(method="Pseudo_obs")
+                    metrics = [ci, ibs, mae_hinge, mae_pseudo, d_calib, train_time, test_time]
+                    res_df = pd.DataFrame(np.column_stack(metrics), columns=["CI", "IBS", "MAEHinge", "MAEPseudo",
+                                                                            "DCalib", "TrainTime", "TestTime"])
+                    res_df['ModelName'] = model_name
+                    res_df['DatasetName'] = dataset_name
+                    res_df['EventId'] = event_id
+                    results = pd.concat([results, res_df], axis=0)
                 elif model_name in ["direct-full", "hierarch-full"]:
+                    test_start_time = time()
+                    surv_preds = util.get_surv_curves(torch.Tensor(test_data_hierarch[0]), model)
+                    test_time = time() - test_start_time
                     y_train_time = train_event_bins[:,event_id]
                     y_train_event = train_data[2][:,event_id]
                     y_test_time = test_event_bins[:,event_id]
@@ -166,24 +175,21 @@ if __name__ == "__main__":
                     surv_pred_event = pd.DataFrame(surv_preds[event_id])
                     lifelines_eval = LifelinesEvaluator(surv_pred_event.T, y_test_time, y_test_event,
                                                         y_train_time, y_train_event)
+                    ci = lifelines_eval.concordance()[0]
+                    ibs = lifelines_eval.integrated_brier_score()
+                    d_calib = lifelines_eval.d_calibration()[0]
+                    mae_hinge = lifelines_eval.mae(method="Hinge")
+                    mae_pseudo = lifelines_eval.mae(method="Pseudo_obs")
+                    metrics = [ci, ibs, mae_hinge, mae_pseudo, d_calib, train_time, test_time]
+                    res_df = pd.DataFrame(np.column_stack(metrics), columns=["CI", "IBS", "MAEHinge", "MAEPseudo",
+                                                                            "DCalib", "TrainTime", "TestTime"])
+                    res_df['ModelName'] = model_name
+                    res_df['DatasetName'] = dataset_name
+                    res_df['EventId'] = event_id
+                    results = pd.concat([results, res_df], axis=0)
                 else:
                     raise NotImplementedError()
             
-                ci = lifelines_eval.concordance()[0]
-                ibs = lifelines_eval.integrated_brier_score()
-                d_calib = lifelines_eval.d_calibration()[0]
-                mae_hinge = lifelines_eval.mae(method="Hinge")
-                mae_pseudo = lifelines_eval.mae(method="Pseudo_obs")
-                print(ci)
-                
-                # Save to df
-                metrics = [ci, ibs, mae_hinge, mae_pseudo, d_calib, train_time, test_time]
-                res_df = pd.DataFrame(np.column_stack(metrics), columns=["CI", "IBS", "MAEHinge", "MAEPseudo",
-                                                                        "DCalib", "TrainTime", "TestTime"])
-                res_df['ModelName'] = model_name
-                res_df['DatasetName'] = dataset_name
-                res_df['EventId'] = event_id
-                results = pd.concat([results, res_df], axis=0)
-                
-                # Save results
-                results.to_csv(Path.joinpath(cfg.RESULTS_DIR, f"sota_comp_results.csv"), index=False)
+            # Save results
+            results.to_csv(Path.joinpath(cfg.RESULTS_DIR, f"sota_comp_results.csv"), index=False)
+                 

@@ -1,17 +1,17 @@
 # direct
-theta_layer_size: [20] # size of the shared layer
+theta_layer_size: [100] # size of the shared layer
 layer_size_fine_bins: #product of the second number has to equal the number of bins
-  - - 20
+  - - 50
     - 5
-  - - 20
+  - - 50
     - 5
-lr: 0.010 # ranges 0.0001 - 0.01
-reg_constant: 0.02 # 0.01 0.02 0.05
+lr: 0.001 # ranges 0.0001 - 0.01
+reg_constant: 0.001 # 0.01 0.02 0.05
 n_batches: 5 # batch size = trainset/n_batches
 backward_c_optim: False # global
 hierarchical_loss: False
-alpha: 0.0001 # 0.0001 0.05 0.0005 and 0.001
-sigma: 100 #10 100 1000
+alpha: 0.001 # 0.0001 0.05 0.0005 and 0.001
+sigma: 10 #10 100 1000
 use_theta: True
 use_deephit: False
 n_extra_bins: 1

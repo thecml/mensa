@@ -6,5 +6,5 @@ event_ranks: {0: [1], 1: [0]}
 event_groups: {0: [0, 1]}
 min_time: 1
 max_time: 115
-min_epoch: 1
-max_epoch: 5
+min_epoch: 5
+max_epoch: 10
