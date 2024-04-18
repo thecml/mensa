@@ -42,7 +42,7 @@ if __name__ == "__main__":
     valid_data[0] = preprocess_data(valid_data[0].values, norm_mode='standard')
     
     # Train model
-    config = dotdict(cfg.PARAMS_COX_MULTI_GAUSSIAN)
+    config = dotdict(cfg.COX_MULTI_GAUSSIAN_PARAMS)
     n_features = train_data[0].shape[1]
     model = MultiEventCoxPHGaussian(in_features=n_features, config=config)
     data_train = pd.DataFrame(train_data[0])

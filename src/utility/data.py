@@ -47,7 +47,7 @@ def calculate_vocab_size(df, cols_categorical):
     for i, feat in enumerate(cols_categorical):
         df[feat] = LabelEncoder().fit_transform(df[feat]).astype(float) + vocab_size
         vocab_size = df[feat].max() + 1
-    return vocab_size
+    return int(vocab_size)
 
 '''
 Generate synthetic dataset based on Donna's paper:

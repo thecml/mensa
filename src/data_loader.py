@@ -69,7 +69,7 @@ class ALSDataLoader(BaseDataLoader):
                     & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)] # min time
         df = df.loc[(df['Speech_Observed'] <= 3000) & (df['Swallowing_Observed'] <= 3000)
                     & (df['Handwriting_Observed'] <= 3000) & (df['Walking_Observed'] <= 3000)] # max time
-        #df = df.dropna(subset=['Handgrip_Strength']) #exclude people with no strength test
+        df = df.dropna(subset=['Handgrip_Strength']) #exclude people with no strength test
         events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
         self.X = df.drop(columns_to_drop, axis=1)
         self.num_features = self._get_num_features(self.X)
@@ -81,7 +81,9 @@ class ALSDataLoader(BaseDataLoader):
         self.n_events = 4
         return self
 
-    def split_data(self, train_size: float, valid_size: float):
+    def split_data(self, train_size: float,
+                   valid_size: float,
+                   random_state=0):
         # Split multi event data
         raw_data = self.X
         event_time = self.y_t
@@ -92,7 +94,8 @@ class ALSDataLoader(BaseDataLoader):
             traj_labs = get_trajectory_labels(labs)
 
         #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size)
+        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
+                                          random_state=random_state)
         train_i, test_i = next(splitter.split(raw_data, traj_labs))
 
         train_data = raw_data.iloc[train_i, :]
@@ -104,7 +107,8 @@ class ALSDataLoader(BaseDataLoader):
         pretest_event_time = event_time[test_i, :]
 
         #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size)
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
+                                          random_state=random_state)
         new_pretest_labs = get_trajectory_labels(pretest_labs)
         test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
         test_data = pretest_data.iloc[test_i, :]
@@ -142,7 +146,8 @@ class MimicDataLoader(BaseDataLoader):
 
     def split_data(self,
                    train_size: float,
-                   valid_size: float):
+                   valid_size: float,
+                   random_state=0):
         '''
         Since MIMIC one patient has multiple events, we need to split by patients.
         '''
@@ -159,7 +164,8 @@ class MimicDataLoader(BaseDataLoader):
         traj_labs = get_trajectory_labels(labs)
         
         #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=train_size)
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=train_size,
+                                          random_state=random_state)
         train_i, test_i = next(splitter.split(raw_data, traj_labs))
         
         train_pats = pat_map[train_i, 0]
@@ -176,7 +182,8 @@ class MimicDataLoader(BaseDataLoader):
         pretest_pats = pat_map[test_i, 0]
         
         #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size)
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
+                                          random_state=random_state)
         test_i, val_i = next(splitter.split(pretest_data, pretest_labs))
         test_pats = pretest_pats[test_i]
         test_i = np.where(np.isin(pretest_pats, test_pats))[0]
@@ -215,7 +222,8 @@ class SeerDataLoader(BaseDataLoader):
     
     def split_data(self,
                    train_size: float,
-                   valid_size: float):
+                   valid_size: float,
+                   random_state=0):
         # Split multi event data
         raw_data = self.X
         event_time = self.y_t
@@ -226,7 +234,8 @@ class SeerDataLoader(BaseDataLoader):
             traj_labs = get_trajectory_labels(labs)
 
         #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size)
+        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
+                                          random_state=random_state)
         train_i, test_i = next(splitter.split(raw_data, traj_labs))
 
         train_data = raw_data.iloc[train_i, :]
@@ -238,7 +247,8 @@ class SeerDataLoader(BaseDataLoader):
         pretest_event_time = event_time[test_i, :]
 
         #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size)
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
+                                          random_state=random_state)
         new_pretest_labs = get_trajectory_labels(pretest_labs)
         test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
         test_data = pretest_data.iloc[test_i, :]
@@ -274,7 +284,8 @@ class RotterdamDataLoader(BaseDataLoader):
     
     def split_data(self,
                    train_size: float,
-                   valid_size: float):
+                   valid_size: float,
+                   random_state=0):
         # Split multi event data
         raw_data = self.X
         event_time = self.y_t
@@ -285,7 +296,8 @@ class RotterdamDataLoader(BaseDataLoader):
             traj_labs = get_trajectory_labels(labs)
 
         #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size)
+        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
+                                          random_state=random_state)
         train_i, test_i = next(splitter.split(raw_data, traj_labs))
 
         train_data = raw_data.iloc[train_i, :]

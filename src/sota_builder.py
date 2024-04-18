@@ -48,6 +48,7 @@ def make_rsf_model(config):
                                 max_features=max_features)
     return model
 
+"""
 def make_deephit_single_model(config, in_features, out_features, duration_index):
     num_nodes = config['num_nodes']
     batch_norm = config['batch_norm']
@@ -57,8 +58,9 @@ def make_deephit_single_model(config, in_features, out_features, duration_index)
                           sigma=config['sigma'], duration_index=duration_index)
     model.optimizer.set_lr(config['lr'])
     return model
+"""
 
-def make_deephit_cr_model(config, in_features, out_features, num_risks, duration_index):
+def make_deephit_model(config, in_features, out_features, num_risks, duration_index):
     num_nodes_shared = config['num_nodes_shared']
     num_nodes_indiv = config['num_nodes_indiv']
     batch_norm = config['batch_norm']

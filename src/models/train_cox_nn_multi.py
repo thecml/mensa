@@ -42,7 +42,7 @@ if __name__ == "__main__":
     valid_data[0] = preprocess_data(valid_data[0].values, norm_mode='standard')
     
     # Train model
-    config = dotdict(cfg.PARAMS_COX_MULTI)
+    config = dotdict(cfg.COX_MULTI_PARAMS)
     n_features = train_data[0].shape[1]
     model = MultiEventCoxPH(in_features=n_features)
     data_train = pd.DataFrame(train_data[0])

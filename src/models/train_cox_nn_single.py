@@ -66,7 +66,7 @@ if __name__ == "__main__":
         data_test["event"] = pd.Series(test_data[2].flatten()).astype(int)
 
         # Train model
-        config = dotdict(cfg.PARAMS_COX)
+        config = dotdict(cfg.COX_PARAMS)
         n_features = data_train.shape[1] - 2
         model = CoxPH(in_features=n_features, config=config)
         model = train_model(model, data_train, time_bins, config=config,

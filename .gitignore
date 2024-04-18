@@ -23,6 +23,9 @@ mensa_results.csv
 weight*
 survtrace.pt
 
+# Wandb
+wandb
+
 # Distribution / packaging
 .Python
 build/

@@ -26,7 +26,7 @@ device = torch.device(device)
 
 if __name__ == "__main__":
     # Load config
-    config = dotdict(cfg.PARAMS_DEEPHIT_SINGLE)
+    config = dotdict(cfg.DEEPHIT_SINGLE_PARAMS)
     
     # Load data
     dl = SyntheticDataLoader().load_data()

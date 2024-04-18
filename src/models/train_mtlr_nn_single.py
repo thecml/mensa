@@ -52,7 +52,7 @@ if __name__ == "__main__":
         data_test["event"] = pd.Series(test_data[2].flatten()).astype(int)
 
         # Train model
-        config = dotdict(cfg.PARAMS_MTLR)
+        config = dotdict(cfg.MTLR_PARAMS)
         num_features = data_train.shape[1] - 2
         num_time_bins = len(time_bins)
         model = mtlr(in_features=num_features, num_time_bins=num_time_bins, config=config)

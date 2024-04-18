@@ -49,9 +49,9 @@ if __name__ == "__main__":
     data_settings['min_time'], data_settings['max_time'] = dl.min_time, dl.max_time
     
     if 'direct_full':
-        params = cfg.PARAMS_DIRECT_FULL
+        params = cfg.DIRECT_FULL_PARAMS
     else:
-        params = cfg.PARAMS_HIERARCH_FULL
+        params = cfg.HIERARCH_FULL_PARAMS
     hyperparams = format_hyperparams(params)
     verbose = params['verbose']
     test_curves = util.get_model_and_output(approach, train_data, test_data, valid_data,

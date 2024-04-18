@@ -43,19 +43,13 @@ np.random.seed(0)
 random.seed(0)
 
 DATASETS = ["seer"] # "mimic", "seer", "rotterdam"
-MODELS = ["survtrace", "deephit-comp", "direct-full", "hierarch-full"]
+MODELS = ["survtrace"] #"deephit", "direct", "hierarch"
 
 results = pd.DataFrame()
 
 # Setup device
 device = "cpu" # use CPU
 device = torch.device(device)
-
-class LabTransform(LabTransDiscreteTime): # for DeepHit CR
-    def transform(self, durations, events):
-        durations, is_event = super().transform(durations, events > 0)
-        events[is_event == 0] = 0
-        return durations, events.astype('int64')
 
 if __name__ == "__main__":
     # For each dataset
@@ -78,7 +72,8 @@ if __name__ == "__main__":
         
         # Impute and scale data
         train_data[0], valid_data[0], test_data[0] = preprocess_data(train_data[0], valid_data[0], test_data[0],
-                                                                     cat_features, num_features, as_array=True)
+                                                                     cat_features, num_features,
+                                                                     as_array=True)
         
         # Train model
         for model_name in MODELS:
@@ -86,7 +81,6 @@ if __name__ == "__main__":
             print(f"Training {model_name}")
             if model_name == "survtrace":
                 config = load_config(cfg.SURVTRACE_CONFIGS_DIR, f"seer.yaml")
-                config['vocab_size'] = calculate_vocab_size(data[0], cat_features)
                 col_names = ['duration', 'proportion']
                 df_train = digitize_and_convert(train_data, time_bins, y_col_names=col_names)
                 df_valid = digitize_and_convert(valid_data, time_bins, y_col_names=col_names)
@@ -94,12 +88,13 @@ if __name__ == "__main__":
                 y_train_st, y_valid_st, y_test_st = format_data_for_survtrace(df_train, df_valid, df_test, n_events)
                 duration_index = np.concatenate([[0], time_bins.numpy()])
                 out_features = len(duration_index)
+                config['vocab_size'] = 0
                 config['duration_index'] = duration_index
                 config['out_feature'] = out_features
-                config['num_numerical_feature'] = int(len(num_features))
-                config['num_categorical_feature'] = int(len(cat_features))
-                config['num_feature'] = int(len(num_features)+len(cat_features))
-                config['in_features'] = int(len(num_features)+len(cat_features))
+                config['num_categorical_feature'] = 0
+                config['num_numerical_feature'] = train_data[0].shape[1]
+                config['num_feature'] = train_data[0].shape[1]
+                config['in_features'] = train_data[0].shape[1]
                 model = SurvTraceMulti(dotdict(config))
                 trainer = Trainer(model)
                 train_loss_list, val_loss_list = trainer.fit((df_train.drop(['duration', 'proportion'], axis=1), y_train_st),
@@ -109,8 +104,8 @@ if __name__ == "__main__":
                                                              learning_rate=config['learning_rate'],
                                                              weight_decay=config['weight_decay'],
                                                              val_batch_size=32)
-            elif model_name == "deephit-comp":
-                config = load_config(cfg.DEEPHIT_CR_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
+            elif model_name == "deephit":
+                config = load_config(cfg.DEEPHIT_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                 df_train = digitize_and_convert(train_data, time_bins)
                 df_valid = digitize_and_convert(valid_data, time_bins)
                 df_test = digitize_and_convert(test_data, time_bins)
@@ -121,7 +116,7 @@ if __name__ == "__main__":
                 duration_index = np.concatenate([[0], time_bins.numpy()])
                 out_features = len(duration_index)
                 num_risks = int(df_train['event'].max())
-                model = make_deephit_cr_model(config, in_features, out_features, num_risks, duration_index)
+                model = make_deephit_model(config, in_features, out_features, num_risks, duration_index)
                 epochs = config['epochs']
                 batch_size = config['batch_size']
                 verbose = config['verbose']
@@ -131,9 +126,9 @@ if __name__ == "__main__":
                     callbacks = []
                 model.fit(df_train.drop(['time', 'event'], axis=1).values,
                           y_train, batch_size, epochs, callbacks, verbose, val_data=val)
-            elif model_name in ["direct-full", "hierarch-full"]:
+            elif model_name in ["direct", "hierarch"]:
                 data_settings = load_config(cfg.DATASET_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
-                if model_name == "direct-full":
+                if model_name == "direct":
                     model_settings = load_config(cfg.DIRECT_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                 else:
                     model_settings = load_config(cfg.HIERARCH_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
@@ -166,7 +161,7 @@ if __name__ == "__main__":
                     y_test_event = test_data[2][:,event_id]
                     lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
                                                         y_train_time, y_train_event)
-                elif model_name == "deephit-comp":
+                elif model_name == "deephit":
                     train_obs = df_train.loc[(df_train['event'] == event_id+1) | (df_train['event'] == 0)]
                     test_obs = df_test.loc[(df_train['event'] == event_id+1) | (df_test['event'] == 0)]
                     x_test = test_obs.drop(['time', 'event'], axis=1).values.astype('float32')
@@ -178,7 +173,7 @@ if __name__ == "__main__":
                     survival_outputs = pd.DataFrame(surv.T)
                     lifelines_eval = LifelinesEvaluator(survival_outputs.T, y_test_time, y_test_event,
                                                         y_train_time, y_train_event)
-                elif model_name in ["direct-full", "hierarch-full"]:
+                elif model_name in ["direct", "hierarch"]:
                     test_start_time = time()
                     surv_preds = util.get_surv_curves(torch.Tensor(test_data_hierarch[0]), model)
                     test_time = time() - test_start_time
@@ -187,6 +182,8 @@ if __name__ == "__main__":
                     y_test_time = test_event_bins[:,event_id]
                     y_test_event = test_data[2][:,event_id]
                     surv_pred_event = pd.DataFrame(surv_preds[event_id])
+                    lifelines_eval = LifelinesEvaluator(surv_pred_event.T, y_test_time, y_test_event,
+                                                        y_train_time, y_train_event)
                 else:
                     raise NotImplementedError()
                 

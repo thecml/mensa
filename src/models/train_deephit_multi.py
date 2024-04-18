@@ -30,7 +30,7 @@ device = torch.device(device)
 
 if __name__ == "__main__":
     # Load config
-    config = dotdict(cfg.PARAMS_DEEPHIT_MULTI)
+    config = dotdict(cfg.DEEPHIT_PARAMS)
     
     # Load data
     url = 'https://raw.githubusercontent.com/chl8856/DeepHit/master/sample%20data/SYNTHETIC/synthetic_comprisk.csv'

@@ -11,3 +11,17 @@ def format_hyperparams(params):
             params['use_deephit'],
             params['n_extra_bins']
             ]
+    
+def get_layer_size_fine_bins(dataset_name):
+    if dataset_name == "als":
+        return [(20, 4), (20, 4)]
+    elif dataset_name == "mimic":
+        return [(20, 4), (20, 4)]
+    elif dataset_name == "rotterdam":
+        return [(20, 3), (20, 3)]
+    elif dataset_name == "seer":
+        return [(50, 5), (50, 5)]
+    else:
+        raise ValueError("Invalid dataset name")
+        
+    

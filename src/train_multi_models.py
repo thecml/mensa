@@ -17,6 +17,7 @@ from utility.survival import make_time_bins, preprocess_data
 from sota_builder import *
 import config as cfg
 from utility.survival import compute_survival_curve, calculate_event_times
+from utility.survival import make_time_bins_hierarchical, digitize_and_convert
 from Evaluations.util import make_monotonic, check_monotonicity
 from utility.evaluator import LifelinesEvaluator
 import torchtuples as tt
@@ -70,19 +71,22 @@ if __name__ == "__main__":
         for model_name in MODELS:
             train_start_time = time()
             print(f"Training {model_name}")
-            if model_name in ["direct-full", "hierarch-full"]: # digitize
-                train_data_hierarch = [train_data[0], np.digitize(train_data[1], bins=time_bins), train_data[2]]
-                valid_data_hierarch = [valid_data[0], np.digitize(valid_data[1], bins=time_bins), valid_data[2]]
-                test_data_hierarch = [test_data[0], np.digitize(test_data[1], bins=time_bins), test_data[2]]
-            if model_name == "direct-full":
+            if model_name in ["direct-full", "hierarch-full"]:
                 data_settings = load_config(cfg.DATASET_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
+                num_bins = data_settings['num_bins']
+                train_event_bins = make_time_bins_hierarchical(train_data[1], num_bins=num_bins)
+                valid_event_bins = make_time_bins_hierarchical(valid_data[1], num_bins=num_bins)
+                test_event_bins = make_time_bins_hierarchical(test_data[1], num_bins=num_bins)
+                train_data_hierarch = [train_data[0], train_event_bins, train_data[2]]
+                valid_data_hierarch = [valid_data[0], valid_event_bins, valid_data[2]]
+                test_data_hierarch = [test_data[0], test_event_bins, test_data[2]]
+            if model_name == "direct-full":
                 model_settings = load_config(cfg.DIRECT_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                 hyperparams = format_hyperparams(model_settings)
                 verbose = model_settings['verbose']
                 model = util.get_model_and_output(model_name, train_data_hierarch, test_data_hierarch,
                                                   valid_data_hierarch, data_settings, hyperparams, verbose)
             elif model_name == "hierarch-full":
-                data_settings = load_config(cfg.DATASET_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                 model_settings = load_config(cfg.HIERARCH_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                 hyperparams = format_hyperparams(model_settings)
                 verbose = model_settings['verbose']
