@@ -28,10 +28,10 @@ class LabTransform(LabTransDiscreteTime): # for DeepHit CR
         events[is_event == 0] = 0
         return durations, events.astype('int64')
 
-def digitize_and_convert(data, time_bins):
+def digitize_and_convert(data, time_bins, y_col_names=['time', 'event']):
     df = pd.DataFrame(data[0]).astype(np.float32)
-    df['time'] = np.digitize(data[1][:,0], bins=time_bins).astype(int)
-    df['event'] = convert_to_competing_risk(data[2]).astype(int)
+    df[y_col_names[0]] = np.digitize(data[1][:,0], bins=time_bins).astype(int)
+    df[y_col_names[1]] = convert_to_competing_risk(data[2]).astype(int)
     return df
 
 def convert_to_competing_risk(data):

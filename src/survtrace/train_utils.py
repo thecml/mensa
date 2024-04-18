@@ -448,8 +448,8 @@ class Trainer:
                         phi_val = self.model.predict(tensor_val, val_batch_size, event=risk)
                         val_loss += self.metrics[0](phi_val, tensor_y_val["risk_{}".format(risk)][:,0].long(), tensor_y_val["risk_{}".format(risk)][:,1].long(), tensor_y_val["risk_{}".format(risk)][:,2].float())
 
-                print("[Train-{}]: {}".format(epoch, epoch_loss / (batch_idx+1)))
-                print("[Val-{}]: {}".format(epoch, val_loss.item()))
+                #print("[Train-{}]: {}".format(epoch, epoch_loss / (batch_idx+1)))
+                #print("[Val-{}]: {}".format(epoch, val_loss.item()))
                 val_loss_list.append(val_loss.item())
                 self.early_stopping(val_loss.item(), self.model, name=self.ckpt)
                 if self.early_stopping.early_stop:
