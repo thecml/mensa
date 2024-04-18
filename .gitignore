@@ -21,6 +21,7 @@ mensa_results.csv
 
 # NN weights
 weight*
+survtrace.pt
 
 # Distribution / packaging
 .Python

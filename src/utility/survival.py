@@ -11,6 +11,7 @@ from skmultilearn.model_selection import iterative_train_test_split
 from typing import List, Tuple, Optional, Union
 from sksurv.linear_model.coxph import BreslowEstimator
 from utility.preprocessor import Preprocessor
+from pycox.preprocessing.label_transforms import LabTransDiscreteTime
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -20,6 +21,18 @@ class dotdict(dict):
 
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
+
+class LabTransform(LabTransDiscreteTime): # for DeepHit CR
+    def transform(self, durations, events):
+        durations, is_event = super().transform(durations, events > 0)
+        events[is_event == 0] = 0
+        return durations, events.astype('int64')
+
+def digitize_and_convert(data, time_bins):
+    df = pd.DataFrame(data[0]).astype(np.float32)
+    df['time'] = np.digitize(data[1][:,0], bins=time_bins).astype(int)
+    df['event'] = convert_to_competing_risk(data[2]).astype(int)
+    return df
 
 def convert_to_competing_risk(data):
     return np.array([next((i+1 for i, val in enumerate(subarr)

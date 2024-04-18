@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import copy
 from torch.utils.data import Dataset, DataLoader
+from sklearn.preprocessing import LabelEncoder
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -24,6 +25,13 @@ class MultiEventDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx,:], self.Y1[idx,:], self.Y2[idx,:]
+
+def calculate_vocab_size(df, cols_categorical):
+    vocab_size = 0
+    for i, feat in enumerate(cols_categorical):
+        df[feat] = LabelEncoder().fit_transform(df[feat]).astype(float) + vocab_size
+        vocab_size = df[feat].max() + 1
+    return vocab_size
 
 '''
 Generate synthetic dataset based on Donna's paper:

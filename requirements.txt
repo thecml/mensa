@@ -18,3 +18,4 @@ torchtuples==0.2.2
 torchvision==0.17.2
 tqdm==4.66.2
 pycox==0.2.2
+easydict==1.9

@@ -28,7 +28,7 @@ from hierarchical import util
 from utility.hierarch import format_hyperparams
 from multi_evaluator import MultiEventEvaluator
 from pycox.preprocessing.label_transforms import LabTransDiscreteTime
-from utility.survival import make_time_bins_hierarchical
+from utility.survival import make_time_bins_hierarchical, digitize_and_convert
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -64,16 +64,13 @@ if __name__ == "__main__":
         data = dl.get_data()
         
         # Calculate time bins
-        if dataset_name == "seer":
-            time_bins = make_time_bins(data[1], event=data[2][:,0])
-        else:
-            time_bins = make_time_bins(data[1][:,0], event=data[2][:,0])
+        time_bins = make_time_bins(data[1], event=data[2][:,0])
         
         # Split data
         train_data, valid_data, test_data = dl.split_data(train_size=0.7, valid_size=0.5)
-        train_data = [train_data[0][:5000], train_data[1][:5000], train_data[2][:5000]]
-        valid_data = [valid_data[0][:5000], valid_data[1][:5000], valid_data[2][:5000]]
-        test_data = [test_data[0][:5000], test_data[1][:5000], test_data[2][:5000]]
+        train_data = [train_data[0][:1000], train_data[1][:1000], train_data[2][:1000]]
+        valid_data = [valid_data[0][:1000], valid_data[1][:1000], valid_data[2][:1000]]
+        test_data = [test_data[0][:1000], test_data[1][:1000], test_data[2][:1000]]
         n_events = dl.n_events
         
         # Impute and scale data
@@ -86,26 +83,15 @@ if __name__ == "__main__":
             print(f"Training {model_name}")
             if model_name == "deephit-comp":
                 config = load_config(cfg.DEEPHIT_CR_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
-                labtrans = LabTransform(len(time_bins)+1)
-                get_target = lambda df: (df['time'].values, df['event'].values)
-                df_train = pd.DataFrame(train_data[0]).astype(np.float32)
-                df_train['time'] = np.digitize(train_data[1][:,0], bins=time_bins).astype(int)
-                df_train['event'] = convert_to_competing_risk(train_data[2]).astype(int)
-                df_valid = pd.DataFrame(valid_data[0]).astype(np.float32)
-                df_valid['time'] = np.digitize(valid_data[1][:,0], bins=time_bins).astype(int)
-                df_valid['event'] = convert_to_competing_risk(valid_data[2]).astype(int)
-                df_test = pd.DataFrame(test_data[0]).astype(np.float32)
-                df_test['time'] = np.digitize(test_data[1][:,0], bins=time_bins).astype(int)
-                df_test['event'] = convert_to_competing_risk(test_data[2]).astype(int)
-                y_train = labtrans.fit_transform(*get_target(df_train))
-                y_val = labtrans.transform(*get_target(df_valid))
-                y_test = labtrans.transform(*get_target(df_test))
+                df_train = digitize_and_convert(train_data, time_bins)
+                df_valid = digitize_and_convert(valid_data, time_bins)
+                df_test = digitize_and_convert(test_data, time_bins)
                 y_train = (df_train['time'].values, df_train['event'].values)
                 val = (df_valid.drop(['time', 'event'], axis=1).values,
                        (df_valid['time'].values, df_valid['event'].values))
                 in_features = train_data[0].shape[1]
-                duration_index = labtrans.cuts
-                out_features = len(labtrans.cuts)
+                duration_index = np.concatenate([[0], time_bins.numpy()])
+                out_features = len(duration_index)
                 num_risks = int(df_train['event'].max())
                 model = make_deephit_cr_model(config, in_features, out_features, num_risks, duration_index)
                 epochs = config['epochs']
