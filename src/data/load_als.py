@@ -17,13 +17,17 @@ if __name__ == "__main__":
     fvc_fn = 'PROACT_FVC.csv'
     handgrip_str_fn = 'PROACT_HANDGRIPSTRENGTH.csv'
     muscle_str_fn = 'PROACT_MUSCLESTRENGTH.csv'
+    riluzole_fn = 'PROACT_RILUZOLE.csv'
+    elescorial_fn = 'PROACT_ELESCORIAL.csv'
         
     alsfrs_df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, alsfrs_fn))
     history_df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, alshistory_fn))
     fvc_df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, fvc_fn))
     handgrip_str_df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, handgrip_str_fn))
     muscle_str_df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, muscle_str_fn))
-    
+    riluzole_df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, riluzole_fn))
+    elescorial_df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, elescorial_fn))
+
     # Create dataframe with subjects
     df = pd.DataFrame()
     df['subject_id'] = alsfrs_df['subject_id'].unique()
@@ -54,6 +58,15 @@ if __name__ == "__main__":
     diagnosis_delta['Diagnosis_Delta'] = diagnosis_delta['Diagnosis_Delta'].map(abs)
     df = pd.merge(df, diagnosis_delta, on="subject_id", how='left')
     
+    # Record Riluzole use
+    riluzole_use = riluzole_df[['subject_id', 'Subject_used_Riluzole']].copy(deep=True)
+    df = pd.merge(df, riluzole_use, on="subject_id", how='left')
+    
+    # Record Elescorial information
+    elescorial_criteria = elescorial_df[['subject_id', 'el_escorial']].copy(deep=True)
+    elescorial_criteria.rename({'el_escorial': 'El_escorial'}, axis=1, inplace=True)
+    df = pd.merge(df, elescorial_criteria, on="subject_id", how='left')
+    
     # Record FVC
     cols = [f'Subject_Liters_Trial_{i}' for i in range(1,4)]
     fvc_df['FVC_Min'] = fvc_df[cols].min(axis=1)
@@ -62,7 +75,6 @@ if __name__ == "__main__":
     fvc_df = fvc_df.drop_duplicates(subset='subject_id')
     df = pd.merge(df, fvc_df[['subject_id', 'FVC_Min', 'FVC_Max', 'FVC_Mean']], on="subject_id", how="left")
     
-    """
     # Record handgrip strength
     handgrip_str_df = handgrip_str_df.drop_duplicates(subset='subject_id').copy(deep=True)
     handgrip_str_df.rename({'Test_Result': 'Handgrip_Strength'}, axis=1, inplace=True)
@@ -82,7 +94,6 @@ if __name__ == "__main__":
     muscle_test_res = pd.concat([muscle_test_res['subject_id'], muscle_test_res[test_cols].add_suffix('_Strength')], axis=1)
     muscle_test_res.columns = muscle_test_res.columns.str.replace(' ', '_')
     df = pd.merge(df, muscle_test_res, on="subject_id", how='left')
-    """
 
     # Drop subject id
     df = df.drop('subject_id', axis=1)

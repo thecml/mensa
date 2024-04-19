@@ -1,10 +1,12 @@
 import math
 import pylab
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import copy
 from torch.utils.data import Dataset, DataLoader
+from sklearn.preprocessing import LabelEncoder
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -24,6 +26,28 @@ class MultiEventDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx,:], self.Y1[idx,:], self.Y2[idx,:]
+
+def format_data_for_survtrace(df_train, df_valid, df_test, n_events):
+    y_train, y_valid, y_test = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    for i in range(n_events):
+        event_name = "event_{}".format(i)
+        y_train[event_name] = df_train['duration']
+        y_valid[event_name] = df_valid['duration']
+        y_test[event_name] = df_test['duration']
+    y_train['duration'] = df_train['duration']
+    y_train['proportion'] = df_train['proportion']
+    y_valid['duration'] = df_valid['duration']
+    y_valid['proportion'] = df_valid['proportion']
+    y_test['duration'] = df_test['duration']
+    y_test['proportion'] = df_test['proportion']
+    return y_train, y_valid, y_test
+    
+def calculate_vocab_size(df, cols_categorical):
+    vocab_size = 0
+    for i, feat in enumerate(cols_categorical):
+        df[feat] = LabelEncoder().fit_transform(df[feat]).astype(float) + vocab_size
+        vocab_size = df[feat].max() + 1
+    return int(vocab_size)
 
 '''
 Generate synthetic dataset based on Donna's paper:

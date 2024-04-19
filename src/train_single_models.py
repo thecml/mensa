@@ -13,7 +13,7 @@ from scipy.stats import chisquare
 from utility.survival import convert_to_structured
 from utility.data import dotdict
 from data_loader import get_data_loader
-from utility.survival import make_time_bins, impute_and_scale
+from utility.survival import make_time_bins, preprocess_data
 from sota_builder import *
 import config as cfg
 from utility.survival import compute_survival_curve, calculate_event_times
@@ -33,7 +33,7 @@ np.random.seed(0)
 random.seed(0)
 
 DATASETS = ["als"] #"mimic", "seer", "rotterdam"
-MODELS = ["cox"] #"cox", "coxboost", "rsf", "mtlr", "deephit-single"
+MODELS = ["cox", "coxboost", "rsf", "mtlr", "deephit-single"]
 
 results = pd.DataFrame()
 
@@ -48,7 +48,7 @@ if __name__ == "__main__":
         # Load data and split it
         dl = get_data_loader(dataset_name).load_data()
         num_features, cat_features = dl.get_features()
-        data_pkg = dl.split_data(train_size=0.7, valid_size=0.5)
+        data_pkg = dl.split_data(train_size=0.6, valid_size=0.5)
         
         n_events = dl.n_events
         for event_id in range(n_events):
@@ -70,7 +70,7 @@ if __name__ == "__main__":
             time_bins = make_time_bins(train_data[1], event=train_data[2])
         
             # Scale data
-            X_train, X_valid, X_test = impute_and_scale(X_train, X_valid, X_test, cat_features, num_features)
+            X_train, X_valid, X_test = preprocess_data(X_train, X_valid, X_test, cat_features, num_features)
             
             # Convert to array
             X_train_arr = np.array(X_train, dtype=np.float32)
@@ -80,7 +80,7 @@ if __name__ == "__main__":
             # Train models
             for model_name in MODELS:
                 train_start_time = time()
-                print(f"Training {model_name}")
+                print(f"Training {model_name} for event {event_id}")
                 if model_name == "cox":
                     config = load_config(cfg.COX_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                     model = make_cox_model(config)
@@ -161,6 +161,7 @@ if __name__ == "__main__":
                 ibs = lifelines_eval.integrated_brier_score()
                 d_calib = lifelines_eval.d_calibration()[0]
                 ci = lifelines_eval.concordance()[0]
+                print(ci)
                 
                 # Save to df
                 metrics = [ci, ibs, mae_hinge, mae_pseudo, d_calib, train_time, test_time]

@@ -10,15 +10,21 @@ __pycache__/
 /data/seer_processed.csv
 /data/PROACT_*
 /data/als.csv
+/data/mimic*
 
 # Results
 sota_results.csv
+sota_comp_results.csv
 sota_single_results.csv
 sota_multi_results.csv
 mensa_results.csv
 
 # NN weights
 weight*
+survtrace.pt
+
+# Wandb
+wandb
 
 # Distribution / packaging
 .Python

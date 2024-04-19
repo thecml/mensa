@@ -9,7 +9,7 @@ import warnings
 from models import MultiEventCoxPH
 from multi_evaluator import MultiEventEvaluator
 from data_loader import SyntheticDataLoader
-from utility.survival import impute_and_scale
+from utility.survival import preprocess_data
 from utility.data import dotdict
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
@@ -37,12 +37,12 @@ if __name__ == "__main__":
     time_bins = make_time_bins(train_data[1], event=train_data[2])
 
     # Scale data
-    train_data[0] = impute_and_scale(train_data[0].values, norm_mode='standard')
-    test_data[0] = impute_and_scale(test_data[0].values, norm_mode='standard')
-    valid_data[0] = impute_and_scale(valid_data[0].values, norm_mode='standard')
+    train_data[0] = preprocess_data(train_data[0].values, norm_mode='standard')
+    test_data[0] = preprocess_data(test_data[0].values, norm_mode='standard')
+    valid_data[0] = preprocess_data(valid_data[0].values, norm_mode='standard')
     
     # Train model
-    config = dotdict(cfg.PARAMS_COX_MULTI)
+    config = dotdict(cfg.COX_MULTI_PARAMS)
     n_features = train_data[0].shape[1]
     model = MultiEventCoxPH(in_features=n_features)
     data_train = pd.DataFrame(train_data[0])

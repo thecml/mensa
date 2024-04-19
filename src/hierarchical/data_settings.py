@@ -12,31 +12,21 @@ Definitions:
     min_epoch: minimum number of epochs to train for (while learning the model)
 '''
 
-synthetic_settings = \
-{
-    'num_events': 2, \
-    'num_bins': 20, \
-    'terminal_events': [1], \
-    'discrete': False, \
-    'event_ranks': {0:[], 1:[]}, \
-    'event_groups': {0:[0, 1], 1:[0, 1]}, \
-    'min_time': 0, \
-    'max_time': 20, \
-    'min_epoch': 50, \
-} 
-
 als_settings = \
 {
     'num_events': 4, \
-    'num_bins': 3000, \
+    'num_bins': 56, \
     'terminal_events': [], \
     'discrete': False, \
     'event_ranks': {0:[], 1:[], 2:[], 3:[]}, \
-    'event_groups': {0:[], 1:[], 2:[], 3:[]}, \
+    'event_groups': {0:[0, 1, 2, 3],
+                     1:[0, 1, 2, 3],
+                     2:[0, 1, 2, 3],
+                     3:[0, 1, 2, 3]}, \
     'min_time': 1, \
-    'max_time': 3000,  \
+    'max_time': 56, \
     'min_epoch': 1, \
-    'max_epoch': 10 \
+    'max_epoch': 5 \
 }
 
 mimic_settings = \
