@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from .utils import pack_sequence, unpack_sequence
 
 
-class MTLR(nn.Module):
+class MTLRCR(nn.Module):
     """Multi-task logistic regression for individualised survival prediction.
 
     The MTLR time-logits are computed as:

@@ -6,6 +6,7 @@ import torch
 from lifelines import KaplanMeierFitter
 from einops import rearrange
 
+import pandas as pd
 
 def encode_survival(time: Union[float, int, np.ndarray],
                     event: Union[int, np.ndarray],
@@ -19,7 +20,7 @@ def encode_survival(time: Union[float, int, np.ndarray],
     an instance experiencing event in bin 3 is encoded as [0, 0, 0, 1, 0], and
     instance censored in bin 2 as [0, 0, 1, 1, 1]. Note that an additional
     'catch-all' bin is added, spanning the range `(bins.max(), inf)`.
-
+    
     Parameters
     ----------
     time
@@ -43,7 +44,7 @@ def encode_survival(time: Union[float, int, np.ndarray],
     bin_idxs = np.digitize(time, bins)
     num_events = len(np.unique(event)) - 1
     # add extra bin [max_time, inf) at the end
-    y = np.zeros((time.shape[0], num_events, bins.shape[0] + 1), dtype=np.int)
+    y = np.zeros((time.shape[0], num_events, bins.shape[0] + 1), dtype=np.int32)
     for i, e in enumerate(event):
         bin_idx = bin_idxs[i]
         if e > 0:

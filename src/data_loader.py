@@ -272,7 +272,7 @@ class RotterdamDataLoader(BaseDataLoader):
     """
     def load_data(self):
         df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
-        self.X = df.drop(['rtime', 'recur', 'dtime', 'death'], axis=1)
+        self.X = df.drop(['pid', 'rtime', 'recur', 'dtime', 'death'], axis=1)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
         times = [df['rtime'].values, df['dtime'].values]

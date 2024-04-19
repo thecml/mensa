@@ -13,6 +13,9 @@ from tqdm import trange
 from torch.utils.data import DataLoader, TensorDataset
 from utility.survival import reformat_survival
 from utility.loss import mtlr_nll
+from torchmtlr import mtlr_neg_log_likelihood, mtlr_risk, mtlr_survival
+from torchmtlr.utils import make_time_bins, encode_survival, reset_parameters
+from torch.optim import Adam
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -22,6 +25,77 @@ class dotdict(dict):
 
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
+
+def make_optimizer(opt_cls, model, **kwargs):
+    """Creates a PyTorch optimizer for MTLR training."""
+    params_dict = dict(model.named_parameters())
+    weights = [v for k, v in params_dict.items() if "mtlr" not in k and "bias" not in k]
+    biases = [v for k, v in params_dict.items() if "bias" in k]
+    mtlr_weights = [v for k, v in params_dict.items() if "mtlr_weight" in k]
+    # Don't use weight decay on the biases and MTLR parameters, which have
+    # their own separate L2 regularization
+    optimizer = opt_cls([
+        {"params": weights},
+        {"params": biases, "weight_decay": 0.},
+        {"params": mtlr_weights, "weight_decay": 0.},
+    ], **kwargs)
+    return optimizer
+
+def train_mtlr_cr(x, y, model, time_bins,
+                  num_epochs=1000, lr=.01, weight_decay=0.,
+                  C1=1., batch_size=None,
+                  verbose=True, device="cpu"):
+    """Trains the MTLR model using minibatch gradient descent.
+    
+    Parameters
+    ----------
+    model : torch.nn.Module
+        MTLR model to train.
+    data_train : pd.DataFrame
+        The training dataset. Must contain a `time` column with the
+        event time for each sample and an `event` column containing
+        the event indicator.
+    num_epochs : int
+        Number of training epochs.
+    lr : float
+        The learning rate.
+    weight_decay : float
+        Weight decay strength for all parameters *except* the MTLR
+        weights. Only used for Deep MTLR training.
+    C1 : float
+        L2 regularization (weight decay) strenght for MTLR parameters.
+    batch_size : int
+        The batch size.
+    verbose : bool
+        Whether to display training progress.
+    device : str
+        Device name or ID to use for training.
+        
+    Returns
+    -------
+    torch.nn.Module
+        The trained model.
+    """
+    optimizer = make_optimizer(Adam, model, lr=lr, weight_decay=weight_decay)
+    reset_parameters(model)
+    print(x.shape, y.shape)
+    model = model.to(device)
+    model.train()
+    train_loader = DataLoader(TensorDataset(x, y), batch_size=batch_size, shuffle=True)
+    
+    pbar =  trange(num_epochs, disable=not verbose)
+    for i in pbar:
+        for xi, yi in train_loader:
+            xi, yi = xi.to(device), yi.to(device)
+            y_pred = model(xi)
+            loss = mtlr_neg_log_likelihood(y_pred, yi, model, C1, average=True)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        pbar.set_description(f"[epoch {i+1: 4}/{num_epochs}]")
+        pbar.set_postfix_str(f"loss = {loss.item():.4f}")
+    model.eval()
+    return model
 
 class mtlr(nn.Module):
     def __init__(self, in_features: int, num_time_bins: int, config: argparse.Namespace):
