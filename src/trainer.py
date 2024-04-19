@@ -16,6 +16,7 @@ from utility.loss import mtlr_nll, cox_nll
 from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split_multi, make_stratified_split_single
 from utility.data import MultiEventDataset
 from models import CoxPH
+from utility.data import dotdict
 
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
@@ -330,3 +331,73 @@ def train_model(
     if isinstance(model, CoxPH):
         model.calculate_baseline_survival(x_train.to(device), t_train.to(device), e_train.to(device))
     return model
+
+def train_mensa(X_train, y_train,
+                X_valid, y_valid,
+                model: nn.Module,
+                time_bins: NumericArrayLike,
+                config: dotdict,
+                random_state: int,
+                reset_model: bool = True,
+                device: torch.device = torch.device("cuda")):
+    train_size = X_train.shape[0]
+    val_size = X_valid.shape[0]
+    optimizer = optim.Adam(model.parameters(), lr=config.lr)
+
+    if reset_model:
+        model.reset_parameters()
+
+    model = model.to(device)
+    model.train()
+    best_val_nll = np.inf
+    best_ep = -1
+
+    pbar = trange(config.num_epochs, disable=not config.verbose)
+
+    start_time = datetime.now()
+    
+    X_valid, y_valid = X_valid.to(device), y_valid.to(device)
+    train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=config.batch_size, shuffle=True)
+    
+    for i in pbar:
+        total_loss = 0
+        total_log_likelihood = 0
+        total_kl_divergence = 0
+        for xi, yi in train_loader:
+            xi, yi = xi.to(device), yi.to(device)
+            optimizer.zero_grad()
+            loss, log_prior, log_variational_posterior, log_likelihood = model.sample_elbo(xi, yi, train_size)
+
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item() / train_size
+            total_log_likelihood += log_likelihood.item() / train_size
+            total_kl_divergence += (log_variational_posterior.item() -
+                                    log_prior.item()) * config.batch_size / train_size**2
+
+        val_loss, _, _, val_log_likelihood = model.sample_elbo(X_valid, y_valid, dataset_size=val_size)
+        val_loss /= val_size
+        val_log_likelihood /= val_size
+        print(val_log_likelihood)
+        pbar.set_description(f"[epoch {i + 1: 4}/{config.num_epochs}]")
+        pbar.set_postfix_str(f"Train: Total = {total_loss:.4f}, "
+                            f"KL = {total_kl_divergence:.4f}, "
+                            f"nll = {total_log_likelihood:.4f}; "
+                            f"Val: Total = {val_loss.item():.4f}, "
+                            f"nll = {val_log_likelihood.item():.4f}; ")
+        if config.early_stop:
+            if best_val_nll > val_loss:
+                best_val_nll = val_loss
+                best_ep = i
+            if (i - best_ep) > config.patience:
+                print(f"Validation loss converges at {best_ep}-th epoch.")
+                break
+            
+    end_time = datetime.now()
+    training_time = end_time - start_time
+    print(f"Training time: {training_time.total_seconds()}")
+    # model.eval()
+    return model
+    
+    
