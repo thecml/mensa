@@ -39,22 +39,21 @@ def make_ensemble_mtlr_prediction_multi(
         model: BayesianBaseModel,
         x: torch.Tensor,
         time_bins: NumericArrayLike,
-        config: dotdict
+        config: dotdict,
+        event_id: int
 ) -> (torch.Tensor, torch.Tensor, torch.Tensor):
     model.eval()
     start_time = datetime.now()
 
     with torch.no_grad():
-        # ensemble_output should have size: n_samples * dataset_size * n_bin
+        # ensemble_output should have size: n_samples * dataset_size * n_bin * n_events
         logits_outputs = model.forward(x, sample=True, n_samples=config.n_samples_test)
-        #logits_outputs = logits_outputs.reshape(config.n_samples_test,
-        #                                        x.shape[0],
-        #                                        (len(time_bins))+1,
-        #                                        2)
+        #logits_outputs = logits_outputs.reshape(config.n_samples_test, x.shape[0], (len(time_bins))+1, 2)
         end_time = datetime.now()
         inference_time = end_time - start_time
         print(f"Inference time: {inference_time.total_seconds()}")
-        survival_outputs = mtlr_survival_multi(logits_outputs, with_sample=True)
+        logits_outputs_event = logits_outputs[:,:,:,event_id]
+        survival_outputs = mtlr_survival(logits_outputs_event, with_sample=True)
         mean_survival_outputs = survival_outputs.mean(dim=0)
 
     time_bins = time_bins.to(survival_outputs.device)

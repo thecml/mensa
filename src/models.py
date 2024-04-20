@@ -381,7 +381,8 @@ class Mensa(nn.Module):
             event_output = outputs.mean(dim=0)[:,:,event_id]
             event_target = y[:,:,event_id]
             mtlr_loss = mtlr_nll(event_output, event_target, model=self, C1=0, average=False)
-            nll += (1/total_var) * mtlr_loss + torch.log(total_var ** (1/2))
+            #nll += (1/total_var) * mtlr_loss + torch.log(total_var ** (1/2))
+            nll += mtlr_loss
         # Shouldn't here be batch_size instead?
         loss = (log_variational_posterior - log_prior) / num_batch + nll
         return loss, log_prior, log_variational_posterior, nll

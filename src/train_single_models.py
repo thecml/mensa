@@ -32,7 +32,7 @@ np.seterr(invalid='ignore')
 np.random.seed(0)
 random.seed(0)
 
-DATASETS = ["als"] #"mimic", "seer", "rotterdam"
+DATASETS = ["rotterdam"] #"mimic", "seer", "rotterdam"
 MODELS = ["cox", "coxboost", "rsf", "mtlr", "deephit-single"]
 
 results = pd.DataFrame()
@@ -93,28 +93,6 @@ if __name__ == "__main__":
                     config = load_config(cfg.RSF_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                     model = make_rsf_model(config)
                     model.fit(X_train_arr, y_train)
-                elif model_name == "deephit-single":
-                    config = load_config(cfg.DEEPHIT_SINGLE_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
-                    in_features = X_train_arr.shape[1]
-                    num_durations = config['num_durations']
-                    labtrans = DeepHitSingle.label_transform(num_durations)
-                    get_target = lambda y: (y['time'], y['event'])
-                    y_train_dh = labtrans.fit_transform(*get_target(y_train))
-                    y_valid_dh = labtrans.transform(*get_target(y_valid))
-                    out_features = labtrans.out_features
-                    duration_index = labtrans.cuts
-                    model = make_deephit_single_model(config, in_features, len(time_bins), time_bins.numpy())
-                    batch_size = config['batch_size']
-                    model.optimizer.set_lr(config['lr'])
-                    epochs = config['epochs']
-                    if config['early_stop']:
-                        callbacks = [tt.callbacks.EarlyStopping(patience=config['patience'])]
-                    else:
-                        callbacks = []
-                    verbose = config['verbose']
-                    val_dh = (X_valid_arr, y_valid_dh)
-                    model.fit(X_train_arr, y_train_dh, batch_size, epochs, callbacks,
-                              verbose=verbose, val_data=val_dh)
                 elif model_name == "mtlr":
                     data_train = X_train.copy()
                     data_train["time"] = pd.Series(y_train['time'])

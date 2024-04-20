@@ -101,6 +101,7 @@ if __name__ == "__main__":
         model = train_mensa(X_train, y_train, X_valid, y_valid, model, time_bins,
                             config=config, random_state=0, reset_model=True, device=device)
 
+        time_bins = torch.from_numpy(time_bins)
         for event_id in range(n_events):
             train_obs = df_train.loc[(df_train['event'] == event_id+1) | (df_train['event'] == 0)]
             test_obs = df_test.loc[(df_train['event'] == event_id+1) | (df_test['event'] == 0)]
@@ -108,13 +109,17 @@ if __name__ == "__main__":
                                   dtype=torch.float)
             y_train_time, y_train_event = train_obs['time'], train_obs['event']
             y_test_time, y_test_event = test_obs['time'], test_obs['event']
-            time_bins = torch.from_numpy(time_bins)
             survival_outputs, _, ensemble_outputs = make_ensemble_mtlr_prediction_multi(model, X_test,
-                                                                                        time_bins, config)
+                                                                                        time_bins, config,
+                                                                                        event_id)
             surv_preds = survival_outputs.numpy()
             surv_preds = pd.DataFrame(surv_preds)
             lifelines_eval = LifelinesEvaluator(surv_preds.T, y_test_time, y_test_event,
                                                 y_train_time, y_train_event)
+            ci = lifelines_eval.concordance()[0]
+            print(ci)
+        
+        exit(0)
 
         for event_id in range(n_events):
             # Predict survival function

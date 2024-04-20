@@ -6,12 +6,12 @@ sigma1: 1
 sigma2: 0.002
 pi: 0.5
 c1: 0.01
-verbose: False
-lr: 0.00008
-num_epochs: 10
+verbose: True
+lr: 0.001
+num_epochs: 100
 dropout: 0.5
 n_samples_train: 10
 n_samples_test: 100
 batch_size: 32
 early_stop: True
-patience: 50
+patience: 10

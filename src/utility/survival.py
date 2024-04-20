@@ -139,12 +139,13 @@ def mtlr_survival_multi(
     # TODO: do not reallocate G in every call
     if with_sample:
         assert logits.dim() == 4, "The logits should have dimension with with size (n_samples, n_data, n_bins, n_events)"
-        G = torch.tril(torch.ones(logits.shape[2], logits.shape[2], 2)).to(logits.device)
+        G = torch.tril(torch.ones(logits.shape[2], logits.shape[2])).to(logits.device)
         density = torch.softmax(logits, dim=2)
         G_with_samples = G.expand(density.shape[0], -1, -1, 2)
 
         # b: n_samples; i: n_data; j: n_bin; k: n_bin
-        return torch.einsum('bijm,bjkm->bikm', density, G_with_samples)
+        #torch.einsum('bij,bjk->bik', density_event, G_with_samples)
+        return torch.einsum('bij,bjk->bik', density, G_with_samples)
     else:   # no sampling
         assert logits.dim() == 3, "The logits should have dimension with with size (n_data, n_bins, n_events)"
         G = torch.tril(torch.ones(logits.shape[1], logits.shape[1])).to(logits.device)
