@@ -11,6 +11,7 @@ __pycache__/
 /data/PROACT_*
 /data/als.csv
 /data/mimic*
+/data/pat_to_visit.csv
 
 # Results
 sota_results.csv

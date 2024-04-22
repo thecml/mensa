@@ -37,7 +37,7 @@ np.seterr(invalid='ignore')
 np.random.seed(0)
 random.seed(0)
 
-DATASETS = ["als"]
+DATASETS = ["rotterdam"]
 MODELS = ["direct-full", "hierarch-full"] # "direct-full", "hierarch-full", "mensa"
 
 results = pd.DataFrame()
@@ -130,5 +130,4 @@ if __name__ == "__main__":
                 
                 # Save results
                 results.to_csv(Path.joinpath(cfg.RESULTS_DIR, f"sota_single_results.csv"), index=False)
-                
                 

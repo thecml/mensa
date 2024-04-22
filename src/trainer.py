@@ -332,8 +332,10 @@ def train_model(
         model.calculate_baseline_survival(x_train.to(device), t_train.to(device), e_train.to(device))
     return model
 
-def train_mensa(X_train, y_train,
-                X_valid, y_valid,
+def train_mensa(X_train,
+                y_train,
+                X_valid,
+                y_valid,
                 model: nn.Module,
                 time_bins: NumericArrayLike,
                 config: dotdict,

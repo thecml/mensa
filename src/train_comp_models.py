@@ -222,6 +222,7 @@ if __name__ == "__main__":
                 
                 # Compute metrics
                 ci = lifelines_eval.concordance()[0]
+                print(ci)
                 ibs = lifelines_eval.integrated_brier_score()
                 d_calib = lifelines_eval.d_calibration()[0]
                 mae_hinge = lifelines_eval.mae(method="Hinge")

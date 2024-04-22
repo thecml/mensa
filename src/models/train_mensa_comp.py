@@ -50,7 +50,7 @@ np.random.seed(0)
 random.seed(0)
 
 DATASETS = ["rotterdam"] # "mimic", "seer", "rotterdam"
-MODELS = ["mtlrcr"] #"deephit", "direct", "hierarch"
+MODELS = ["mensa"] #"deephit", "direct", "hierarch"
 
 results = pd.DataFrame()
 

@@ -33,7 +33,7 @@ np.random.seed(0)
 random.seed(0)
 
 DATASETS = ["rotterdam"] #"mimic", "seer", "rotterdam"
-MODELS = ["cox", "coxboost", "rsf", "mtlr", "deephit-single"]
+MODELS = ["cox", "coxboost", "rsf", "mtlr"]
 
 results = pd.DataFrame()
 

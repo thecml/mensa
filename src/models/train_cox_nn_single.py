@@ -17,7 +17,6 @@ import torch
 import random
 import warnings
 from scipy.stats import entropy
-from data_loader import SyntheticDataLoader, ALSDataLoader
 from utility.survival import preprocess_data
 from utility.data import dotdict
 from data_loader import get_data_loader
@@ -38,29 +37,29 @@ if __name__ == "__main__":
     # Load data
     dl = get_data_loader(dataset_name).load_data()
     num_features, cat_features = dl.get_features()
-    data_packages = dl.split_data()
+    data_packages = dl.split_data(train_size=0.7, valid_size=0.5)
     
     n_events = 2
     for event_id in range(n_events):
         train_data = [data_packages[0][0], data_packages[0][1][:,event_id], data_packages[0][2][:,event_id]]
         test_data = [data_packages[1][0], data_packages[1][1][:,event_id], data_packages[1][2][:,event_id]]
-        val_data = [data_packages[2][0], data_packages[2][1][:,event_id], data_packages[2][2][:,event_id]]
+        valid_data = [data_packages[2][0], data_packages[2][1][:,event_id], data_packages[2][2][:,event_id]]
 
         # Make event times
         time_bins = make_time_bins(train_data[1], event=train_data[2])
 
         # Scale data
-        train_data[0] = preprocess_data(train_data[0].values, norm_mode='standard')
-        test_data[0] = preprocess_data(test_data[0].values, norm_mode='standard')
-        val_data[0] = preprocess_data(val_data[0].values, norm_mode='standard')
+        train_data[0], valid_data[0], test_data[0] = preprocess_data(train_data[0], valid_data[0], test_data[0],
+                                                                     cat_features, num_features,
+                                                                     as_array=True)
 
         # Format data
         data_train = pd.DataFrame(train_data[0])
         data_train["time"] = pd.Series(train_data[1].flatten())
         data_train["event"] = pd.Series(train_data[2].flatten()).astype(int)
-        data_valid = pd.DataFrame(val_data[0])
-        data_valid["time"] = pd.Series(val_data[1].flatten())
-        data_valid["event"] = pd.Series(val_data[2].flatten()).astype(int)
+        data_valid = pd.DataFrame(valid_data[0])
+        data_valid["time"] = pd.Series(valid_data[1].flatten())
+        data_valid["event"] = pd.Series(valid_data[2].flatten()).astype(int)
         data_test = pd.DataFrame(test_data[0])
         data_test["time"] = pd.Series(test_data[1].flatten())
         data_test["event"] = pd.Series(test_data[2].flatten()).astype(int)

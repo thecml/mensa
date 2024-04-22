@@ -8,7 +8,7 @@ import random
 import warnings
 from models import MultiEventCoxPHGaussian
 from multi_evaluator import MultiEventEvaluator
-from data_loader import SyntheticDataLoader
+from data_loader import RotterdamDataLoader, ALSDataLoader
 from utility.survival import preprocess_data
 from utility.data import dotdict
 
@@ -24,9 +24,9 @@ device = torch.device(device)
 
 if __name__ == "__main__":
     # Load data
-    dl = SyntheticDataLoader().load_data()
+    dl = RotterdamDataLoader().load_data()
     num_features, cat_features = dl.get_features()
-    data_packages = dl.split_data()
+    data_packages = dl.split_data(train_size=0.7, valid_size=0.5)
     n_events = 2
     
     train_data = [data_packages[0][0], data_packages[0][1], data_packages[0][2]]
@@ -37,9 +37,9 @@ if __name__ == "__main__":
     time_bins = make_time_bins(train_data[1], event=train_data[2])
 
     # Scale data
-    train_data[0] = preprocess_data(train_data[0].values, norm_mode='standard')
-    test_data[0] = preprocess_data(test_data[0].values, norm_mode='standard')
-    valid_data[0] = preprocess_data(valid_data[0].values, norm_mode='standard')
+    train_data[0], valid_data[0], test_data[0] = preprocess_data(train_data[0], valid_data[0], test_data[0],
+                                                                 cat_features, num_features,
+                                                                 as_array=True)
     
     # Train model
     config = dotdict(cfg.COX_MULTI_GAUSSIAN_PARAMS)
