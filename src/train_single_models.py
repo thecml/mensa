@@ -33,7 +33,7 @@ np.random.seed(0)
 random.seed(0)
 
 DATASETS = ["rotterdam"] #"mimic", "seer", "rotterdam"
-MODELS = ["cox", "coxboost", "rsf", "mtlr"]
+MODELS = ["cox"] #"coxboost", "rsf", "mtlr"
 
 results = pd.DataFrame()
 
@@ -48,9 +48,16 @@ if __name__ == "__main__":
         # Load data and split it
         dl = get_data_loader(dataset_name).load_data()
         num_features, cat_features = dl.get_features()
-        data_pkg = dl.split_data(train_size=0.6, valid_size=0.5)
-        
+        data_pkg = dl.split_data(train_size=0.7, valid_size=0.5)
         n_events = dl.n_events
+    
+        time_bins = list()
+        for event_id in range(n_events):
+            result = torch.tensor(make_time_bins(data_pkg[0][1][:,event_id],
+                                                 event=data_pkg[0][2][:,event_id]), dtype=torch.float)
+            time_bins.append(result)
+        time_bins = torch.cat(time_bins, dim=0).sort()[0]
+        
         for event_id in range(n_events):
             train_data = [data_pkg[0][0], data_pkg[0][1][:,event_id], data_pkg[0][2][:,event_id]]
             valid_data = [data_pkg[1][0], data_pkg[1][1][:,event_id], data_pkg[1][2][:,event_id]]

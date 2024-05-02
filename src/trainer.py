@@ -17,40 +17,45 @@ from utility.survival import compute_unique_counts, make_monotonic, make_stratif
 from utility.data import MultiEventDataset
 from models import CoxPH
 from utility.data import dotdict
+from utility.survival import cox_survival, calculate_baseline_hazard
+from sksurv.linear_model.coxph import BreslowEstimator
 
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
 
-def criterion(outputs, targets, log_vars, model, config):
+def LOG(x):
+    return torch.log(x+1e-20*(x<1e-20))
+
+def cox_loss_function(outputs, targets, model, config, copula=None):
   loss = 0
   for i in range(len(outputs)):
-    precision = torch.exp(-log_vars[i])
     cox_loss = cox_nll(outputs[i], 1, 0, targets[i][:,0], targets[i][:,1], model, C1=config.c1)
-    loss += precision * cox_loss + log_vars[i]
+    loss += cox_loss
   return torch.mean(loss)
 
-"""
-def criterion_gaussian(outputs, targets, log_vars, model, config):
-    loss = 0
-    for i in range(len(outputs)):
-        precision = torch.exp(-log_vars[i])
-        cox_loss = cox_nll(outputs[i], targets[i][:,0], targets[i][:,1], model, C1=config.c1)
-        loss += cox_loss
-    return torch.mean(loss)
-"""
+def copula_loss_function(model, event_survival, event_pdf, targets, copula):
+    s1 = event_survival[0]
+    s2 = event_survival[1]
+    f1 = event_pdf[0]
+    f2 = event_pdf[1]
+    e1 = targets[0][:,1]
+    e2 = targets[1][:,1]
+    
+    if copula is None:
+        p1 = LOG(f1) + LOG(s2)
+        p2 = LOG(f2) + LOG(s1)
+    else:
+        S = torch.cat([s1.reshape(-1,1), s2.reshape(-1,1)], dim=1).clamp(0.001,0.999)
+        p1 = LOG(f1) + LOG(copula.conditional_cdf("u", S))
+        p2 = LOG(f2) + LOG(copula.conditional_cdf("v", S))
+        
+    p1[torch.isnan(p1)] = 0
+    p2[torch.isnan(p2)] = 0
+    
+    return -torch.mean(p1*e1 + p2*e2)
+    #return -torch.mean(p1 * data['E'] + (1-data['E'])*p2)
 
-def criterion_gaussian(outputs, targets, log_vars, model, config):
-    precision1 = torch.exp(-log_vars[0])
-    cox_loss1 = cox_nll(outputs[0], precision1, log_vars[0], targets[0][:,0], targets[0][:,1], model, C1=config.c1)
-    
-    precision2 = torch.exp(-log_vars[1])
-    cox_loss2 = cox_nll(outputs[1], precision2, log_vars[1], targets[1][:,0], targets[1][:,1], model, C1=config.c1)
-    
-    loss = cox_loss1 + cox_loss2
-    
-    return loss
-
-def train_multi_model_gaussian(
+def train_mensa_model(
         model: nn.Module,
         df_train: pd.DataFrame, # Dataframe with shape [x, Y1_T, Y2_T, Y1_E, Y2_E]
         df_valid: pd.DataFrame,
@@ -58,7 +63,8 @@ def train_multi_model_gaussian(
         config: argparse.Namespace,
         random_state: int,
         reset_model: bool = True,
-        device: torch.device = torch.device("cuda")
+        device: torch.device = torch.device("cuda"),
+        copula = None
 ) -> nn.Module:
     if config.verbose:
         print(f"Training {model.get_name()}: reset mode is {reset_model}, number of epochs is {config.num_epochs}, "
@@ -67,13 +73,28 @@ def train_multi_model_gaussian(
         
     train_size, n_features = df_train.shape[0], df_train.shape[1]
     val_size = df_valid.shape[0]
-    optimizer = optim.Adam(model.parameters(), lr=config.lr)
+    n_events = 2
+
+    bh = list()
+    for i in range(n_events):
+        mean_survival_time = df_train.loc[df_train[f'y{i+1}_event'] == 1][f'y{i+1}_time'].mean()
+        baseline_hazard = 1. / mean_survival_time
+        bh.append(baseline_hazard)
+    
+    if copula:
+        copula.enable_grad()
+    
+    if copula:
+        optimizer = optim.Adam(list(model.parameters()) + [copula.theta], lr=config.lr, weight_decay=0.0)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=config.lr)
 
     if reset_model:
         model.reset_parameters()
 
     model = model.to(device)
     model.train()
+    
     best_val_nll = np.inf
     best_ep = -1
 
@@ -97,50 +118,68 @@ def train_multi_model_gaussian(
     for i in pbar:
         cumulative_loss = 0
         
-        # Training
+        # Train
         for X, Y1, Y2 in train_data_loader:
             optimizer.zero_grad()
+            targets = [Y1, Y2]
             
-            logits_dists = model(X)
+            if copula:
+                event_survival, event_pdf = list(), list()
+                for i in range(n_events):
+                    logits = model(X)
+                    hazard = bh[0] * torch.exp(logits[i].flatten())
+                    cum_hazard = hazard * targets[i][:,0]
+                    survival = torch.exp(-cum_hazard)
+                    event_survival.append(survival)
+                    event_pdf.append(survival*hazard)
+                
+                loss = copula_loss_function(model, event_survival, event_pdf, targets, copula)
+                loss.backward()
+                copula.theta.grad = copula.theta.grad * 100
+                copula.theta.grad = copula.theta.grad.clamp(-1,1)
+                
+                if torch.isnan(copula.theta.grad):
+                    print(copula.theta)
+                    assert 0
+                    
+                optimizer.step()
+                
+                if copula.theta <= 0:
+                    with torch.no_grad():
+                        copula.theta[:] = torch.clamp(copula.theta, 0.001, 30)
+            else:
+                logits = model(X)
+                loss = cox_loss_function(logits, [Y1, Y2], model, config)
+                cumulative_loss += loss.item()
+                loss.backward()
+                optimizer.step()
             
-            n_samples = config.n_samples_train
-            logits_cpd1 = torch.stack([torch.reshape(logits_dists[0].sample(), (X.shape[0], 1)) for _ in range(n_samples)])
-            logits_cpd2 = torch.stack([torch.reshape(logits_dists[1].sample(), (X.shape[0], 1)) for _ in range(n_samples)])
-            log_var1 = torch.log(torch.mean(torch.var(logits_cpd1, axis=0, keepdims=True)))
-            log_var2 = torch.log(torch.mean(torch.var(logits_cpd2, axis=0, keepdims=True)))
-            logits_mean1 = torch.mean(logits_cpd1, axis=0)
-            logits_mean2 = torch.mean(logits_cpd2, axis=0)
-            logits_mean = [logits_dists[0].mean, logits_dists[1].mean]
-            
-            loss = criterion_gaussian(logits_mean, [Y1, Y2], [log_var1, log_var2], model, config)
-            cumulative_loss += loss.item()
-            
-            loss.backward()
-            optimizer.step()
+        loss_list.append(cumulative_loss/len(train_data_loader))
         
-        epoch_loss = cumulative_loss/len(train_data_loader)
-        loss_list.append(epoch_loss)
-        
-        # Validation
+        # Validate
         valid_loss = 0
         for X, Y1, Y2 in val_data_loader:
             
-            logits_dists = model(X)
+            targets = [Y1, Y2]
             
-            n_samples = config.n_samples_test
-            logits_cpd1 = torch.stack([torch.reshape(logits_dists[0].sample(), (X.shape[0], 1)) for _ in range(n_samples)])
-            logits_cpd2 = torch.stack([torch.reshape(logits_dists[1].sample(), (X.shape[0], 1)) for _ in range(n_samples)])
-            log_var1 = torch.log(torch.mean(torch.var(logits_cpd1, axis=0, keepdims=True)))
-            log_var2 = torch.log(torch.mean(torch.var(logits_cpd2, axis=0, keepdims=True)))
-            logits_mean1 = torch.mean(logits_cpd1, axis=0)
-            logits_mean2 = torch.mean(logits_cpd2, axis=0)
-            logits = [logits_dists[0].mean, logits_dists[1].mean]
-            
-            loss = criterion_gaussian(logits, [Y1, Y2], [log_var1, log_var2], model, config)
-            valid_loss += loss.item()
+            if copula:
+                event_survival, event_pdf = list(), list()
+                for i in range(n_events):
+                    logits = model(X)
+                    hazard = bh[0] * torch.exp(logits[i].flatten())
+                    cum_hazard = hazard * targets[i][:,0]
+                    survival = torch.exp(-cum_hazard)
+                    event_survival.append(survival)
+                    event_pdf.append(survival*hazard)
+                loss = copula_loss_function(model, event_survival, event_pdf, targets, copula)
+                valid_loss += loss.item()
+            else:
+                logits = model(X)
+                loss = cox_loss_function(logits, [Y1, Y2], model, config)
+                valid_loss += loss.item()
         
         total_val_loss = (valid_loss/len(val_data_loader))
-        print(f"Train loss: {epoch_loss} - Valid loss: {total_val_loss}")
+        print(total_val_loss)
         
         pbar.set_description(f"[epoch {i + 1: 4}/{config.num_epochs}]")
         pbar.set_postfix_str(f"nll-loss = {loss_list[-1]:.4f}; "
@@ -153,7 +192,7 @@ def train_multi_model_gaussian(
             if (i - best_ep) > config.patience:
                 print(f"Validation loss converges at {best_ep}-th epoch.")
                 break
-    
+        
     end_time = datetime.now()
     training_time = end_time - start_time
     print(f"Training time: {training_time.total_seconds()}")
@@ -218,7 +257,7 @@ def train_multi_model(
             optimizer.zero_grad()
             
             logits = model(X)
-            loss = criterion(logits, [Y1, Y2], [log_var_a, log_var_b], model, config)
+            loss = cox_loss_function(logits, [Y1, Y2], [log_var_a, log_var_b], model, config)
             cumulative_loss += loss.item()
             
             loss.backward()
@@ -231,7 +270,7 @@ def train_multi_model(
         for X, Y1, Y2 in val_data_loader:
             
             logits = model(X)
-            loss = criterion(logits, [Y1, Y2], [log_var_a, log_var_b], model, config)
+            loss = cox_loss_function(logits, [Y1, Y2], [log_var_a, log_var_b], model, config)
             valid_loss += loss.item()
         
         total_val_loss = (valid_loss/len(val_data_loader))
@@ -331,75 +370,3 @@ def train_model(
     if isinstance(model, CoxPH):
         model.calculate_baseline_survival(x_train.to(device), t_train.to(device), e_train.to(device))
     return model
-
-def train_mensa(X_train,
-                y_train,
-                X_valid,
-                y_valid,
-                model: nn.Module,
-                time_bins: NumericArrayLike,
-                config: dotdict,
-                random_state: int,
-                reset_model: bool = True,
-                device: torch.device = torch.device("cuda")):
-    train_size = X_train.shape[0]
-    val_size = X_valid.shape[0]
-    optimizer = optim.Adam(model.parameters(), lr=config.lr)
-
-    if reset_model:
-        model.reset_parameters()
-
-    model = model.to(device)
-    model.train()
-    best_val_nll = np.inf
-    best_ep = -1
-
-    pbar = trange(config.num_epochs, disable=not config.verbose)
-
-    start_time = datetime.now()
-    
-    X_valid, y_valid = X_valid.to(device), y_valid.to(device)
-    train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=config.batch_size, shuffle=True)
-    
-    for i in pbar:
-        total_loss = 0
-        total_log_likelihood = 0
-        total_kl_divergence = 0
-        for xi, yi in train_loader:
-            xi, yi = xi.to(device), yi.to(device)
-            optimizer.zero_grad()
-            loss, log_prior, log_variational_posterior, log_likelihood = model.sample_elbo(xi, yi, train_size)
-
-            loss.backward()
-            optimizer.step()
-
-            total_loss += loss.item() / train_size
-            total_log_likelihood += log_likelihood.item() / train_size
-            total_kl_divergence += (log_variational_posterior.item() -
-                                    log_prior.item()) * config.batch_size / train_size**2
-
-        val_loss, _, _, val_log_likelihood = model.sample_elbo(X_valid, y_valid, dataset_size=val_size)
-        val_loss /= val_size
-        val_log_likelihood /= val_size
-        print(val_log_likelihood)
-        pbar.set_description(f"[epoch {i + 1: 4}/{config.num_epochs}]")
-        pbar.set_postfix_str(f"Train: Total = {total_loss:.4f}, "
-                            f"KL = {total_kl_divergence:.4f}, "
-                            f"nll = {total_log_likelihood:.4f}; "
-                            f"Val: Total = {val_loss.item():.4f}, "
-                            f"nll = {val_log_likelihood.item():.4f}; ")
-        if config.early_stop:
-            if best_val_nll > val_loss:
-                best_val_nll = val_loss
-                best_ep = i
-            if (i - best_ep) > config.patience:
-                print(f"Validation loss converges at {best_ep}-th epoch.")
-                break
-            
-    end_time = datetime.now()
-    training_time = end_time - start_time
-    print(f"Training time: {training_time.total_seconds()}")
-    # model.eval()
-    return model
-    
-    

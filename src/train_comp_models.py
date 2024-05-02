@@ -46,8 +46,8 @@ np.seterr(invalid='ignore')
 np.random.seed(0)
 random.seed(0)
 
-DATASETS = ["rotterdam"] # "mimic", "seer", "rotterdam"
-MODELS = ["mtlrcr"] #"deephit", "direct", "hierarch"
+DATASETS = ["seer"] # "mimic", "seer", "rotterdam"
+MODELS = ["survtrace"]# "deephit" "mtlrcr", "direct", "hierarch", 
 
 results = pd.DataFrame()
 
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     for dataset_name in DATASETS:
 
         # Load data
-        dl = get_data_loader(dataset_name).load_data()
+        dl = get_data_loader(dataset_name).load_data(n_samples=10000)
         num_features, cat_features = dl.get_features()
         data = dl.get_data()
         
@@ -87,13 +87,13 @@ if __name__ == "__main__":
                 df_train = digitize_and_convert(train_data, time_bins)
                 df_valid = digitize_and_convert(valid_data, time_bins)
                 df_test = digitize_and_convert(test_data, time_bins)
-                time_bins = make_time_bins(df_train["time"], event=df_train["event"])
-                num_time_bins = len(time_bins) + 1
+                mtlr_time_bins = make_time_bins(df_train["time"], event=df_train["event"])
+                num_time_bins = len(mtlr_time_bins) + 1
                 X_train = torch.tensor(df_train.drop(['time', 'event'], axis=1).values, dtype=torch.float)
-                y_train = encode_survival(df_train['time'], df_train['event'], time_bins)
+                y_train = encode_survival(df_train['time'], df_train['event'], mtlr_time_bins)
                 in_features = X_train.shape[1]
                 model = MTLRCR(in_features=in_features, num_time_bins=num_time_bins, num_events=2) # here is 2 competing risk event            
-                mtlr = train_mtlr_cr(X_train, y_train, model, time_bins, num_epochs=100,
+                mtlr = train_mtlr_cr(X_train, y_train, model, mtlr_time_bins, num_epochs=100,
                                      lr=1e-3, batch_size=64, verbose=True, device=device, C1=1.)            
             elif model_name == "survtrace":
                 config = load_config(cfg.SURVTRACE_CONFIGS_DIR, f"seer.yaml")
@@ -102,7 +102,7 @@ if __name__ == "__main__":
                 df_valid = digitize_and_convert(valid_data, time_bins, y_col_names=col_names)
                 df_test = digitize_and_convert(test_data, time_bins, y_col_names=col_names)
                 y_train_st, y_valid_st, y_test_st = format_data_for_survtrace(df_train, df_valid, df_test, n_events)
-                duration_index = np.concatenate([[0], time_bins.numpy()])
+                duration_index = np.concatenate([[0], time_bins])
                 out_features = len(duration_index)
                 config['vocab_size'] = 0
                 config['duration_index'] = duration_index
@@ -129,7 +129,7 @@ if __name__ == "__main__":
                 val = (df_valid.drop(['time', 'event'], axis=1).values,
                        (df_valid['time'].values, df_valid['event'].values))
                 in_features = train_data[0].shape[1]
-                duration_index = np.concatenate([[0], time_bins.numpy()])
+                duration_index = np.concatenate([[0], time_bins])
                 out_features = len(duration_index)
                 num_risks = int(df_train['event'].max())
                 model = make_deephit_model(config, in_features, out_features, num_risks, duration_index)

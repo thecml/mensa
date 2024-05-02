@@ -107,7 +107,7 @@ COX_MULTI_PARAMS = {
     'verbose': False,
     'lr': 0.005,
     'c1': 0.01,
-    'num_epochs': 50,
+    'num_epochs': 10,
     'dropout': 0.5,
     'n_samples_train': 10,
     'n_samples_test': 100,

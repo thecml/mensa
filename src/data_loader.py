@@ -30,7 +30,7 @@ class BaseDataLoader(ABC):
         self.n_events = None
 
     @abstractmethod
-    def load_data(self) -> None:
+    def load_data(self, n_samples) -> None:
         """Loads the data from a data set at startup"""
         
     @abstractmethod
@@ -61,15 +61,17 @@ class ALSDataLoader(BaseDataLoader):
     """
     Data loader for ALS dataset
     """
-    def load_data(self):
+    def load_data(self, n_samples:int = None):
         df = pd.read_csv(f'{cfg.DATA_DIR}/als.csv', index_col=0)
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
         columns_to_drop = [col for col in df.columns if
                            any(substring in col for substring in ['Observed', 'Event'])]
         df = df.loc[(df['Speech_Observed'] > 0) & (df['Swallowing_Observed'] > 0)
                     & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)] # min time
         df = df.loc[(df['Speech_Observed'] <= 3000) & (df['Swallowing_Observed'] <= 3000)
                     & (df['Handwriting_Observed'] <= 3000) & (df['Walking_Observed'] <= 3000)] # max time
-        #df = df.dropna(subset=['Handgrip_Strength']) #exclude people with no strength test
+        df = df.dropna(subset=['Handgrip_Strength']) #exclude people with no strength test
         events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
         self.X = df.drop(columns_to_drop, axis=1)
         self.num_features = self._get_num_features(self.X)
@@ -130,17 +132,21 @@ class MimicDataLoader(BaseDataLoader):
     """
     Data loader for MIMIC dataset
     """
-    def load_data(self):
+    def load_data(self, n_samples:int = None):
         '''
         t and e order, followed by arf, shock, death
         '''
         with open(str(Path(cfg.DATA_DIR)) + "/" + "mimic_dict.pkl", 'rb') as f:
             mimic_dict = pickle.load(f)
         column_names = [f'x_{i}' for i in range(mimic_dict['X'].shape[1])]
-
-        self.X = pd.DataFrame(mimic_dict['X'], columns=column_names)
-        self.y_t = mimic_dict['T']
-        self.y_e = mimic_dict['E']
+        df = pd.DataFrame(mimic_dict['X'], columns=column_names)
+        df['T'] = mimic_dict['T']
+        df['E'] = mimic_dict['E']
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
+        self.X = df[column_names]
+        self.y_t = df['T']
+        self.y_e = df['E']
         self.n_events = 2
         return self
 
@@ -208,8 +214,10 @@ class SeerDataLoader(BaseDataLoader):
     """
     Data loader for SEER dataset
     """
-    def load_data(self):
+    def load_data(self, n_samples:int = None):
         df = pd.read_csv(f'{cfg.DATA_DIR}/seer_processed.csv')
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
         self.X = df.drop(['duration', 'event_heart', 'event_breast'], axis=1)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
@@ -270,8 +278,10 @@ class RotterdamDataLoader(BaseDataLoader):
     """
     Data loader for Rotterdam dataset
     """
-    def load_data(self):
+    def load_data(self, n_samples:int = None):
         df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
         self.X = df.drop(['pid', 'rtime', 'recur', 'dtime', 'death'], axis=1)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
