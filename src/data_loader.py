@@ -57,6 +57,27 @@ class BaseDataLoader(ABC):
     def _get_cat_features(self, data) -> List[str]:
         return data.select_dtypes(['object']).columns.tolist()
 
+class SyntheticDataLoader(BaseDataLoader):
+    """
+    Data loader for synthetic data
+    """
+    def load_data(self):
+        params = cfg.SYNTHETIC_SETTINGS
+        raw_data, event_times, labels = make_synthetic(params['num_events'])
+        if params['discrete'] == False:
+            min_time = np.min(event_times[event_times != -1]) 
+            max_time = np.max(event_times[event_times != -1]) 
+            time_range = max_time - min_time
+            bin_size = time_range / params['num_bins']
+            binned_event_time = np.floor((event_times - min_time) / bin_size)
+            binned_event_time[binned_event_time == params['num_bins']] = params['num_bins'] - 1 
+        self.X = pd.DataFrame(raw_data)
+        self.y_t = binned_event_time
+        self.y_e = labels
+        self.min_time = min_time
+        self.max_time = max_time
+        return self
+
 class ALSDataLoader(BaseDataLoader):
     """
     Data loader for ALS dataset

@@ -26,7 +26,7 @@ NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, p
 def LOG(x):
     return torch.log(x+1e-20*(x<1e-20))
 
-def cox_loss_function(outputs, targets, model, config, copula=None):
+def multi_cox_loss_function(outputs, targets, model, config, copula=None):
   loss = 0
   for i in range(len(outputs)):
     cox_loss = cox_nll(outputs[i], 1, 0, targets[i][:,0], targets[i][:,1], model, C1=config.c1)
@@ -149,7 +149,7 @@ def train_mensa_model(
                         copula.theta[:] = torch.clamp(copula.theta, 0.001, 30)
             else:
                 logits = model(X)
-                loss = cox_loss_function(logits, [Y1, Y2], model, config)
+                loss = multi_cox_loss_function(logits, [Y1, Y2], model, config)
                 cumulative_loss += loss.item()
                 loss.backward()
                 optimizer.step()
@@ -175,7 +175,7 @@ def train_mensa_model(
                 valid_loss += loss.item()
             else:
                 logits = model(X)
-                loss = cox_loss_function(logits, [Y1, Y2], model, config)
+                loss = multi_cox_loss_function(logits, [Y1, Y2], model, config)
                 valid_loss += loss.item()
         
         total_val_loss = (valid_loss/len(val_data_loader))
@@ -257,7 +257,7 @@ def train_multi_model(
             optimizer.zero_grad()
             
             logits = model(X)
-            loss = cox_loss_function(logits, [Y1, Y2], [log_var_a, log_var_b], model, config)
+            loss = multi_cox_loss_function(logits, [Y1, Y2], [log_var_a, log_var_b], model, config)
             cumulative_loss += loss.item()
             
             loss.backward()
@@ -270,7 +270,7 @@ def train_multi_model(
         for X, Y1, Y2 in val_data_loader:
             
             logits = model(X)
-            loss = cox_loss_function(logits, [Y1, Y2], [log_var_a, log_var_b], model, config)
+            loss = multi_cox_loss_function(logits, [Y1, Y2], [log_var_a, log_var_b], model, config)
             valid_loss += loss.item()
         
         total_val_loss = (valid_loss/len(val_data_loader))
