@@ -87,8 +87,6 @@ class Clayton:
         return ((1/self.theta)*(u**(-self.theta)-1)).detach()
     def inv_generator(self, x):
         return ((1+self.theta*x)**(-1/self.theta)).detach()
-
-        
         
 
 if __name__ == "__main__":

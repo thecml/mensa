@@ -46,8 +46,8 @@ np.seterr(invalid='ignore')
 np.random.seed(0)
 random.seed(0)
 
-DATASETS = ["seer"] # "mimic", "seer", "rotterdam"
-MODELS = ["survtrace"]# "deephit" "mtlrcr", "direct", "hierarch", 
+DATASETS = ["rotterdam"] # "mimic", "seer", "rotterdam"
+MODELS = ["deephit"]# "deephit" "mtlrcr", "direct", "hierarch", 
 
 results = pd.DataFrame()
 
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     for dataset_name in DATASETS:
 
         # Load data
-        dl = get_data_loader(dataset_name).load_data(n_samples=10000)
+        dl = get_data_loader(dataset_name).load_data() # n_samples=10000
         num_features, cat_features = dl.get_features()
         data = dl.get_data()
         
@@ -93,8 +93,8 @@ if __name__ == "__main__":
                 y_train = encode_survival(df_train['time'], df_train['event'], mtlr_time_bins)
                 in_features = X_train.shape[1]
                 model = MTLRCR(in_features=in_features, num_time_bins=num_time_bins, num_events=2) # here is 2 competing risk event            
-                mtlr = train_mtlr_cr(X_train, y_train, model, mtlr_time_bins, num_epochs=100,
-                                     lr=1e-3, batch_size=64, verbose=True, device=device, C1=1.)            
+                model = train_mtlr_cr(X_train, y_train, model, mtlr_time_bins, num_epochs=100,
+                                      lr=1e-3, batch_size=64, verbose=True, device=device, C1=1.)            
             elif model_name == "survtrace":
                 config = load_config(cfg.SURVTRACE_CONFIGS_DIR, f"seer.yaml")
                 col_names = ['duration', 'proportion']

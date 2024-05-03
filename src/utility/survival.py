@@ -253,7 +253,7 @@ def calculate_baseline_hazard(
         last_zero = torch.where(baseline_survival == 0)[0][-1].item()
         baseline_survival[last_zero + 1:] = 0
     baseline_survival = make_monotonic(baseline_survival)
-    return uniq_times, baseline_hazard, cum_baseline_hazard, baseline_survival
+    return uniq_times, cum_baseline_hazard, baseline_survival
 
 def split_time_event(y):
     y_t = np.array(y['time'])

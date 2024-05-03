@@ -33,7 +33,7 @@ def multi_cox_loss_function(outputs, targets, model, config, copula=None):
     loss += cox_loss
   return torch.mean(loss)
 
-def copula_loss_function(model, event_survival, event_pdf, targets, copula):
+def copula_loss_function(event_survival, event_pdf, targets, copula):
     s1 = event_survival[0]
     s2 = event_survival[1]
     f1 = event_pdf[0]
@@ -52,7 +52,7 @@ def copula_loss_function(model, event_survival, event_pdf, targets, copula):
     p1[torch.isnan(p1)] = 0
     p2[torch.isnan(p2)] = 0
     
-    return -torch.mean(p1*e1 + p2*e2)
+    return -torch.mean(p1*e1 + p2*e2 + (1-e1)*p1 + (1-e1)*p2)
     #return -torch.mean(p1 * data['E'] + (1-data['E'])*p2)
 
 def train_mensa_model(
@@ -85,9 +85,9 @@ def train_mensa_model(
         copula.enable_grad()
     
     if copula:
-        optimizer = optim.Adam(list(model.parameters()) + [copula.theta], lr=config.lr, weight_decay=0.0)
+        optimizer = optim.Adam(list(model.parameters()) + [copula.theta], lr=0.001, weight_decay=0.0)
     else:
-        optimizer = optim.Adam(model.parameters(), lr=config.lr)
+        optimizer = optim.Adam(model.parameters(), lr=0.005)
 
     if reset_model:
         model.reset_parameters()
@@ -108,7 +108,7 @@ def train_mensa_model(
     x_val_events = df_valid[["y1_event", "y2_event"]].to_numpy()
     
     train_dataset = MultiEventDataset(n_features, x_train_features, x_train_times, x_train_events)
-    val_dataset = MultiEventDataset(n_features, x_train_features, x_train_times, x_train_events)
+    val_dataset = MultiEventDataset(n_features, x_val_features, x_val_times, x_val_events)
     train_data_loader = DataLoader(train_dataset, shuffle=True, batch_size=config.batch_size)
     val_data_loader = DataLoader(val_dataset, shuffle=True, batch_size=config.batch_size)
     
@@ -122,18 +122,19 @@ def train_mensa_model(
         for X, Y1, Y2 in train_data_loader:
             optimizer.zero_grad()
             targets = [Y1, Y2]
+            logits = model(X)
             
             if copula:
                 event_survival, event_pdf = list(), list()
                 for i in range(n_events):
-                    logits = model(X)
-                    hazard = bh[0] * torch.exp(logits[i].flatten())
+                    hazard = bh[i] * torch.exp(logits[i].flatten())
                     cum_hazard = hazard * targets[i][:,0]
                     survival = torch.exp(-cum_hazard)
                     event_survival.append(survival)
                     event_pdf.append(survival*hazard)
                 
-                loss = copula_loss_function(model, event_survival, event_pdf, targets, copula)
+                loss = copula_loss_function(event_survival, event_pdf, targets, copula)
+                cumulative_loss += loss.item()
                 loss.backward()
                 copula.theta.grad = copula.theta.grad * 100
                 copula.theta.grad = copula.theta.grad.clamp(-1,1)
@@ -148,8 +149,15 @@ def train_mensa_model(
                     with torch.no_grad():
                         copula.theta[:] = torch.clamp(copula.theta, 0.001, 30)
             else:
-                logits = model(X)
-                loss = multi_cox_loss_function(logits, [Y1, Y2], model, config)
+                event_survival, event_pdf = list(), list()
+                for i in range(n_events):
+                    hazard = bh[i] * torch.exp(logits[i].flatten())
+                    cum_hazard = hazard * targets[i][:,0]
+                    survival = torch.exp(-cum_hazard)
+                    event_survival.append(survival)
+                    event_pdf.append(survival*hazard)
+                
+                loss = copula_loss_function(event_survival, event_pdf, targets, None)
                 cumulative_loss += loss.item()
                 loss.backward()
                 optimizer.step()
@@ -161,21 +169,27 @@ def train_mensa_model(
         for X, Y1, Y2 in val_data_loader:
             
             targets = [Y1, Y2]
+            logits = model(X)
             
             if copula:
                 event_survival, event_pdf = list(), list()
                 for i in range(n_events):
-                    logits = model(X)
-                    hazard = bh[0] * torch.exp(logits[i].flatten())
+                    hazard = bh[i] * torch.exp(logits[i].flatten())
                     cum_hazard = hazard * targets[i][:,0]
                     survival = torch.exp(-cum_hazard)
                     event_survival.append(survival)
                     event_pdf.append(survival*hazard)
-                loss = copula_loss_function(model, event_survival, event_pdf, targets, copula)
+                loss = copula_loss_function(event_survival, event_pdf, targets, copula)
                 valid_loss += loss.item()
             else:
-                logits = model(X)
-                loss = multi_cox_loss_function(logits, [Y1, Y2], model, config)
+                event_survival, event_pdf = list(), list()
+                for i in range(n_events):
+                    hazard = bh[i] * torch.exp(logits[i].flatten())
+                    cum_hazard = hazard * targets[i][:,0]
+                    survival = torch.exp(-cum_hazard)
+                    event_survival.append(survival)
+                    event_pdf.append(survival*hazard)
+                loss = copula_loss_function(event_survival, event_pdf, targets, None)
                 valid_loss += loss.item()
         
         total_val_loss = (valid_loss/len(val_data_loader))
@@ -257,7 +271,7 @@ def train_multi_model(
             optimizer.zero_grad()
             
             logits = model(X)
-            loss = multi_cox_loss_function(logits, [Y1, Y2], [log_var_a, log_var_b], model, config)
+            loss = multi_cox_loss_function(logits, [Y1, Y2], model, config)
             cumulative_loss += loss.item()
             
             loss.backward()
@@ -270,7 +284,7 @@ def train_multi_model(
         for X, Y1, Y2 in val_data_loader:
             
             logits = model(X)
-            loss = multi_cox_loss_function(logits, [Y1, Y2], [log_var_a, log_var_b], model, config)
+            loss = multi_cox_loss_function(logits, [Y1, Y2], model, config)
             valid_loss += loss.item()
         
         total_val_loss = (valid_loss/len(val_data_loader))
@@ -295,7 +309,7 @@ def train_multi_model(
     model.calculate_baseline_survival(torch.tensor(x_train_features, dtype=torch.float32).to(device),
                                       torch.tensor(x_train_times, dtype=torch.float32).to(device),
                                       torch.tensor(x_train_events, dtype=torch.float32).to(device))
-    return model, [log_var_a, log_var_b]
+    return model
 
 def train_model(
         model: nn.Module,

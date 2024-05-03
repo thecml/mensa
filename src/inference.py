@@ -28,57 +28,11 @@ from utility.loss import mtlr_nll, cox_nll
 from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split_multi, cox_survival
 from utility.data import MultiEventDataset
 from models import CoxPH, MultiEventCoxPH
-from models import BayesianBaseModel
 from utility.data import dotdict
 from utility.survival import mtlr_survival, mtlr_survival_multi
 
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
-
-def make_ensemble_mtlr_prediction_multi(
-        model: BayesianBaseModel,
-        x: torch.Tensor,
-        time_bins: NumericArrayLike,
-        config: dotdict,
-        event_id: int
-) -> (torch.Tensor, torch.Tensor, torch.Tensor):
-    model.eval()
-    start_time = datetime.now()
-
-    with torch.no_grad():
-        # ensemble_output should have size: n_samples * dataset_size * n_bin * n_events
-        logits_outputs = model.forward(x, sample=True, n_samples=config.n_samples_test)
-        #logits_outputs = logits_outputs.reshape(config.n_samples_test, x.shape[0], (len(time_bins))+1, 2)
-        end_time = datetime.now()
-        inference_time = end_time - start_time
-        print(f"Inference time: {inference_time.total_seconds()}")
-        logits_outputs_event = logits_outputs[:,:,:,event_id]
-        survival_outputs = mtlr_survival(logits_outputs_event, with_sample=True)
-        mean_survival_outputs = survival_outputs.mean(dim=0)
-
-    time_bins = time_bins.to(survival_outputs.device)
-    return mean_survival_outputs, time_bins, survival_outputs
-
-def make_ensemble_mtlr_prediction(
-        model: BayesianBaseModel,
-        x: torch.Tensor,
-        time_bins: NumericArrayLike,
-        config: dotdict
-) -> (torch.Tensor, torch.Tensor, torch.Tensor):
-    model.eval()
-    start_time = datetime.now()
-
-    with torch.no_grad():
-        # ensemble_output should have size: n_samples * dataset_size * n_bin
-        logits_outputs = model.forward(x, sample=True, n_samples=config.n_samples_test)
-        end_time = datetime.now()
-        inference_time = end_time - start_time
-        print(f"Inference time: {inference_time.total_seconds()}")
-        survival_outputs = mtlr_survival(logits_outputs, with_sample=True)
-        mean_survival_outputs = survival_outputs.mean(dim=0)
-
-    time_bins = time_bins.to(survival_outputs.device)
-    return mean_survival_outputs, time_bins, survival_outputs
 
 def make_cox_prediction(
         model: CoxPH,

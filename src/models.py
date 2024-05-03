@@ -58,7 +58,7 @@ class CoxPH(nn.Module):
         n_hidden=100
         
         # Shared parameters
-        self.shared_layer = nn.Sequential(
+        self.hidden = nn.Sequential(
             nn.Linear(in_features, n_hidden),
             nn.ReLU(),
         )
@@ -66,15 +66,14 @@ class CoxPH(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Shared embedding
-        shared = self.shared_layer(x)
-        return self.fc1(shared)
+        hidden = self.hidden(x)
+        return self.fc1(hidden)
 
     def calculate_baseline_survival(self, x, t, e):
         outputs = self.forward(x)
         self.time_bins, self.cum_baseline_azhard, self.baseline_survival = calculate_baseline_hazard(outputs, t, e)
 
     def reset_parameters(self):
-        #self.l1.reset_parameters()
         return self
 
     def __repr__(self):
@@ -135,7 +134,6 @@ class Mensa(nn.Module):
         self.config = config
         
         self.time_bins = list()
-        self.baseline_hazards = list()
         self.cum_baseline_hazards = list()
         self.baseline_survivals = list()
         
@@ -161,9 +159,8 @@ class Mensa(nn.Module):
     def calculate_baseline_survival(self, x, t, e):
         outputs = self.forward(x)
         for i in range(len(outputs)):
-            time_bins, baseline_hazard, cum_baseline_hazard, baseline_survival = calculate_baseline_hazard(outputs[i], t[:,i], e[:,i])
+            time_bins, cum_baseline_hazard, baseline_survival = calculate_baseline_hazard(outputs[i], t[:,i], e[:,i])
             self.time_bins.append(time_bins)
-            self.baseline_hazards.append(baseline_hazard)
             self.cum_baseline_hazards.append(cum_baseline_hazard)
             self.baseline_survivals.append(baseline_survival)
             

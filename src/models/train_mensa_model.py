@@ -14,7 +14,7 @@ from utility.data import dotdict
 import torch.optim as optim
 import torch.nn as nn
 from copula.Frank import Frank
-from copula.Clayton import Clayton
+from data_loader import get_data_loader
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -28,9 +28,9 @@ device = torch.device(device)
 
 if __name__ == "__main__":
     # Load data
-    dl = ALSDataLoader().load_data()
+    dl = RotterdamDataLoader().load_data()
     num_features, cat_features = dl.get_features()
-    data_packages = dl.split_data(train_size=0.6, valid_size=0.5)
+    data_packages = dl.split_data(train_size=0.7, valid_size=0.5)
     n_events = 2
     n_output = 1
     n_hidden = 100

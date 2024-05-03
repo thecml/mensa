@@ -61,8 +61,8 @@ if __name__ == "__main__":
     data_test["y1_event"] = pd.Series(test_data[2][:,0])
     data_test["y2_event"] = pd.Series(test_data[2][:,1])
     
-    model, log_vars = train_multi_model(model, data_train, data_valid, time_bins, config=config,
-                                        random_state=0, reset_model=True, device=device)
+    model = train_multi_model(model, data_train, data_valid, time_bins, config=config,
+                              random_state=0, reset_model=True, device=device)
 
     # Evaluate event prediction
     evaluator = MultiEventEvaluator(data_test, data_train, model, config, device)
@@ -70,4 +70,5 @@ if __name__ == "__main__":
     for event_id in range(n_events):
         ci = evaluator.calculate_ci(surv_preds[event_id], event_id)
         mae = evaluator.calculate_mae(surv_preds[event_id], event_id, method="Hinge")
-        print(f"Event {event_id} - CI={round(ci, 2)} - MAE={round(mae, 2)}")
+        d_calib = evaluator.d_calibration()[0]
+        print(f"Event {event_id} - CI={round(ci, 2)} - MAE={round(mae, 2)} - D-Calib={round(d_calib,2)}")

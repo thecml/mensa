@@ -3,7 +3,7 @@ import numpy as np
 import config as cfg
 from utility.survival import make_time_bins
 from utility.evaluator import LifelinesEvaluator
-from data_loader import SyntheticDataLoader
+from data_loader import *
 import torch
 import random
 import warnings
@@ -26,10 +26,10 @@ device = torch.device(device)
 
 if __name__ == "__main__":
     # Load config
-    config = dotdict(cfg.DEEPHIT_SINGLE_PARAMS)
+    config = dotdict(cfg.DEEPHIT_PARAMS)
     
     # Load data
-    dl = SyntheticDataLoader().load_data()
+    dl = RotterdamDataLoader().load_data()
     num_features, cat_features = dl.get_features()
     data_packages = dl.split_data()
     

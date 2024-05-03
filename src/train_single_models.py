@@ -33,7 +33,7 @@ np.random.seed(0)
 random.seed(0)
 
 DATASETS = ["rotterdam"] #"mimic", "seer", "rotterdam"
-MODELS = ["cox"] #"coxboost", "rsf", "mtlr"
+MODELS = ["cox", "coxboost", "rsf", "mtlr"]
 
 results = pd.DataFrame()
 
@@ -146,7 +146,7 @@ if __name__ == "__main__":
                 ibs = lifelines_eval.integrated_brier_score()
                 d_calib = lifelines_eval.d_calibration()[0]
                 ci = lifelines_eval.concordance()[0]
-                print(ci)
+                print(f"Event {event_id} - CI={round(ci, 2)} - MAE={round(mae_hinge, 2)}")
                 
                 # Save to df
                 metrics = [ci, ibs, mae_hinge, mae_pseudo, d_calib, train_time, test_time]
