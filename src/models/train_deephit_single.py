@@ -31,39 +31,39 @@ if __name__ == "__main__":
     # Load data
     dl = RotterdamDataLoader().load_data()
     num_features, cat_features = dl.get_features()
-    data_packages = dl.split_data()
+    data_packages = dl.split_data(train_size=0.7, valid_size=0.5)
     
     n_events = 2
     for event_id in range(n_events):
         train_data = [data_packages[0][0], data_packages[0][1][:,event_id], data_packages[0][2][:,event_id]]
         test_data = [data_packages[1][0], data_packages[1][1][:,event_id], data_packages[1][2][:,event_id]]
-        val_data = [data_packages[2][0], data_packages[2][1][:,event_id], data_packages[2][2][:,event_id]]
+        valid_data = [data_packages[2][0], data_packages[2][1][:,event_id], data_packages[2][2][:,event_id]]
 
         # Scale data
-        #train_data[0] = impute_and_scale(train_data[0].values, norm_mode='standard')
-        #val_data[0] = impute_and_scale(val_data[0].values, norm_mode='standard')        
-        #test_data[0] = impute_and_scale(test_data[0].values, norm_mode='standard')
-
+        train_data[0], valid_data[0], test_data[0] = preprocess_data(train_data[0], valid_data[0], test_data[0],
+                                                                     cat_features, num_features,
+                                                                     as_array=True)
+        
         # Convert types        
         train_data[0] = train_data[0].astype('float32')
-        val_data[0] = val_data[0].astype('float32')
+        valid_data[0] = valid_data[0].astype('float32')
         test_data[0] = test_data[0].astype('float32')
         
         num_durations = config['num_durations']
         labtrans = DeepHitSingle.label_transform(num_durations)
         get_target = lambda df: (df[1], df[2])
         y_train = labtrans.fit_transform(*get_target(train_data))
-        y_val = labtrans.transform(*get_target(val_data))
+        y_val = labtrans.transform(*get_target(valid_data))
 
         train = (train_data[0], y_train)
-        val = (val_data[0], y_val)
+        val = (valid_data[0], y_val)
 
         # We don't need to transform the test labels
         durations_test, events_test = get_target(test_data)
         
         # Make model
         in_features = train_data[0].shape[1]
-        num_nodes = config['num_nodes']
+        num_nodes = config['num_nodes_shared']
         out_features = labtrans.out_features
         batch_norm = config['batch_norm']
         verbose = config['verbose']

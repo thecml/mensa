@@ -9,6 +9,7 @@ import warnings
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from utility.survival import preprocess_data
 from utility.data import dotdict
+from data_loader import *
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -24,7 +25,7 @@ if __name__ == "__main__":
     # Load data
     dl = SyntheticDataLoader().load_data()
     num_features, cat_features = dl.get_features()
-    data_packages = dl.split_data()
+    data_packages = dl.split_data(train_size=0.7, valid_size=0.5)
     
     n_events = 2
     for event_id in range(n_events):
@@ -36,9 +37,12 @@ if __name__ == "__main__":
         time_bins = make_time_bins(train_data[1], event=train_data[2])
 
         # Scale data
-        train_data[0] = preprocess_data(train_data[0].values, norm_mode='standard')
-        test_data[0] = preprocess_data(test_data[0].values, norm_mode='standard')
-        val_data[0] = preprocess_data(val_data[0].values, norm_mode='standard')
+        train_data[0], val_data[0], test_data[0] = preprocess_data(train_data[0],
+                                                                   val_data[0],
+                                                                   test_data[0],
+                                                                   cat_features,
+                                                                   num_features,
+                                                                   as_array=True)
 
         # Format data
         data_train = pd.DataFrame(train_data[0])
@@ -53,9 +57,9 @@ if __name__ == "__main__":
 
         # Train model
         config = dotdict(cfg.MTLR_PARAMS)
-        num_features = data_train.shape[1] - 2
+        n_features = data_train.shape[1] - 2
         num_time_bins = len(time_bins)
-        model = mtlr(in_features=num_features, num_time_bins=num_time_bins, config=config)
+        model = mtlr(in_features=n_features, num_time_bins=num_time_bins, config=config)
         model = train_mtlr_model(model, data_train, data_valid, time_bins,
                                  config, random_state=0, reset_model=True, device=device)
         

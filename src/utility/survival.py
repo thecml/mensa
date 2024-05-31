@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import math
 import torch
-from typing import List, Tuple, Optional, Union
 import rpy2.robjects as robjects
 import scipy.integrate as integrate
 from sklearn.utils import shuffle
@@ -94,7 +93,7 @@ Impute missing values and scale
 def preprocess_data(X_train, X_valid, X_test, cat_features,
                     num_features, as_array=False) \
     -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    preprocessor = Preprocessor(cat_feat_strat='mode', num_feat_strat='mean')
+    preprocessor = Preprocessor(cat_feat_strat='mode', num_feat_strat='mean', scaling_strategy="minmax")
     transformer = preprocessor.fit(X_train, cat_feats=cat_features, num_feats=num_features,
                                    one_hot=True, fill_value=-1)
     X_train = transformer.transform(X_train)

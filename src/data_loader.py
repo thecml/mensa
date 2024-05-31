@@ -72,11 +72,58 @@ class SyntheticDataLoader(BaseDataLoader):
             binned_event_time = np.floor((event_times - min_time) / bin_size)
             binned_event_time[binned_event_time == params['num_bins']] = params['num_bins'] - 1 
         self.X = pd.DataFrame(raw_data)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
         self.y_t = binned_event_time
         self.y_e = labels
         self.min_time = min_time
         self.max_time = max_time
         return self
+    
+    def split_data(self, train_size: float,
+                   valid_size: float,
+                   random_state=0):
+        # Split multi event data
+        raw_data = self.X
+        event_time = self.y_t
+        labs = self.y_e
+        
+        traj_labs = labs
+        if labs.shape[1] > 1: 
+            traj_labs = get_trajectory_labels(labs)
+
+        #split into training/test
+        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
+                                          random_state=random_state)
+        train_i, test_i = next(splitter.split(raw_data, traj_labs))
+
+        train_data = raw_data.iloc[train_i, :]
+        train_labs = labs[train_i, :]
+        train_event_time = event_time[train_i, :]
+
+        pretest_data = raw_data.iloc[test_i, :]
+        pretest_labs = labs[test_i, :]
+        pretest_event_time = event_time[test_i, :]
+
+        #further split test set into test/validation
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
+                                          random_state=random_state)
+        new_pretest_labs = get_trajectory_labels(pretest_labs)
+        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
+        test_data = pretest_data.iloc[test_i, :]
+        test_labs = pretest_labs[test_i, :]
+        test_event_time = pretest_event_time[test_i, :]
+
+        val_data = pretest_data.iloc[val_i, :]
+        val_labs = pretest_labs[val_i, :]
+        val_event_time = pretest_event_time[val_i, :]
+
+        #package for convenience
+        train_pkg = [train_data, train_event_time, train_labs]
+        valid_pkg = [val_data, val_event_time, val_labs]
+        test_pkg = [test_data, test_event_time, test_labs]
+
+        return (train_pkg, valid_pkg, test_pkg)  
 
 class ALSDataLoader(BaseDataLoader):
     """
@@ -113,7 +160,7 @@ class ALSDataLoader(BaseDataLoader):
         labs = self.y_e
         
         traj_labs = labs
-        if labs.shape[1] > 1: 
+        if labs.shape[1] > 1:
             traj_labs = get_trajectory_labels(labs)
 
         #split into training/test
@@ -367,6 +414,8 @@ def get_data_loader(dataset_name:str) -> BaseDataLoader:
         return MimicDataLoader()
     elif dataset_name == "rotterdam":
         return RotterdamDataLoader()
+    elif dataset_name == "synthetic":
+        return SyntheticDataLoader()
     else:
         raise ValueError("Dataset not found")
         

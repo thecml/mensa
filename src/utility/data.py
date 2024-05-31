@@ -13,6 +13,18 @@ class dotdict(dict):
     __getattr__ = dict.get
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
+    
+class SingleEventDataset(Dataset):
+    def __init__(self, feature_num, X, Y_T, Y_E):
+        self.feature_num = feature_num
+        self.X = torch.tensor(X, dtype=torch.float32)
+        self.Y = torch.tensor(np.stack((Y_T[:,0], Y_E[:,0]), axis=1), dtype=torch.float32)
+
+    def __len__(self):
+        return self.X.size(0)
+
+    def __getitem__(self, idx):
+        return self.X[idx,:], self.Y[idx,:]
 
 class MultiEventDataset(Dataset):
     def __init__(self, feature_num, X, Y_T, Y_E):

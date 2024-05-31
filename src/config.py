@@ -194,23 +194,6 @@ RSF_PARAMS = {
     "random_state": 0
     }
 
-MTLR_PARAMS = {
-    'hidden_size': 64,
-    'mu_scale': None,
-    'rho_scale': -5,
-    'sigma1': 1,
-    'sigma2': 0.002,
-    'pi': 0.5,
-    'verbose': False,
-    'lr': 0.00008,
-    'num_epochs': 1000,
-    'dropout': 0.5,
-    'n_samples_train': 10,
-    'n_samples_test': 100,
-    'batch_size': 32,
-    'early_stop': True,
-    'patience': 50}
-
 DEEPHIT_PARAMS = {
     'num_durations': 10,    
     'num_nodes_shared': [32, 32],
