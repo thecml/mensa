@@ -3,6 +3,8 @@ import pandas as pd
 import torch
 from scipy.special import erfinv
 from pycop import simulation
+from scipy import stats
+import numpy as np
 
 torch.set_default_tensor_type(torch.DoubleTensor)
 torch.backends.cudnn.allow_tf32 = False
@@ -66,6 +68,14 @@ def inverse_transform_weibull(p, shape, scale):
     # transform CDF to x
     return scale * (-safe_log(p)) ** (1 / shape)
 
+def inverse_transform_lognormal(p, shape, scale):
+    return stats.lognorm(s=scale*0.25, scale=shape).ppf(p)
+
+def inverse_transform_exp(p, shape, scale):
+    return stats.expon(scale).ppf(p)
+
+
+
 
 def dgp(copula_name='Frank', theta=10, n_samples=30000, n_features=10, rng=np.random.default_rng()):
     # Generate synthetic data (time-to-event and censoring indicator)
@@ -122,7 +132,7 @@ def dgp(copula_name='Frank', theta=10, n_samples=30000, n_features=10, rng=np.ra
     return df, (beta, beta_shape_e, beta_scale_e)
 
 
-def dgp_cr(copula_parameters: list, n_samples=30000, n_features=10, rng=np.random.default_rng()):
+def dgp_cr(copula_parameters: list, dist='Weibull', n_samples=30000, n_features=10, rng=np.random.default_rng()):
     # Generate synthetic data (two competing risks and censoring)
     if copula_parameters is None:
         corrMatrix = np.array([[1, 0.8, 0], [0.8, 1, 0], [0, 0, 1]])
@@ -164,9 +174,20 @@ def dgp_cr(copula_parameters: list, n_samples=30000, n_features=10, rng=np.rando
 
     u_e1, u_e2, u_c = simulation.simu_mixture(3, n_samples, copula_parameters)
 
-    e1_time = inverse_transform_weibull(u_e1, shape_e1, scale_e1)
-    e2_time = inverse_transform_weibull(u_e2, shape_e2, scale_e2)
-    c_time = inverse_transform_weibull(u_c, shape_c, scale_c)
+    if dist == "Weibull":
+        e1_time = inverse_transform_weibull(u_e1, shape_e1, scale_e1)
+        e2_time = inverse_transform_weibull(u_e2, shape_e2, scale_e2)
+        c_time = inverse_transform_weibull(u_c, shape_c, scale_c)
+    elif dist == "Exp":
+        e1_time = inverse_transform_exp(u_e1, shape_e1, scale_e1)
+        e2_time = inverse_transform_exp(u_e2, shape_e2, scale_e2)
+        c_time = inverse_transform_exp(u_c, shape_c, scale_c)
+    elif dist == "Lognormal":
+        e1_time = inverse_transform_lognormal(u_e1, shape_e1, scale_e1)
+        e2_time = inverse_transform_lognormal(u_e2, shape_e2, scale_e2)
+        c_time = inverse_transform_lognormal(u_c, shape_c, scale_c)
+    else:
+        raise ValueError('Dist not implemented')
 
     # create observed time
     # concatenate event times and censoring times
@@ -186,6 +207,15 @@ def dgp_cr(copula_parameters: list, n_samples=30000, n_features=10, rng=np.rando
 if __name__ == '__main__':
     # df, params = linear_dgp_parametric_ph(copula_name='Frank', n_samples=30000, n_features=10, theta=10)
     # df, params = dgp(copula_name='Frank', n_samples=30000, n_features=10, theta=10)
-    df, params = dgp_cr(copula_parameters=None, n_samples=30000, n_features=10)
+    df, params = dgp_cr(copula_parameters=None, dist="Weibull",
+                        n_samples=30000, n_features=10)
 
     print(df.head())
+    import matplotlib.pyplot as plt
+    e1_times = df['e1_time']
+    e2_times = df['e2_time']
+    
+    plt.hist(e1_times, bins=20, alpha=0.5, label='Data 1', edgecolor='black')
+    plt.hist(e2_times, bins=20, alpha=0.5, label='Data 1', edgecolor='black')
+    plt.show()
+    
