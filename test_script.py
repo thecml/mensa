@@ -66,12 +66,16 @@ def loss_triple(model1, model2, model3, data, copula=None):
     return loss
 
 def single_loss(model, data, event_name='t1'):
-    
     f = model.PDF(data[event_name], data['X'])
-    
-    
-    
     return -torch.mean(LOG(f))
+
+def single_loss_2(model, data, e):
+    s = model.survival(data['T'], data['X'])
+    f = model.PDF(data['T'], data['X'])
+    
+    E = (data['E'] == e).type(torch.float32)
+    
+    return -torch.mean((E * LOG(f)) + ((1-E)*LOG(s)))
 
 class Exp_linear:
     def __init__(self, bh, nf) -> None:
@@ -156,7 +160,7 @@ if __name__ == "__main__":
     indep_model2.enable_grad()
     indep_model3.enable_grad()
 
-    model_optimizer = torch.optim.Adam( list(indep_model1.parameters())+list(indep_model2.parameters() + list(indep_model3.parameters())), lr=1e-3, weight_decay=0.0)
+    model_optimizer = torch.optim.Adam( list(indep_model1.parameters())+list(indep_model2.parameters() + list(indep_model3.parameters())), lr=1e-3, weight_decay=0.01)
     for i in range(10000):
         model_optimizer.zero_grad()
         loss = loss_triple(indep_model1, indep_model2, indep_model3, train_dict)
@@ -164,8 +168,13 @@ if __name__ == "__main__":
         model_optimizer.step()
         print(loss)
 
-    print(loss_triple(dgp1, dgp2, dgp3, train_dict))
+    print(loss_triple(dgp1, dgp2, dgp3, val_dict))
+    print(loss_triple(indep_model1, indep_model2, indep_model3, val_dict))
     print(single_loss(dgp1, val_dict, 't1'), single_loss(indep_model1, val_dict, 't1'))
     print(single_loss(dgp2, val_dict, 't2'), single_loss(indep_model2, val_dict, 't2'))
     print(single_loss(dgp3, val_dict, 't3'), single_loss(indep_model3, val_dict, 't3'))
+
+    print(single_loss_2(dgp1, val_dict, 0), single_loss_2(indep_model1, val_dict, 0))
+    print(single_loss_2(dgp2, val_dict, 1), single_loss_2(indep_model2, val_dict, 1))
+    print(single_loss_2(dgp3, val_dict, 2), single_loss_2(indep_model3, val_dict, 2))
     
