@@ -9,12 +9,14 @@ import numpy as np
 torch.set_default_tensor_type(torch.DoubleTensor)
 torch.backends.cudnn.allow_tf32 = False
 
+np.random.seed(0)
 
 def safe_log(x):
     return np.log(x+1e-20*(x<1e-20))
 
 
-def linear_dgp_parametric_ph(copula_name='Frank', theta=10, n_samples=30000, n_features=10, rng=np.random.default_rng()):
+def linear_dgp_parametric_ph(copula_name='Frank', theta=10,
+                             n_samples=30000, n_features=10, rng=np.random.default_rng()):
     # Generate synthetic data (time-to-event and censoring indicator)
     # with linear parametric proportional hazards model (Weibull CoxPH)
     # This follows Ali's paper (Algorithm 2)
@@ -57,7 +59,7 @@ def linear_dgp_parametric_ph(copula_name='Frank', theta=10, n_samples=30000, n_f
     data = np.concatenate([X, observed_time[:, None], event_indicator[:, None], event_time[:, None],
                            censoring_time[:, None]], axis=1)
     columns = [f'X{i}' for i in range(n_features)] + ['observed_time', 'event_indicator', 'event_time',
-                                                         'censoring_time']
+                                                      'censoring_time']
     df = pd.DataFrame(data, columns=columns)
     return df, (beta_e, beta_c)
 
