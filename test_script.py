@@ -168,12 +168,17 @@ if __name__ == "__main__":
         model_optimizer.step()
         print(loss)
 
+
+    #NLL of all of the events together --> problem
     print(loss_triple(dgp1, dgp2, dgp3, val_dict))
     print(loss_triple(indep_model1, indep_model2, indep_model3, val_dict))
+
+    #NLL assuming every thing is observed, here NLL works correctly
     print(single_loss(dgp1, val_dict, 't1'), single_loss(indep_model1, val_dict, 't1'))
     print(single_loss(dgp2, val_dict, 't2'), single_loss(indep_model2, val_dict, 't2'))
     print(single_loss(dgp3, val_dict, 't3'), single_loss(indep_model3, val_dict, 't3'))
 
+    #NLL for each event assuming two other events as censoring--> problematic here as well 
     print(single_loss_2(dgp1, val_dict, 0), single_loss_2(indep_model1, val_dict, 0))
     print(single_loss_2(dgp2, val_dict, 1), single_loss_2(indep_model2, val_dict, 1))
     print(single_loss_2(dgp3, val_dict, 2), single_loss_2(indep_model3, val_dict, 2))
