@@ -189,7 +189,7 @@ class NonlinearSyntheticDataLoader(BaseDataLoader):
         return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
     
 class CompetingRiskSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_parameters: list, dist='Weibull',
+    def load_data(self, copula_parameters=None, dist='Weibull',
                   n_samples=30000, n_features=10, rng=np.random.default_rng()):
         # Generate synthetic data (2 competing risks and censoring)
         if copula_parameters is None:
@@ -211,6 +211,7 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         beta_shape_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         beta_scale_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         
+        hidden_rep = np.matmul(X, beta).squeeze()
         hidden_rep = relu(hidden_rep)
         
         shape_c = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_c).squeeze()
@@ -251,11 +252,17 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
         self.y_t = np.stack((df['e1_time'].values, df['e2_time'].values, df['c_time'].values), axis=1)
-        self.y_e = df['event_indicator'].values
+        
+        # Encode y_e to CR structure
+        events = df['event_indicator'].values.astype('int32')
+        num_events = int(np.max(events) + 1)
+        self.y_e = np.eye(num_events)[events]
+        
         self.params = [beta, beta_shape_e1, beta_scale_e1, beta_shape_e2, beta_scale_e2]
         return self
     
-    def split_data(self, train_size: float,
+    def split_data(self,
+                   train_size: float,
                    valid_size: float,
                    random_state=0):
         # Split multi event data
@@ -297,7 +304,7 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         train_pkg = [train_data, train_event_time, train_labs]
         valid_pkg = [val_data, val_event_time, val_labs]
         test_pkg = [test_data, test_event_time, test_labs]
-
+        
         return (train_pkg, valid_pkg, test_pkg)
 
 class SyntheticDataLoader(BaseDataLoader):
@@ -366,7 +373,7 @@ class SyntheticDataLoader(BaseDataLoader):
         valid_pkg = [val_data, val_event_time, val_labs]
         test_pkg = [test_data, test_event_time, test_labs]
 
-        return (train_pkg, valid_pkg, test_pkg)  
+        return (train_pkg, valid_pkg, test_pkg)
 
 class ALSDataLoader(BaseDataLoader):
     """
