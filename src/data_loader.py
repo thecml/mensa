@@ -12,6 +12,10 @@ from sklearn.model_selection import StratifiedShuffleSplit
 from utility.survival import get_trajectory_labels
 from hierarchical.data_settings import *
 import pickle
+from pycop import simulation
+from scipy import stats
+from utility.data import (inverse_transform, inverse_transform_weibull, relu,
+                          inverse_transform_exp, inverse_transform_lognormal)
 
 class BaseDataLoader(ABC):
     """
@@ -28,6 +32,7 @@ class BaseDataLoader(ABC):
         self.min_time = None
         self.max_time = None
         self.n_events = None
+        self.params = None
 
     @abstractmethod
     def load_data(self, n_samples) -> None:
@@ -56,6 +61,251 @@ class BaseDataLoader(ABC):
 
     def _get_cat_features(self, data) -> List[str]:
         return data.select_dtypes(['object']).columns.tolist()
+
+class LinearSyntheticDataLoader(BaseDataLoader):
+    def load_data(self, copula_name='Frank', theta=10,
+                  n_samples=30000, n_features=10,
+                  rng=np.random.default_rng()):
+        # Generate synthetic data (time-to-event and censoring indicator)
+        # with linear parametric proportional hazards model (Weibull CoxPH)
+        v_e=4; rho_e=14; v_c=3; rho_c=16
+        
+        X = rng.uniform(0, 1, (n_samples, n_features))
+        beta_c = rng.uniform(0, 1, (n_features,))
+        beta_e = rng.uniform(0, 1, (n_features,))
+
+        event_risk = np.matmul(X, beta_e).squeeze()
+        censoring_risk = np.matmul(X, beta_c).squeeze()
+
+        if copula_name=='Frank':
+            u_e, u_c = simulation.simu_archimedean('frank', 2, n_samples, theta)
+        elif copula_name=='Gumbel':
+            u_e, u_c = simulation.simu_archimedean('gumbel', 2, n_samples, theta)
+        elif copula_name=='Clayton':
+            u_e, u_c = simulation.simu_archimedean('clayton', 2, n_samples, theta)
+        elif copula_name=="Independent":
+            u_e = rng.uniform(0, 1, n_samples)
+            u_c = rng.uniform(0, 1, n_samples)
+        else:
+            raise ValueError('Copula not implemented') 
+
+        event_time = inverse_transform(u_e, event_risk, v_e, rho_e)
+        censoring_time = inverse_transform(u_c, censoring_risk, v_c, rho_c)
+
+        observed_time = np.minimum(event_time, censoring_time)
+        event_indicator = (event_time < censoring_time).astype(int)
+
+        data = np.concatenate([X, observed_time[:, None], event_indicator[:, None],
+                               event_time[:, None], censoring_time[:, None]], axis=1)
+        label_cols = ['observed_time', 'event_indicator', 'event_time', 'censoring_time']
+        columns = [f'X{i}' for i in range(n_features)] + label_cols
+        df = pd.DataFrame(data, columns=columns)
+        
+        self.X = df.drop(label_cols, axis=1)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+        self.y_t = df['observed_time'].values
+        self.y_e = df['event_indicator'].values
+        self.params = [beta_e, beta_c]
+        return self
+    
+    def split_data(self,
+                   train_size: float,
+                   valid_size: float,
+                   random_state=0):
+        X = self.X
+        y = convert_to_structured(self.y_t, self.y_e)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1-train_size,
+                                                            random_state=0)
+        X_train, X_valid, y_train, y_valid = train_test_split(X_train, y_train,
+                                                              test_size=valid_size,
+                                                              random_state=0)
+        return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
+
+class NonlinearSyntheticDataLoader(BaseDataLoader):
+    def load_data(self, copula_name='Frank', theta=10, n_samples=30000,
+                  n_features=10, rng=np.random.default_rng()):
+        # Generate synthetic data with parametric model (Weibull)
+        hidden_dim = int(n_features/2)
+        X = rng.uniform(0, 1, (n_samples, n_features))
+        beta = rng.uniform(0, 1, (n_features, hidden_dim))
+    
+        beta_shape_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_scale_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        
+        beta_shape_e = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_scale_e = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        
+        hidden_rep = np.matmul(X, beta).squeeze()
+        hidden_rep = relu(hidden_rep)
+        shape_c = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_c).squeeze()
+        scale_c = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_c).squeeze()
+        shape_e = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e).squeeze()
+        scale_e = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e).squeeze()
+        
+        if copula_name=='Frank':
+            u_e, u_c = simulation.simu_archimedean('frank', 2, n_samples, theta)
+        elif copula_name=='Gumbel':
+            u_e, u_c = simulation.simu_archimedean('gumbel', 2, n_samples, theta)
+        elif copula_name=='Clayton':
+            u_e, u_c = simulation.simu_archimedean('clayton', 2, n_samples, theta)
+        elif copula_name=="Independent":
+            u_e = rng.uniform(0, 1, n_samples)
+            u_c = rng.uniform(0, 1, n_samples)
+        else:
+            raise ValueError('Copula not implemented')
+    
+        event_time = inverse_transform_weibull(u_e, shape_e, scale_e)
+        censoring_time = inverse_transform_weibull(u_c, shape_c, scale_c)
+    
+        observed_time = np.minimum(event_time, censoring_time)
+        event_indicator = (event_time < censoring_time).astype(int)
+        
+        data = np.concatenate([X, observed_time[:, None], event_indicator[:, None], event_time[:, None],
+                           censoring_time[:, None]], axis=1)
+        label_cols = ['observed_time', 'event_indicator', 'event_time', 'censoring_time']
+        columns = [f'X{i}' for i in range(n_features)] + label_cols
+        df = pd.DataFrame(data, columns=columns)
+    
+        self.X = df.drop(label_cols, axis=1)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+        self.y_t = df['observed_time'].values
+        self.y_e = df['event_indicator'].values
+        self.params = [beta, beta_shape_e, beta_scale_e]
+        return self
+    
+    def split_data(self,
+                   train_size: float,
+                   valid_size: float,
+                   random_state=0):
+        X = self.X
+        y = convert_to_structured(self.y_t, self.y_e)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1-train_size,
+                                                            random_state=0)
+        X_train, X_valid, y_train, y_valid = train_test_split(X_train, y_train,
+                                                              test_size=valid_size,
+                                                              random_state=0)
+        return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
+    
+class CompetingRiskSyntheticDataLoader(BaseDataLoader):
+    def load_data(self, copula_parameters=None, dist='Weibull',
+                  n_samples=30000, n_features=10, rng=np.random.default_rng()):
+        # Generate synthetic data (2 competing risks and censoring)
+        if copula_parameters is None:
+            corrMatrix = np.array([[1, 0.8, 0], [0.8, 1, 0], [0, 0, 1]])
+            copula_parameters = [
+                {"type": "clayton", "weight": 1 / 3, "theta": 2},
+                {"type": "student", "weight": 1 / 3, "corrMatrix": corrMatrix, "nu": 2},
+                {"type": "gumbel", "weight": 1 / 3, "theta": 3}
+            ]
+        
+        X = rng.uniform(0, 1, (n_samples, n_features))
+        hidden_dim = int(n_features/2)
+        beta = rng.uniform(0, 1, (n_features, hidden_dim))
+
+        beta_shape_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_scale_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_shape_e1 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_scale_e1 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_shape_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_scale_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        
+        hidden_rep = np.matmul(X, beta).squeeze()
+        hidden_rep = relu(hidden_rep)
+        
+        shape_c = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_c).squeeze()
+        scale_c = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_c).squeeze()
+        shape_e1 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e1).squeeze()
+        scale_e1 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e1).squeeze()
+        shape_e2 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e2).squeeze()
+        scale_e2 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e2).squeeze()
+
+        u_e1, u_e2, u_c = simulation.simu_mixture(3, n_samples, copula_parameters)
+
+        if dist == "Weibull":
+            e1_time = inverse_transform_weibull(u_e1, shape_e1, scale_e1)
+            e2_time = inverse_transform_weibull(u_e2, shape_e2, scale_e2)
+            c_time = inverse_transform_weibull(u_c, shape_c, scale_c)
+        elif dist == "Exp":
+            e1_time = inverse_transform_exp(u_e1, shape_e1, scale_e1)
+            e2_time = inverse_transform_exp(u_e2, shape_e2, scale_e2)
+            c_time = inverse_transform_exp(u_c, shape_c, scale_c)
+        elif dist == "Lognormal":
+            e1_time = inverse_transform_lognormal(u_e1, shape_e1, scale_e1)
+            e2_time = inverse_transform_lognormal(u_e2, shape_e2, scale_e2)
+            c_time = inverse_transform_lognormal(u_c, shape_c, scale_c)
+        else:
+            raise ValueError('Dist not implemented')
+        
+        all_times = np.stack([e1_time, e2_time, c_time], axis=1)
+        observed_time = np.min(all_times, axis=1)
+        event_indicator = np.argmin(all_times, axis=1)
+
+        data = np.concatenate([X, observed_time[:, None], event_indicator[:, None],
+                               e1_time[:, None], e2_time[:, None], c_time[:, None]], axis=1)
+        label_cols = ['observed_time', 'event_indicator', 'e1_time', 'e2_time', 'c_time']
+        columns = [f'X{i}' for i in range(n_features)] + label_cols
+
+        df = pd.DataFrame(data, columns=columns)
+        self.X = df.drop(label_cols, axis=1)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+        self.y_t = np.stack((df['e1_time'].values, df['e2_time'].values, df['c_time'].values), axis=1)
+        
+        # Encode y_e to CR structure
+        events = df['event_indicator'].values.astype('int32')
+        num_events = int(np.max(events) + 1)
+        self.y_e = np.eye(num_events)[events]
+        
+        self.params = [beta, beta_shape_e1, beta_scale_e1, beta_shape_e2, beta_scale_e2]
+        return self
+    
+    def split_data(self,
+                   train_size: float,
+                   valid_size: float,
+                   random_state=0):
+        # Split multi event data
+        raw_data = self.X
+        event_time = self.y_t
+        labs = self.y_e
+        
+        traj_labs = labs
+        if labs.shape[1] > 1: 
+            traj_labs = get_trajectory_labels(labs)
+
+        #split into training/test
+        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
+                                          random_state=random_state)
+        train_i, test_i = next(splitter.split(raw_data, traj_labs))
+
+        train_data = raw_data.iloc[train_i, :]
+        train_labs = labs[train_i, :]
+        train_event_time = event_time[train_i, :]
+
+        pretest_data = raw_data.iloc[test_i, :]
+        pretest_labs = labs[test_i, :]
+        pretest_event_time = event_time[test_i, :]
+
+        #further split test set into test/validation
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
+                                          random_state=random_state)
+        new_pretest_labs = get_trajectory_labels(pretest_labs)
+        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
+        test_data = pretest_data.iloc[test_i, :]
+        test_labs = pretest_labs[test_i, :]
+        test_event_time = pretest_event_time[test_i, :]
+
+        val_data = pretest_data.iloc[val_i, :]
+        val_labs = pretest_labs[val_i, :]
+        val_event_time = pretest_event_time[val_i, :]
+
+        #package for convenience
+        train_pkg = [train_data, train_event_time, train_labs]
+        valid_pkg = [val_data, val_event_time, val_labs]
+        test_pkg = [test_data, test_event_time, test_labs]
+        
+        return (train_pkg, valid_pkg, test_pkg)
 
 class SyntheticDataLoader(BaseDataLoader):
     """
@@ -123,7 +373,7 @@ class SyntheticDataLoader(BaseDataLoader):
         valid_pkg = [val_data, val_event_time, val_labs]
         test_pkg = [test_data, test_event_time, test_labs]
 
-        return (train_pkg, valid_pkg, test_pkg)  
+        return (train_pkg, valid_pkg, test_pkg)
 
 class ALSDataLoader(BaseDataLoader):
     """

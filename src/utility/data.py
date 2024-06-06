@@ -7,6 +7,7 @@ import torch.nn as nn
 import copy
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import LabelEncoder
+from scipy import stats
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -134,3 +135,28 @@ def make_synthetic(num_event):
     
     print('label distribution: ', np.unique(labels, return_counts=True, axis=0))
     return x, t, labels
+
+def safe_log(x):
+    return np.log(x+1e-20*(x<1e-20))
+
+def inverse_transform(value, risk, shape, scale):
+    return (-safe_log(value) / np.exp(risk)) ** (1 / shape) * scale
+
+def inverse_transform_weibull(p, shape, scale):
+    return scale * (-safe_log(p)) ** (1 / shape)
+
+def inverse_transform_lognormal(p, shape, scale):
+    return stats.lognorm(s=scale*0.25, scale=shape).ppf(p)
+
+def inverse_transform_exp(p, shape, scale):
+    return stats.expon(scale).ppf(p)
+
+def relu(z):
+    return np.maximum(0, z)
+
+def array_to_tensor(array, dtype=None, device='cpu'):
+    if not isinstance(array, np.ndarray):
+        array = np.array(array)
+    array_c = array.copy()
+    tensor = torch.tensor(array_c, dtype=dtype).to(device)
+    return tensor
