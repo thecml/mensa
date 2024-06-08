@@ -204,22 +204,22 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         hidden_dim = int(n_features/2)
         beta = rng.uniform(0, 1, (n_features, hidden_dim))
 
-        beta_shape_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_scale_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         beta_shape_e1 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         beta_scale_e1 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         beta_shape_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         beta_scale_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_shape_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_scale_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         
         hidden_rep = np.matmul(X, beta).squeeze()
         hidden_rep = relu(hidden_rep)
-        
-        shape_c = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_c).squeeze()
-        scale_c = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_c).squeeze()
+
         shape_e1 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e1).squeeze()
         scale_e1 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e1).squeeze()
         shape_e2 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e2).squeeze()
         scale_e2 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e2).squeeze()
+        shape_c = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_c).squeeze()
+        scale_c = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_c).squeeze()
 
         u_e1, u_e2, u_c = simulation.simu_mixture(3, n_samples, copula_parameters)
 
@@ -305,6 +305,120 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         valid_pkg = [val_data, val_event_time, val_labs]
         test_pkg = [test_data, test_event_time, test_labs]
         
+        return (train_pkg, valid_pkg, test_pkg)
+    
+class MultiEventSyntheticDataLoader(BaseDataLoader):
+    def load_data(self, copula_parameters=None, dist='Weibull', n_samples=30000,
+                  n_features=10, adm_cens_time=5, rng=np.random.default_rng()):
+        # Generate synthetic data (3 multi events and adm. censoring)
+        if copula_parameters is None:
+            corrMatrix = np.array([[1, 0.8, 0], [0.8, 1, 0], [0, 0, 1]])
+            copula_parameters = [
+                {"type": "clayton", "weight": 1 / 4, "theta": 2},
+                {"type": "student", "weight": 1 / 4, "corrMatrix": corrMatrix, "nu": 2},
+                {"type": "gumbel", "weight": 1 / 4, "theta": 3}
+            ]
+        
+        X = rng.uniform(0, 1, (n_samples, n_features))
+        hidden_dim = int(n_features/2)
+        beta = rng.uniform(0, 1, (n_features, hidden_dim))
+
+        beta_shape_e1 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_scale_e1 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_shape_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_scale_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_shape_e3 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        beta_scale_e3 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        
+        hidden_rep = np.matmul(X, beta).squeeze()
+        hidden_rep = relu(hidden_rep)
+        
+        shape_e1 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e1).squeeze()
+        scale_e1 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e1).squeeze()
+        shape_e2 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e2).squeeze()
+        scale_e2 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e2).squeeze()
+        shape_e3 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e3).squeeze()
+        scale_e3 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e3).squeeze()
+
+        u_e1, u_e2, u_e3 = simulation.simu_mixture(3, n_samples, copula_parameters)
+
+        if dist == "Weibull":
+            e1_time = inverse_transform_weibull(u_e1, shape_e1, scale_e1)
+            e2_time = inverse_transform_weibull(u_e2, shape_e2, scale_e2)
+            e3_time = inverse_transform_weibull(u_e3, shape_e3, scale_e3)
+        elif dist == "Exp":
+            e1_time = inverse_transform_exp(u_e1, shape_e1, scale_e1)
+            e2_time = inverse_transform_exp(u_e2, shape_e2, scale_e2)
+            e3_time = inverse_transform_exp(u_e3, shape_e3, scale_e3)
+        elif dist == "Lognormal":
+            e1_time = inverse_transform_lognormal(u_e1, shape_e1, scale_e1)
+            e2_time = inverse_transform_lognormal(u_e2, shape_e2, scale_e2)
+            e3_time = inverse_transform_lognormal(u_e3, shape_e3, scale_e3)
+        else:
+            raise ValueError('Dist not implemented')
+        
+        # Make adm. censoring
+        event_times = np.stack([e1_time, e2_time, e3_time], axis=1)
+        event_times = np.minimum(event_times, adm_cens_time)
+        event_ind = (event_times < adm_cens_time).astype(int)
+
+        # Format data
+        columns = [f'X{i}' for i in range(n_features)]
+        df = pd.DataFrame(X, columns=columns)
+        self.X = df
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+        self.y_t = np.stack((event_times[:,0], event_times[:,1], event_times[:,2]), axis=1)
+        self.y_e = np.stack((event_ind[:,0], event_ind[:,1], event_ind[:,2]), axis=1)
+        self.n_events = 3
+        
+        self.params = [beta, beta_shape_e1, beta_scale_e1, beta_shape_e2,
+                       beta_scale_e2, beta_shape_e3, beta_scale_e3]
+        return self
+    
+    def split_data(self, train_size: float,
+                   valid_size: float,
+                   random_state=0):
+        # Split multi event data
+        raw_data = self.X
+        event_time = self.y_t
+        labs = self.y_e
+        
+        traj_labs = labs
+        if labs.shape[1] > 1:
+            traj_labs = get_trajectory_labels(labs)
+
+        #split into training/test
+        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
+                                          random_state=random_state)
+        train_i, test_i = next(splitter.split(raw_data, traj_labs))
+
+        train_data = raw_data.iloc[train_i, :]
+        train_labs = labs[train_i, :]
+        train_event_time = event_time[train_i, :]
+
+        pretest_data = raw_data.iloc[test_i, :]
+        pretest_labs = labs[test_i, :]
+        pretest_event_time = event_time[test_i, :]
+
+        #further split test set into test/validation
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
+                                          random_state=random_state)
+        new_pretest_labs = get_trajectory_labels(pretest_labs)
+        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
+        test_data = pretest_data.iloc[test_i, :]
+        test_labs = pretest_labs[test_i, :]
+        test_event_time = pretest_event_time[test_i, :]
+
+        val_data = pretest_data.iloc[val_i, :]
+        val_labs = pretest_labs[val_i, :]
+        val_event_time = pretest_event_time[val_i, :]
+
+        #package for convenience
+        train_pkg = [train_data, train_event_time, train_labs]
+        valid_pkg = [val_data, val_event_time, val_labs]
+        test_pkg = [test_data, test_event_time, test_labs]
+
         return (train_pkg, valid_pkg, test_pkg)
 
 class SyntheticDataLoader(BaseDataLoader):

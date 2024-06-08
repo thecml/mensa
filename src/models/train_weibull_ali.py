@@ -15,7 +15,6 @@ import torch.optim as optim
 import torch.nn as nn
 from data_loader import get_data_loader
 from copula import Clayton
-from data.synth_data import linear_dgp_parametric_ph
 from utility.survival import convert_to_structured
 from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival
@@ -161,9 +160,9 @@ def independent_train_loop_linear(model1, model2, train_data, val_data,
 
 if __name__ == "__main__":
     # Load data
-    df, params = linear_dgp_parametric_ph(copula_name="Frank",
-                                          n_features=10,
-                                          n_samples=1000)
+    df, params = LinearSyntheticDataLoader(copula_name="Frank",
+                                           n_features=10,
+                                           n_samples=1000)
     X = df.drop(['observed_time', 'event_indicator',
                  'event_time', 'censoring_time'], axis=1)
     y = convert_to_structured(df['observed_time'].values,
