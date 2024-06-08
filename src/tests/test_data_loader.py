@@ -1,6 +1,7 @@
 from data_loader import (LinearSyntheticDataLoader,
                          NonlinearSyntheticDataLoader,
-                         CompetingRiskSyntheticDataLoader)
+                         CompetingRiskSyntheticDataLoader,
+                         MultiEventSyntheticDataLoader)
 
 if __name__ == '__main__':
     dl = LinearSyntheticDataLoader().load_data()
@@ -17,3 +18,6 @@ if __name__ == '__main__':
     (train_pkg, valid_pkg, test_pkg) = dl.split_data(train_size=0.7, valid_size=0.5)
     print(train_pkg[0].shape)
     
+    dl = MultiEventSyntheticDataLoader().load_data()
+    (train_pkg, valid_pkg, test_pkg) = dl.split_data(train_size=0.7, valid_size=0.5)
+    print(train_pkg[0].shape)
