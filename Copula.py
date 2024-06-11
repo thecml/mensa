@@ -94,6 +94,42 @@ class Gumbel:
     
     def set_theta(self, new_val):
         self.theta = new_val
+
+
+class Clayton:
+    def __init__(self, theta, epsilon=1e-3, device='cpu'):
+        self.theta = theta
+        self.eps = torch.tensor([epsilon], device=device).type(torch.float32)
+        self.device = device
+
+    def CDF(self, u):#(sum(ui**-theta)-2)**(-1/theta)
+        u = u + 1e-30*(u<1e-30)
+        u = u.clamp(0,1)
+        #tmp = torch.sum(u**(-1.0*self.theta), dim=1)-1
+        tmp = torch.exp(-self.theta * LOG(u))
+        tmp = torch.sum(tmp, dim=1)-2
+        return torch.exp((-1/self.theta)*LOG(tmp))
+    
+    def conditional_cdf(self, condition_on, uv):
+        uv_eps = torch.empty_like(uv, device=self.device)
+        if condition_on == "u":
+            uv_eps[:,0] = uv[:,0] + self.eps
+            uv_eps[:,1] = uv[:,1]
+            uv_eps[:,2] = uv[:,2]
+        elif condition_on == 'v':
+            uv_eps[:,1] = uv[:,1] + self.eps
+            uv_eps[:,0] = uv[:,0]
+            uv_eps[:,2] = uv[:,2]
+        else:
+            uv_eps[:,2] = uv[:,2] + self.eps
+            uv_eps[:,1] = uv[:,1]
+            uv_eps[:,0] = uv[:,0]
+
+
+        return (self.CDF(uv_eps) - self.CDF(uv))/self.eps
+    
+    def enable_grad(self):
+        self.theta.requires_grad = True
         
 
 if __name__ == "__main__":
