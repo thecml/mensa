@@ -382,20 +382,91 @@ class SurvivalCopula(nn.Module):
             denominator = cur
             return numerator/denominator
 
+class SurvNDE(nn.Module):
+    # with neural density estimators
+    def __init__(self, device, num_features, tol, 
+                 hidden_size=32, hidden_surv=32, dropout_rate=0, max_iter = 2000):
+        super(SurvNDE, self).__init__()
+        self.tol = tol
+        self.sumo_e = NDE(num_features, layers = [hidden_size, hidden_size],
+                          layers_surv = [hidden_surv, hidden_surv], dropout = dropout_rate)
+        self.sumo_c = NDE(num_features, layers = [hidden_size, hidden_size],
+                          layers_surv = [hidden_surv, hidden_surv], dropout = dropout_rate)
+
+    def forward(self, x, t, c, max_iter = 2000):
+        S_E, density_E = self.sumo_e(x, t, gradient = True) # S_E = St = Survival marginals
+        S_E = S_E.squeeze()
+        event_log_density = torch.log(density_E).squeeze()
+
+        S_C, density_C = self.sumo_c(x, t, gradient = True) # S_C = Censoring marginals
+        S_C = S_C.squeeze()
+        censoring_log_density = torch.log(density_C).squeeze()
+        
+        # Check if Survival Function of Event and Censoring are in [0,1]
+        assert (S_E >= 0.).all() and (
+            S_E <= 1.+1e-10).all(), "t %s, output %s" % (t, S_E, )
+        assert (S_C >= 0.).all() and (
+            S_C <= 1.+1e-10).all(), "t %s, output %s" % (t, S_C, )      
+        
+        logL = event_log_density * c + censoring_log_density * (1-c)
+        return torch.sum(logL)
+        
+
+    def cond_cdf(self, y, mode='cond_cdf', others=None, tol=1e-8):
+        if not y.requires_grad:
+            y = y.requires_grad_(True)
+        ndims = y.size()[1]
+        inverses = self.phi_inv(y, tol=self.tol)
+        cdf = self.phi(inverses.sum(dim=1))
+        
+        if mode == 'cdf':
+            return cdf
+        if mode == 'pdf':
+            cur = cdf
+            for dim in range(ndims):
+                # TODO: Only take gradients with respect to one dimension of y at at time
+                cur = torch.autograd.grad(
+                    cur.sum(), y, create_graph=True)[0][:, dim]
+            return cur        
+        elif mode =='cond_cdf':
+            target_dims = others['cond_dims']
+            
+            # Numerator
+            cur = cdf
+            for dim in target_dims:
+                # TODO: Only take gradients with respect to one dimension of y at a time
+                cur = torch.autograd.grad(
+                    cur.sum(), y, create_graph=True, retain_graph=True)[0][:, dim]
+            numerator = cur
+
+            # Denominator
+            trunc_cdf = self.phi(inverses[:, target_dims])
+            cur = trunc_cdf
+            for dim in range(len(target_dims)):
+                cur = torch.autograd.grad(
+                    cur.sum(), y, create_graph=True)[0][:, dim]
+
+            denominator = cur
+            return numerator/denominator
+
+    def survival(self, t, X):
+        with torch.no_grad():
+            result = self.sumo_e.survival(X, t)
+        return result
 
 class DCSurvival(nn.Module):
     # with neural density estimators
     def __init__(self, phi, device, num_features, tol,
-                 hidden_size=32, hidden_surv = 32, max_iter = 2000):
+                 hidden_size=32, hidden_surv=32, max_iter = 2000):
         super(DCSurvival, self).__init__()
         self.tol = tol
         self.phi = phi
         #self.phi_inv = [PhiInv(phi).to(device) for net in phi.networks] # PhiInv(phi).to(device)
         self.phi_inv = PhiInv(phi).to(device)
-        self.sumo_e = NDE(num_features, layers = [hidden_size,hidden_size,hidden_size],
-                          layers_surv = [hidden_surv,hidden_surv,hidden_surv], dropout = 0.)
-        self.sumo_c = NDE(num_features, layers = [hidden_size,hidden_size,hidden_size],
-                          layers_surv = [hidden_surv,hidden_surv,hidden_surv], dropout = 0.)
+        self.sumo_e = NDE(num_features, layers = [hidden_size],
+                          layers_surv = [hidden_surv], dropout = 0.25)
+        self.sumo_c = NDE(num_features, layers = [hidden_size],
+                          layers_surv = [hidden_surv], dropout = 0.25)
 
     def forward(self, x, t, c, max_iter = 2000):
         S_E, density_E = self.sumo_e(x, t, gradient = True) # S_E = St = Survival marginals
@@ -411,7 +482,8 @@ class DCSurvival(nn.Module):
             S_E <= 1.+1e-10).all(), "t %s, output %s" % (t, S_E, )
         assert (S_C >= 0.).all() and (
             S_C <= 1.+1e-10).all(), "t %s, output %s" % (t, S_C, )      
-          
+        
+        """
         # Partial derivative of Copula using ACNet
         y = torch.stack([S_E, S_C], dim=1)
         inverses = self.phi_inv(y, max_iter = max_iter)
@@ -422,8 +494,10 @@ class DCSurvival(nn.Module):
             cdf.sum(), y, create_graph=True)[0][:, 0]
         cur2 = torch.autograd.grad(
             cdf.sum(), y, create_graph=True)[0][:, 1]
-        
-        logL = event_log_density + c * torch.log(cur1) + censoring_log_density + (1-c) * torch.log(cur2)
+        """
+        #logL = event_log_density + c * torch.log(cur1) + censoring_log_density + (1-c) * torch.log(cur2)
+        #logL = event_log_density + c * torch.log(cur1) + censoring_log_density + (1-c) * torch.log(cur2)
+        logL = event_log_density * c + censoring_log_density * (1-c)
     
         return torch.sum(logL)
         
@@ -470,18 +544,17 @@ class DCSurvival(nn.Module):
             result = self.sumo_e.survival(X, t)
         return result
 
-class MultiDCSurvival(nn.Module):
+class MultiNDESurvival(nn.Module):
     # with neural density estimators
-    def __init__(self, phi, device, num_features, tol,
-                 hidden_size=32, hidden_surv = 32, max_iter = 2000):
-        super(MultiDCSurvival, self).__init__()
+    def __init__(self, device, num_features, tol,
+                 hidden_size=32, hidden_surv = 32, dropout_rate=0, max_iter = 2000):
+        super(MultiNDESurvival, self).__init__()
         self.tol = tol
-        self.phi = phi
         #self.phi_inv = [PhiInv(phi).to(device) for net in phi.networks] # PhiInv(phi).to(device)
-        self.phi_inv = PhiInv(phi).to(device)
         self.sumo = MultiNDE(inputdim=num_features, n_events=2,
                              layers = [hidden_size, hidden_size, hidden_size],
-                             layers_surv = [hidden_surv, hidden_surv, hidden_surv], dropout = 0.)
+                             layers_surv = [hidden_surv, hidden_surv, hidden_surv],
+                             dropout = dropout_rate)
         
         #self.sumo_e = NDE(num_features, layers = [hidden_size,hidden_size,hidden_size],
         #                  layers_surv = [hidden_surv,hidden_surv,hidden_surv], dropout = 0.)
@@ -519,6 +592,7 @@ class MultiDCSurvival(nn.Module):
           
         # Partial derivative of Copula using ACNet
         #y = torch.stack([S_E, S_C], dim=1)
+        """
         y = torch.stack([y[i] for i in range(len(y))], dim=1)
         
         # TODO: Make this support any number of events
@@ -530,9 +604,10 @@ class MultiDCSurvival(nn.Module):
             cdf.sum(), y, create_graph=True)[0][:, 0]
         cur2 = torch.autograd.grad(
             cdf.sum(), y, create_graph=True)[0][:, 1]        
+        """
+        #logL = log_densities[0] + c * torch.log(cur1) + log_densities[1] + (1-c) * torch.log(cur2)
+        logL = log_densities[0] * c + log_densities[1] * (1-c)
         
-        logL = log_densities[0] + c * torch.log(cur1) + log_densities[1] + (1-c) * torch.log(cur2)
-    
         return torch.sum(logL)
         
 

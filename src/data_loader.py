@@ -63,7 +63,7 @@ class BaseDataLoader(ABC):
         return data.select_dtypes(['object']).columns.tolist()
 
 class LinearSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_name='Frank', theta=10,
+    def load_data(self, copula_name='Frank', theta=0.01,
                   n_samples=30000, n_features=10,
                   rng=np.random.default_rng(0)):
         # Generate synthetic data (time-to-event and censoring indicator)
