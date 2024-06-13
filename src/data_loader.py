@@ -196,7 +196,7 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
             corrMatrix = np.array([[1, 0.8, 0], [0.8, 1, 0], [0, 0, 1]])
             copula_parameters = [
                 {"type": "clayton", "weight": 1 / 3, "theta": 2},
-                {"type": "student", "weight": 1 / 3, "corrMatrix": corrMatrix, "nu": 2},
+                {"type": "frank", "weight": 1 / 3, "theta": 1},
                 {"type": "gumbel", "weight": 1 / 3, "theta": 3}
             ]
         
@@ -315,7 +315,7 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
             corrMatrix = np.array([[1, 0.8, 0], [0.8, 1, 0], [0, 0, 1]])
             copula_parameters = [
                 {"type": "clayton", "weight": 1 / 4, "theta": 2},
-                {"type": "student", "weight": 1 / 4, "corrMatrix": corrMatrix, "nu": 2},
+                {"type": "frank", "weight": 1 / 3, "theta": 1},
                 {"type": "gumbel", "weight": 1 / 4, "theta": 3}
             ]
         
