@@ -16,7 +16,7 @@ import torch.nn as nn
 from copula import Clayton
 from utility.survival import convert_to_structured
 from dcsurvival.dirac_phi import DiracPhi
-from dcsurvival.survival import DCSurvival
+from dcsurvival.survival import DCSurvival, MultiDCSurvival
 from tqdm import tqdm
 from utility.evaluator import LifelinesEvaluator
 import copy
@@ -40,7 +40,7 @@ def predict_survival_curve(model, x_test, time_bins, truth=False):
     if truth == False:
         model = copy.deepcopy(model).to(device)
     surv_estimate = torch.zeros((x_test.shape[0], time_bins.shape[0]), device=device)
-    x_test = torch.tensor(x_test, dtype=torch.float32)
+    x_test = torch.tensor(x_test, dtype=torch.float64)
     time_bins = torch.tensor(time_bins)
     for i in range(time_bins.shape[0]):
         surv_estimate[:,i] = model.survival(time_bins[i], x_test)
@@ -75,15 +75,22 @@ if __name__ == "__main__":
     widths = [100, 100] # number of units of ACNet
     lc_w_range = (0, 1.0) # Phi_B
     shift_w_range = (0., 2.0) # Phi_B
-    num_epochs = 100 # 5000
+    num_epochs = 200 # 5000
     batch_size = 128
     early_stop_epochs = 10
-    phi = DiracPhi(depth, widths, lc_w_range, shift_w_range, device, tol=1e-14).to(device)
-    model = DCSurvival(phi, device = device, num_features=X_train.shape[1], tol=1e-14).to(device)
-    optimizer = optim.Adam([{"params": model.sumo_e.parameters(), "lr": 1e-3},
-                            {"params": model.sumo_c.parameters(), "lr": 1e-3},
-                            {"params": model.phi.parameters(), "lr": 1e-4}])
     
+    use_multi = True
+    phi = DiracPhi(depth, widths, lc_w_range, shift_w_range, device, tol=1e-14).to(device)
+    if use_multi:
+        model = MultiDCSurvival(phi, device = device, num_features=X_train.shape[1], tol=1e-14).to(device)
+        optimizer = optim.Adam([{"params": model.sumo.parameters(), "lr": 1e-3},
+                                {"params": model.phi.parameters(), "lr": 1e-4}])
+    else:
+        model = DCSurvival(phi, device = device, num_features=X_train.shape[1], tol=1e-14).to(device)
+        optimizer = optim.Adam([{"params": model.sumo_e.parameters(), "lr": 1e-3},
+                                {"params": model.sumo_c.parameters(), "lr": 1e-3},
+                                {"params": model.phi.parameters(), "lr": 1e-4}])
+        
     # Train model
     best_valid_logloss = float('-inf')
     epochs_no_improve = 0
@@ -117,7 +124,7 @@ if __name__ == "__main__":
     ibs = lifelines_eval.integrated_brier_score()
     print(f"DCSurvial: CI={round(ci, 2)} - MAE={round(mae_hinge, 2)} - IBS={round(ibs, 2)}")
     
-    # Train and evaluate truth model
+    # Make truth model
     truth_model = Weibull_linear(num_feature=X_test.shape[1], shape=4,
                                  scale=14, device=torch.device("cpu"),
                                  coeff=beta_e)
