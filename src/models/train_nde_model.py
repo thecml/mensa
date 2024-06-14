@@ -71,12 +71,12 @@ def predict_survival_curve(model, x_test, time_bins, truth=False):
 
 if __name__ == "__main__":
     # Load data
-    dl = LinearSyntheticDataLoader().load_data(n_samples=10000)
+    dl = NonlinearSyntheticDataLoader().load_data(n_samples=10000)
     num_features, cat_features = dl.get_features()
     (X_train, y_train), (X_valid, y_valid), (X_test, y_test) = dl.split_data(train_size=0.7,
                                                                              valid_size=0.5)
-    #beta, beta_shape_e, beta_scale_e = dl.params
-    beta_e, beta_c = dl.params
+    beta, beta_shape_e, beta_scale_e = dl.params
+    #beta_e, beta_c = dl.params
     
     # Make time bins
     time_bins = make_time_bins(y_train['time'], event=y_train['event'])
@@ -99,9 +99,9 @@ if __name__ == "__main__":
     
     # Define model
     num_epochs = 1000 # 5000
-    early_stop_epochs = 50
-    hidden_size = 32
-    hidden_surv = 32
+    early_stop_epochs = 10
+    hidden_size = 64
+    hidden_surv = 64
     dropout_rate = 0.25
     batch_size = 32
     model = MultiNDESurvival(device=device, num_features=X_train.shape[1], tol=1e-14,
@@ -149,16 +149,6 @@ if __name__ == "__main__":
             
         if epochs_no_improve == early_stop_epochs:
             break
-    
-    # Uncomment to use Weibull_nonlinear
-    """
-    truth_model = Weibull_nonlinear(n_features=X_test.shape[1],
-                                    alpha=beta_shape_e,
-                                    gamma=beta_scale_e,
-                                    beta=beta,
-                                    risk_function=risk_fn,
-                                    device=torch.device("cpu"))
-    """
         
     # Evaluate
     dcs_surv_pred, _, _ = predict_survival_curve(model, X_test, time_bins)
@@ -171,8 +161,12 @@ if __name__ == "__main__":
     print(f"DCSurvial: CI={round(ci, 2)} - MAE={round(mae_hinge, 2)} - IBS={round(ibs, 2)}")
     
     # Make truth model
-    truth_model = Weibull_linear(n_features=X_test.shape[1], alpha=14,
-                                 gamma=4, beta=beta_e, device=torch.device("cpu"))
+    truth_model = Weibull_nonlinear(n_features=X_test.shape[1],
+                                    alpha=beta_shape_e,
+                                    gamma=beta_scale_e,
+                                    beta=beta,
+                                    risk_function=risk_fn,
+                                    device=torch.device("cpu"))
     truth_surv_pred, _, _ = predict_survival_curve(truth_model, X_test, time_bins, truth=True)
     truth_surv_pred = pd.DataFrame(truth_surv_pred, columns=np.array(time_bins))
     lifelines_eval = LifelinesEvaluator(truth_surv_pred.T, y_test['time'], y_test['event'],

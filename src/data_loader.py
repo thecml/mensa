@@ -123,7 +123,7 @@ class LinearSyntheticDataLoader(BaseDataLoader):
         return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
 
 class NonlinearSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_name='Frank', theta=0.1, n_samples=30000,
+    def load_data(self, copula_name='Frank', theta=0.01, n_samples=30000,
                   n_features=10, rng=np.random.default_rng(0)):
         # Generate synthetic data with parametric model (Weibull)
         hidden_dim = int(n_features/2)
