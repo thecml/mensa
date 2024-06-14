@@ -20,8 +20,9 @@ from dcsurvival.survival import DCSurvival, MultiNDESurvival, SurvNDE
 from tqdm import tqdm
 from utility.evaluator import LifelinesEvaluator
 import copy
-from dcsurvival.truth_net import Weibull_linear
+from models import Weibull_linear, Weibull_nonlinear
 from torch.utils.data import DataLoader, TensorDataset
+import math
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -35,6 +36,9 @@ torch.set_default_dtype(torch.float64)
 # Setup device
 device = "cpu" # use CPU
 device = torch.device(device)
+
+def risk_fn(x, coeff):
+    return relu(np.matmul(x, coeff).squeeze())
 
 def Survival(truth_model, estimate, x, time_steps):
     device = torch.device("cpu")
@@ -67,11 +71,11 @@ def predict_survival_curve(model, x_test, time_bins, truth=False):
 
 if __name__ == "__main__":
     # Load data
-    dl = LinearSyntheticDataLoader().load_data(n_samples=10000)
+    dl = NonlinearSyntheticDataLoader().load_data(n_samples=10000)
     num_features, cat_features = dl.get_features()
     (X_train, y_train), (X_valid, y_valid), (X_test, y_test) = dl.split_data(train_size=0.7,
                                                                              valid_size=0.5)
-    beta_e, beta_c = dl.params
+    beta, beta_shape_e, beta_scale_e = dl.params
     
     # Make time bins
     time_bins = make_time_bins(y_train['time'], event=y_train['event'])
@@ -93,7 +97,7 @@ if __name__ == "__main__":
     covariate_tensor_test = torch.tensor(X_test).to(device)
     
     # Define ACNet, model
-    num_epochs = 5000 # 5000
+    num_epochs = 10 # 5000
     #batch_size = 128
     early_stop_epochs = 50
     
@@ -152,9 +156,16 @@ if __name__ == "__main__":
                         if epochs_no_improve == early_stop_epochs:
                             break
                     
-                    truth_model = Weibull_linear(num_feature=X_test.shape[1], shape=4,
-                                                scale=14, device=torch.device("cpu"),
-                                                coeff=beta_e)
+                    #truth_model = Weibull_linear(num_feature=X_test.shape[1], shape=4,
+                    #                            scale=14, device=torch.device("cpu"),
+                    #                            coeff=beta_e)
+                    truth_model = Weibull_nonlinear(n_features=X_test.shape[1],
+                                                    alpha=beta_shape_e,
+                                                    gamma=beta_scale_e,
+                                                    beta=beta,
+                                                    risk_function=risk_fn,
+                                                    device=torch.device("cpu"))
+                                                    
                     # Calculate L1
                     model.eval()
                     performance = surv_diff(truth_model, model, covariate_tensor_test, steps=time_bins)

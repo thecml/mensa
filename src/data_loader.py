@@ -123,7 +123,7 @@ class LinearSyntheticDataLoader(BaseDataLoader):
         return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
 
 class NonlinearSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_name='Frank', theta=10, n_samples=30000,
+    def load_data(self, copula_name='Frank', theta=0.1, n_samples=30000,
                   n_features=10, rng=np.random.default_rng(0)):
         # Generate synthetic data with parametric model (Weibull)
         hidden_dim = int(n_features/2)
@@ -142,6 +142,11 @@ class NonlinearSyntheticDataLoader(BaseDataLoader):
         scale_c = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_c).squeeze()
         shape_e = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e).squeeze()
         scale_e = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e).squeeze()
+        
+        beta_shape_e = np.pad(beta_shape_e, (0, 1)) # pad 0
+        beta_scale_e = np.pad(beta_scale_e, (1, 0))
+        beta_shape_c = np.pad(beta_shape_c, (0, 1))
+        beta_scale_c = np.pad(beta_scale_c, (1, 0))
         
         if copula_name=='Frank':
             u_e, u_c = simulation.simu_archimedean('frank', 2, n_samples, theta)
