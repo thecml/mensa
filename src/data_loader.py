@@ -65,7 +65,7 @@ class BaseDataLoader(ABC):
 class LinearSyntheticDataLoader(BaseDataLoader):
     def load_data(self, copula_name='Frank', theta=10,
                   n_samples=30000, n_features=10,
-                  rng=np.random.default_rng()):
+                  rng=np.random.default_rng(0)):
         # Generate synthetic data (time-to-event and censoring indicator)
         # with linear parametric proportional hazards model (Weibull CoxPH)
         v_e=4; rho_e=14; v_c=3; rho_c=16
@@ -124,7 +124,7 @@ class LinearSyntheticDataLoader(BaseDataLoader):
 
 class NonlinearSyntheticDataLoader(BaseDataLoader):
     def load_data(self, copula_name='Frank', theta=10, n_samples=30000,
-                  n_features=10, rng=np.random.default_rng()):
+                  n_features=10, rng=np.random.default_rng(0)):
         # Generate synthetic data with parametric model (Weibull)
         hidden_dim = int(n_features/2)
         X = rng.uniform(0, 1, (n_samples, n_features))
@@ -190,13 +190,13 @@ class NonlinearSyntheticDataLoader(BaseDataLoader):
     
 class CompetingRiskSyntheticDataLoader(BaseDataLoader):
     def load_data(self, copula_parameters=None, dist='Weibull',
-                  n_samples=30000, n_features=10, rng=np.random.default_rng()):
+                  n_samples=30000, n_features=10, rng=np.random.default_rng(0)):
         # Generate synthetic data (2 competing risks and censoring)
         if copula_parameters is None:
             corrMatrix = np.array([[1, 0.8, 0], [0.8, 1, 0], [0, 0, 1]])
             copula_parameters = [
                 {"type": "clayton", "weight": 1 / 3, "theta": 2},
-                {"type": "student", "weight": 1 / 3, "corrMatrix": corrMatrix, "nu": 2},
+                {"type": "frank", "weight": 1 / 3, "theta": 1},
                 {"type": "gumbel", "weight": 1 / 3, "theta": 3}
             ]
         
@@ -309,13 +309,13 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
     
 class MultiEventSyntheticDataLoader(BaseDataLoader):
     def load_data(self, copula_parameters=None, dist='Weibull', n_samples=30000,
-                  n_features=10, adm_cens_time=5, rng=np.random.default_rng()):
+                  n_features=10, adm_cens_time=5, rng=np.random.default_rng(0)):
         # Generate synthetic data (3 multi events and adm. censoring)
         if copula_parameters is None:
             corrMatrix = np.array([[1, 0.8, 0], [0.8, 1, 0], [0, 0, 1]])
             copula_parameters = [
                 {"type": "clayton", "weight": 1 / 4, "theta": 2},
-                {"type": "student", "weight": 1 / 4, "corrMatrix": corrMatrix, "nu": 2},
+                {"type": "frank", "weight": 1 / 3, "theta": 1},
                 {"type": "gumbel", "weight": 1 / 4, "theta": 3}
             ]
         
@@ -386,74 +386,6 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         
         traj_labs = labs
         if labs.shape[1] > 1:
-            traj_labs = get_trajectory_labels(labs)
-
-        #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
-                                          random_state=random_state)
-        train_i, test_i = next(splitter.split(raw_data, traj_labs))
-
-        train_data = raw_data.iloc[train_i, :]
-        train_labs = labs[train_i, :]
-        train_event_time = event_time[train_i, :]
-
-        pretest_data = raw_data.iloc[test_i, :]
-        pretest_labs = labs[test_i, :]
-        pretest_event_time = event_time[test_i, :]
-
-        #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
-                                          random_state=random_state)
-        new_pretest_labs = get_trajectory_labels(pretest_labs)
-        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
-        test_data = pretest_data.iloc[test_i, :]
-        test_labs = pretest_labs[test_i, :]
-        test_event_time = pretest_event_time[test_i, :]
-
-        val_data = pretest_data.iloc[val_i, :]
-        val_labs = pretest_labs[val_i, :]
-        val_event_time = pretest_event_time[val_i, :]
-
-        #package for convenience
-        train_pkg = [train_data, train_event_time, train_labs]
-        valid_pkg = [val_data, val_event_time, val_labs]
-        test_pkg = [test_data, test_event_time, test_labs]
-
-        return (train_pkg, valid_pkg, test_pkg)
-
-class SyntheticDataLoader(BaseDataLoader):
-    """
-    Data loader for synthetic data
-    """
-    def load_data(self):
-        params = cfg.SYNTHETIC_SETTINGS
-        raw_data, event_times, labels = make_synthetic(params['num_events'])
-        if params['discrete'] == False:
-            min_time = np.min(event_times[event_times != -1]) 
-            max_time = np.max(event_times[event_times != -1]) 
-            time_range = max_time - min_time
-            bin_size = time_range / params['num_bins']
-            binned_event_time = np.floor((event_times - min_time) / bin_size)
-            binned_event_time[binned_event_time == params['num_bins']] = params['num_bins'] - 1 
-        self.X = pd.DataFrame(raw_data)
-        self.num_features = self._get_num_features(self.X)
-        self.cat_features = self._get_cat_features(self.X)
-        self.y_t = binned_event_time
-        self.y_e = labels
-        self.min_time = min_time
-        self.max_time = max_time
-        return self
-    
-    def split_data(self, train_size: float,
-                   valid_size: float,
-                   random_state=0):
-        # Split multi event data
-        raw_data = self.X
-        event_time = self.y_t
-        labs = self.y_e
-        
-        traj_labs = labs
-        if labs.shape[1] > 1: 
             traj_labs = get_trajectory_labels(labs)
 
         #split into training/test
@@ -778,8 +710,6 @@ def get_data_loader(dataset_name:str) -> BaseDataLoader:
         return MimicDataLoader()
     elif dataset_name == "rotterdam":
         return RotterdamDataLoader()
-    elif dataset_name == "synthetic":
-        return SyntheticDataLoader()
     else:
         raise ValueError("Dataset not found")
         
