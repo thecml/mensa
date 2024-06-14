@@ -98,13 +98,14 @@ class Weibull_linear:
     def rvs(self, x, u):
         return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
 
+
 class Weibull_nonlinear:
     def __init__(self, n_features, alpha, gamma, beta, risk_function, device):
         self.n_features = n_features
-        self.alpha = torch.tensor([alpha],device=device).type(torch.float32)
-        self.gamma = torch.tensor([gamma], device=device).type(torch.float32)
-        self.beta = torch.tensor(beta, device=device).type(torch.float32)
-        self.risk_function = risk_function
+        self.alpha = torch.tensor(alpha,device=device)
+        self.gamma = torch.tensor(gamma, device=device)
+        self.beta = torch.tensor(beta, device=device)
+        self.hidden_layer = risk_function
         
     def PDF(self ,t ,x):
         return self.hazard(t, x) * self.survival(t, x)
@@ -116,13 +117,22 @@ class Weibull_nonlinear:
         return torch.exp(-self.cum_hazard(t, x))
     
     def hazard(self, t, x):
-        return ((self.gamma/self.alpha)*((t/self.alpha)**(self.gamma-1))) * torch.exp(self.risk_function(x, self.beta))
+        shape, scale = self.pred_params(x)
+        # get hazard from a weiibull distribution
+        return shape/scale * (t/scale)**(shape-1)
 
     def cum_hazard(self, t, x):
-        return ((t/self.alpha)**self.gamma) * torch.exp(self.risk_function(x, self.beta))
+        shape, scale = self.pred_params(x)
+        return (t/scale)**shape
+
+    def pred_params(self, x):
+        shape = torch.matmul(self.hidden_layer(x, self.beta), self.alpha)
+        scale = torch.matmul(self.hidden_layer(x, self.beta), self.gamma)
+        return shape, scale
     
     def rvs(self, x, u):
-        return ((-LOG(u)/torch.exp(self.risk_function(x, self.beta)))**(1/self.gamma))*self.alpha
+        shape, scale = self.pred_params(x)
+        return scale * ((-LOG(u))**(1/shape))
 
 class CauseSpecificNet(torch.nn.Module):
     """Network structure similar to the DeepHit paper, but without the residual
