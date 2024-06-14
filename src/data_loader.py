@@ -135,19 +135,19 @@ class NonlinearSyntheticDataLoader(BaseDataLoader):
         
         beta_shape_e = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         beta_scale_e = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        
-        hidden_rep = np.matmul(X, beta).squeeze()
-        hidden_rep = relu(hidden_rep)
-        shape_c = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_c).squeeze()
-        scale_c = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_c).squeeze()
-        shape_e = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e).squeeze()
-        scale_e = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e).squeeze()
-        
+
         beta_shape_e = np.pad(beta_shape_e, (0, 1)) # pad 0
         beta_scale_e = np.pad(beta_scale_e, (1, 0))
         beta_shape_c = np.pad(beta_shape_c, (0, 1))
         beta_scale_c = np.pad(beta_scale_c, (1, 0))
         
+        hidden_rep = np.matmul(X, beta).squeeze()
+        hidden_rep = relu(hidden_rep)
+        shape_c = np.matmul(hidden_rep, beta_shape_c).squeeze()
+        scale_c = np.matmul(hidden_rep, beta_scale_c).squeeze()
+        shape_e = np.matmul(hidden_rep, beta_shape_e).squeeze()
+        scale_e = np.matmul(hidden_rep, beta_scale_e).squeeze()
+
         if copula_name=='Frank':
             u_e, u_c = simulation.simu_archimedean('frank', 2, n_samples, theta)
         elif copula_name=='Gumbel':
