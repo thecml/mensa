@@ -74,11 +74,11 @@ class EXP_nonlinear:
 
 
 class Weibull_linear:
-    def __init__(self, n_features, alpha, gamma, device):
+    def __init__(self, n_features, alpha, gamma, beta, device):
         self.n_features = n_features
         self.alpha = torch.tensor([alpha], device=device).type(torch.float32)
         self.gamma = torch.tensor([gamma], device=device).type(torch.float32)
-        self.coeff = torch.rand((n_features,), device=device).type(torch.float32)
+        self.beta = torch.tensor(beta, device=device).type(torch.float32)
 
     def PDF(self ,t ,x):
         return self.hazard(t, x) * self.survival(t,x)
@@ -90,13 +90,13 @@ class Weibull_linear:
         return torch.exp(-self.cum_hazard(t,x))
     
     def hazard(self, t, x):
-        return ((self.gamma/self.alpha)*((t/self.alpha)**(self.gamma-1))) * torch.exp(torch.matmul(x, self.coeff))
+        return ((self.gamma/self.alpha)*((t/self.alpha)**(self.gamma-1))) * torch.exp(torch.matmul(x, self.beta))
         
     def cum_hazard(self, t, x):
-        return ((t/self.alpha)**self.gamma) * torch.exp(torch.matmul(x, self.coeff))
+        return ((t/self.alpha)**self.gamma) * torch.exp(torch.matmul(x, self.beta))
     
     def rvs(self, x, u):
-        return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
+        return ((-LOG(u)/torch.exp(torch.matmul(x, self.beta)))**(1/self.gamma))*self.alpha
 
 class Weibull_nonlinear:
     def __init__(self, n_features, alpha, gamma, beta, risk_function, device):
