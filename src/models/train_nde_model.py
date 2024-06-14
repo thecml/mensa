@@ -16,12 +16,13 @@ import torch.nn as nn
 from copula import Clayton
 from utility.survival import convert_to_structured
 from dcsurvival.dirac_phi import DiracPhi
-from dcsurvival.survival import DCSurvival, MultiDCSurvival
+from dcsurvival.survival import DCSurvival, MultiNDESurvival, SurvNDE
 from tqdm import tqdm
 from utility.evaluator import LifelinesEvaluator
 import copy
-from dcsurvival.truth_net import Weibull_linear
+from models import Weibull_linear, Weibull_nonlinear
 from torch.utils.data import DataLoader, TensorDataset
+import math
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -35,6 +36,9 @@ torch.set_default_dtype(torch.float64)
 # Setup device
 device = "cpu" # use CPU
 device = torch.device(device)
+
+def risk_fn(x, coeff):
+    return relu(np.matmul(x, coeff).squeeze())
 
 def Survival(truth_model, estimate, x, time_steps):
     device = torch.device("cpu")
@@ -67,15 +71,14 @@ def predict_survival_curve(model, x_test, time_bins, truth=False):
 
 if __name__ == "__main__":
     # Load data
-    dl = LinearSyntheticDataLoader().load_data(n_samples=10000)
+    dl = NonlinearSyntheticDataLoader().load_data(n_samples=10000)
     num_features, cat_features = dl.get_features()
     (X_train, y_train), (X_valid, y_valid), (X_test, y_test) = dl.split_data(train_size=0.7,
                                                                              valid_size=0.5)
-    beta_e, beta_c = dl.params
+    beta, beta_shape_e, beta_scale_e = dl.params
     
     # Make time bins
     time_bins = make_time_bins(y_train['time'], event=y_train['event'])
-    #time_bins = np.linspace(y_test['time'].min(), y_test['time'].max(), 1000)
 
     # Scale data
     X_train, X_valid, X_test = preprocess_data(X_train, X_valid, X_test,
@@ -94,67 +97,88 @@ if __name__ == "__main__":
     covariate_tensor_test = torch.tensor(X_test).to(device)
     
     # Define ACNet, model
-    depth = 2 # depth of ACNet
-    widths = [100, 100] # number of units of ACNet
-    lc_w_range = (0, 1.0) # Phi_B
-    shift_w_range = (0., 2.0) # Phi_B
-    num_epochs = 5000 # 5000
-    batch_size = 32
-    early_stop_epochs = 100
+    num_epochs = 10 # 5000
+    #batch_size = 128
+    early_stop_epochs = 50
     
-    use_multi = False
-    phi = DiracPhi(depth, widths, lc_w_range, shift_w_range, device, tol=1e-14).to(device)
-    if use_multi:
-        model = MultiDCSurvival(phi, device = device, num_features=X_train.shape[1], tol=1e-14).to(device)
-        optimizer = optim.Adam([{"params": model.sumo.parameters(), "lr": 1e-3},
-                                {"params": model.phi.parameters(), "lr": 1e-4}])
-    else:
-        model = DCSurvival(phi, device = device, num_features=X_train.shape[1], tol=1e-14).to(device)
-        optimizer = optim.Adam([{"params": model.sumo_e.parameters(), "lr": 1e-3},
-                                {"params": model.sumo_c.parameters(), "lr": 1e-3},
-                                {"params": model.phi.parameters(), "lr": 1e-4}])
-    
-    # Make data loaders
-    train_loader = DataLoader(TensorDataset(covariate_tensor_train,
-                                            times_tensor_train,
-                                            event_indicator_tensor_train),
-                              batch_size=batch_size, shuffle=True)
-    valid_loader = DataLoader(TensorDataset(covariate_tensor_val,
-                                            times_tensor_val,
-                                            event_indicator_tensor_val),
-                              batch_size=batch_size, shuffle=False)
-        
-    # Train model
-    best_valid_logloss = float('-inf')
-    epochs_no_improve = 0
-    for epoch in tqdm(range(num_epochs), disable=True):
-        for xi, ti, ei in train_loader:
-            optimizer.zero_grad()
-            logloss = model(xi, ti, ei, max_iter=10000)
-            (-logloss).backward()
-            optimizer.step()
-            
-        if epoch % 10 == 0:
-            total_val_logloss = 0
-            for xi, ti, ei in valid_loader:
-                val_logloss = model(xi, ti, ei, max_iter=1000)
-                total_val_logloss += val_logloss
-            total_val_logloss /= len(valid_loader)
-            
-            print(f"Valid NLL: {-total_val_logloss}")
-            
-            if total_val_logloss > (best_valid_logloss + 1):
-                best_valid_logloss = total_val_logloss
-                epochs_no_improve = 0
-            else:
-                if total_val_logloss > best_valid_logloss:
-                    best_valid_logloss = total_val_logloss
-                epochs_no_improve = epochs_no_improve + 10
-            
-        if epochs_no_improve == early_stop_epochs:
-            break
+    model_results = pd.DataFrame()
+    for hidden_size in [32, 64]:
+        for hidden_surv in [32]:
+            for dropout_rate in [0.25]:
+                for batch_size in [32]:
+                    model = MultiNDESurvival(device=device, num_features=X_train.shape[1], tol=1e-14,
+                                             hidden_size=hidden_size, hidden_surv=hidden_surv,
+                                             dropout_rate=dropout_rate).to(device)
+                    learning_rate = 1e-3
+                    optimizer = optim.Adam([{"params": model.sumo.parameters(), "lr": learning_rate}])
+                    #optimizer = optim.SGD([{"params": model.sumo_e.parameters(), "lr": learning_rate,
+                    #                        "momentum": 0.9, "weight_decay": 0.1},
+                    #                       {"params": model.sumo_c.parameters(), "lr": learning_rate,
+                    #                        "momentum": 0.9, "weight_decay": 0.1}])
+                    
+                    # Make data loaders
+                    train_loader = DataLoader(TensorDataset(covariate_tensor_train,
+                                                            times_tensor_train,
+                                                            event_indicator_tensor_train),
+                                            batch_size=batch_size, shuffle=True)
+                    valid_loader = DataLoader(TensorDataset(covariate_tensor_val,
+                                                            times_tensor_val,
+                                                            event_indicator_tensor_val),
+                                            batch_size=batch_size, shuffle=False)
+                        
+                    # Train model
+                    best_valid_logloss = float('-inf')
+                    epochs_no_improve = 0
+                    for epoch in tqdm(range(num_epochs), disable=True):
+                        for xi, ti, ei in train_loader:
+                            optimizer.zero_grad()
+                            logloss = model(xi, ti, ei, max_iter=10000)
+                            (-logloss).backward()
+                            optimizer.step()
+                            
+                        if epoch % 10 == 0:
+                            total_val_logloss = 0
+                            for xi, ti, ei in valid_loader:
+                                val_logloss = model(xi, ti, ei, max_iter=1000)
+                                total_val_logloss += val_logloss
+                            total_val_logloss /= len(valid_loader)
+                            
+                            print(-total_val_logloss)
+                            
+                            if total_val_logloss > (best_valid_logloss + 1):
+                                best_valid_logloss = total_val_logloss
+                                epochs_no_improve = 0
+                            else:
+                                if total_val_logloss > best_valid_logloss:
+                                    best_valid_logloss = total_val_logloss
+                                epochs_no_improve = epochs_no_improve + 10
+                            
+                        if epochs_no_improve == early_stop_epochs:
+                            break
+                    
+                    #truth_model = Weibull_linear(num_feature=X_test.shape[1], shape=4,
+                    #                            scale=14, device=torch.device("cpu"),
+                    #                            coeff=beta_e)
+                    truth_model = Weibull_nonlinear(n_features=X_test.shape[1],
+                                                    alpha=beta_shape_e,
+                                                    gamma=beta_scale_e,
+                                                    beta=beta,
+                                                    risk_function=risk_fn,
+                                                    device=torch.device("cpu"))
+                                                    
+                    # Calculate L1
+                    model.eval()
+                    performance = surv_diff(truth_model, model, covariate_tensor_test, steps=time_bins)
+                    res_sr = pd.Series([hidden_size, hidden_surv, dropout_rate,
+                                        learning_rate, batch_size, performance],
+                                    index=['hidden_size', 'hidden_surv', 'dropout_rate', 'learning_rate',
+                                           'batch_size', 'l1'])
+                    model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
+                
+    print(model_results)
         
     # Evaluate
+    """
     dcs_surv_pred, _, _ = predict_survival_curve(model, X_test, time_bins)
     dcs_surv_pred = pd.DataFrame(dcs_surv_pred, columns=np.array(time_bins))
     lifelines_eval = LifelinesEvaluator(dcs_surv_pred.T, y_test['time'], y_test['event'],
@@ -183,12 +207,12 @@ if __name__ == "__main__":
     plt.plot(time_bins, truth_surv_pred.mean(axis=0), label="Truth model Theta = 0.1")
     plt.legend()
     plt.show()
-    
+    """
     # Calculate NLL of DCSurvival and truth model
-    model.eval()
-    test_logloss = model(covariate_tensor_test, times_tensor_test, event_indicator_tensor_test, max_iter=1000)
-    print(-test_logloss)
+    #model.eval()
+    #test_logloss = model(covariate_tensor_test, times_tensor_test, event_indicator_tensor_test, max_iter=1000)
+    #print(-test_logloss)
     #steps = np.linspace(y_test['time'].min(), y_test['time'].max(), 1000)
-    performance = surv_diff(truth_model, model, covariate_tensor_test, steps=time_bins)
-    print(performance)
+    #performance = surv_diff(truth_model, model, covariate_tensor_test, steps=time_bins)
+    #print(performance)
     

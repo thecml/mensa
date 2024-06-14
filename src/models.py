@@ -20,6 +20,110 @@ from utility.bnn_distributions import ParametrizedGaussian, ScaleMixtureGaussian
 from utility.data import dotdict
 from torchmtlr import pack_sequence
 
+def LOG(x):
+    return torch.log(x+1e-20*(x<1e-20))
+
+class Exp_linear:
+    def __init__(self, bh, nf) -> None:
+        self.nf = nf
+        self.bh = torch.tensor([bh]).type(torch.float32)
+        self.coeff = torch.rand((nf,))
+    
+    def hazard(self, t, x):
+        return self.bh * torch.exp(torch.matmul(x, self.coeff))
+    
+    def cum_hazard(self, t, x):
+        return self.hazard(t, x) * t
+    
+    def survival(self, t, x):
+        return torch.exp(-self.cum_hazard(t, x))
+    
+    def CDF(self, t, x):
+        return 1.0 - self.survival(t, x)
+    
+    def PDF(self, t, x):
+        return self.survival(t,x)*self.hazard(t,x)
+    
+    def rvs(self, x, u):
+        return -LOG(u)/self.hazard(t=None, x=x)
+    
+class EXP_nonlinear:
+    def __init__(self, bh, nf, risk_function) -> None:
+        self.nf = nf
+        self.bh = torch.tensor([bh]).type(torch.float32)
+        self.coeff = torch.rand((nf,))
+        self.risk_function = risk_function
+    
+    def hazard(self, t, x):
+        return self.bh * torch.exp(self.risk_function(x, self.coeff ))
+    
+    def cum_hazard(self, t, x):
+        return self.hazard(t, x) * t
+    
+    def survival(self, t, x):
+        return torch.exp(-self.cum_hazard(t, x))
+    
+    def CDF(self, t, x):
+        return 1.0 - self.survival(t, x)
+
+    def PDF(self, t, x):
+        return self.survival(t,x)*self.hazard(t,x)
+    
+    def rvs(self, x, u):
+        return -LOG(u)/self.hazard(t=None, x=x)
+
+
+class Weibull_linear:
+    def __init__(self, n_features, alpha, gamma, device):
+        self.n_features = n_features
+        self.alpha = torch.tensor([alpha], device=device).type(torch.float32)
+        self.gamma = torch.tensor([gamma], device=device).type(torch.float32)
+        self.coeff = torch.rand((n_features,), device=device).type(torch.float32)
+
+    def PDF(self ,t ,x):
+        return self.hazard(t, x) * self.survival(t,x)
+    
+    def CDF(self ,t ,x):   
+        return 1 - self.survival(t,x)
+    
+    def survival(self ,t ,x):   
+        return torch.exp(-self.cum_hazard(t,x))
+    
+    def hazard(self, t, x):
+        return ((self.gamma/self.alpha)*((t/self.alpha)**(self.gamma-1))) * torch.exp(torch.matmul(x, self.coeff))
+        
+    def cum_hazard(self, t, x):
+        return ((t/self.alpha)**self.gamma) * torch.exp(torch.matmul(x, self.coeff))
+    
+    def rvs(self, x, u):
+        return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
+
+class Weibull_nonlinear:
+    def __init__(self, n_features, alpha, gamma, beta, risk_function, device):
+        self.n_features = n_features
+        self.alpha = torch.tensor([alpha],device=device).type(torch.float32)
+        self.gamma = torch.tensor([gamma], device=device).type(torch.float32)
+        self.beta = torch.tensor(beta, device=device).type(torch.float32)
+        self.risk_function = risk_function
+        
+    def PDF(self ,t ,x):
+        return self.hazard(t, x) * self.survival(t, x)
+    
+    def CDF(self ,t ,x):    
+        return 1 - self.survival(t, x)
+    
+    def survival(self ,t ,x):   
+        return torch.exp(-self.cum_hazard(t, x))
+    
+    def hazard(self, t, x):
+        return ((self.gamma/self.alpha)*((t/self.alpha)**(self.gamma-1))) * torch.exp(self.risk_function(x, self.beta))
+
+    def cum_hazard(self, t, x):
+        return ((t/self.alpha)**self.gamma) * torch.exp(self.risk_function(x, self.beta))
+    
+    def rvs(self, x, u):
+        return ((-LOG(u)/torch.exp(self.risk_function(x, self.beta)))**(1/self.gamma))*self.alpha
+
 class CauseSpecificNet(torch.nn.Module):
     """Network structure similar to the DeepHit paper, but without the residual
     connections (for simplicity).
