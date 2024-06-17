@@ -98,7 +98,6 @@ class Weibull_linear:
     def rvs(self, x, u):
         return ((-LOG(u)/torch.exp(torch.matmul(x, self.beta)))**(1/self.gamma))*self.alpha
 
-
 class Weibull_nonlinear:
     def __init__(self, n_features, alpha, gamma, beta, risk_function, device):
         self.n_features = n_features

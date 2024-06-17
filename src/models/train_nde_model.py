@@ -13,7 +13,7 @@ from utility.survival import preprocess_data
 from utility.data import dotdict, array_to_tensor
 import torch.optim as optim
 import torch.nn as nn
-from copula import Clayton
+from copulas import Clayton
 from utility.survival import convert_to_structured
 from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival, MultiNDESurvival, SurvNDE
@@ -37,46 +37,14 @@ torch.set_default_dtype(torch.float32)
 device = "cpu" # use CPU
 device = torch.device(device)
 
-def risk_fn(x, coeff):
-    return relu(np.matmul(x, coeff).squeeze())
-
-def Survival(truth_model, estimate, x, time_steps):
-    device = torch.device("cpu")
-    estimate = copy.deepcopy(estimate).to(device)
-    surv1_estimate = torch.zeros((x.shape[0], time_steps.shape[0]),device=device)
-    surv1_truth = torch.zeros((x.shape[0], time_steps.shape[0]),device=device)
-    x = torch.tensor(x)
-    time_steps = torch.tensor(time_steps)
-    for i in range(time_steps.shape[0]):
-        surv1_estimate[:,i] = estimate.survival(time_steps[i], x)
-        surv1_truth[:,i] = truth_model.survival(time_steps[i], x)
-    return surv1_truth, surv1_estimate, time_steps, time_steps.max()
-
-def surv_diff(truth_model, estimate, x, steps):
-    device = torch.device("cpu")    
-    surv1, surv2, time_steps, t_m = Survival(truth_model, estimate, x, steps)
-    integ = torch.sum( torch.diff(torch.cat([torch.zeros(1), time_steps])) * torch.abs(surv1-surv2))
-    return (integ/t_m/x.shape[0]).detach().numpy() # t_max and N are the same for all patients
-
-def predict_survival_curve(model, x_test, time_bins, truth=False):
-    device = torch.device("cpu")
-    if truth == False:
-        model = copy.deepcopy(model).to(device)
-    surv_estimate = torch.zeros((x_test.shape[0], time_bins.shape[0]), device=device)
-    x_test = torch.tensor(x_test, dtype=torch.float32)
-    time_bins = torch.tensor(time_bins)
-    for i in range(time_bins.shape[0]):
-        surv_estimate[:,i] = model.survival(time_bins[i], x_test)
-    return surv_estimate, time_bins, time_bins.max()
-
 if __name__ == "__main__":
     # Load data
-    dl = NonlinearSyntheticDataLoader().load_data(n_samples=10000)
+    dl = LinearSyntheticDataLoader().load_data(n_samples=20000, copula_name="Clayton")
     num_features, cat_features = dl.get_features()
     (X_train, y_train), (X_valid, y_valid), (X_test, y_test) = dl.split_data(train_size=0.7,
                                                                              valid_size=0.5)
-    beta, beta_shape_e, beta_scale_e = dl.params
-    #beta_e, beta_c = dl.params
+    #beta, beta_shape_e, beta_scale_e = dl.params
+    beta_e, beta_c = dl.params
     
     # Make time bins
     time_bins = make_time_bins(y_train['time'], event=y_train['event'])
@@ -105,8 +73,8 @@ if __name__ == "__main__":
     dropout_rate = 0.25
     batch_size = 32
     model = MultiNDESurvival(device=device, num_features=X_train.shape[1], tol=1e-14,
-                                hidden_size=hidden_size, hidden_surv=hidden_surv,
-                                dropout_rate=dropout_rate).to(device)
+                             hidden_size=hidden_size, hidden_surv=hidden_surv,
+                             dropout_rate=dropout_rate).to(device)
     learning_rate = 1e-3
     optimizer = optim.Adam([{"params": model.sumo.parameters(), "lr": learning_rate}])
     
@@ -179,7 +147,7 @@ if __name__ == "__main__":
     # Plot DCSurvival and truth survival
     import matplotlib.pyplot as plt
     plt.plot(time_bins, dcs_surv_pred.mean(axis=0), label="DCSurvival No Cop")
-    plt.plot(time_bins, truth_surv_pred.mean(axis=0), label="Truth model Theta = 0.1")
+    plt.plot(time_bins, truth_surv_pred.mean(axis=0), label="Truth model Theta = 0.01")
     plt.legend()
     plt.show()
     
