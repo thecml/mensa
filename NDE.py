@@ -233,11 +233,11 @@ class survival_net_basic(torch.nn.Module):
         return -log1plusexp(h)
 
     def forward_f(self,x_cov,y,x_cat=[]): #Figure out how to zero out grad
-        y = torch.autograd.Variable(y,requires_grad=True)
+        #y = torch.autograd.Variable(y,requires_grad=True)
         x_cov = self.covariate_net((x_cov,x_cat))
         h = self.middle_net((x_cov, y))
         F = h.sigmoid()
-        if self.direct=='full':
+        if self.direct=='full' or True:
             h_forward = self.middle_net((x_cov, y + self.eps))
             F_forward = h_forward.sigmoid()
             f = ((F_forward - F) / self.eps)
@@ -245,7 +245,7 @@ class survival_net_basic(torch.nn.Module):
             h_forward = self.middle_net((x_cov, y + self.eps))
             dh = (h_forward - h) /self.eps
             f =dh*F*(1-F)
-        else:
+        """else:
             f, = torch.autograd.grad(
                 outputs=[F],
                 inputs=[y],
@@ -254,7 +254,7 @@ class survival_net_basic(torch.nn.Module):
                 create_graph=True,
                 only_inputs=True,
                 allow_unused=True
-            )
+            )"""
 
         return (f+1e-6).log()
 
@@ -600,19 +600,27 @@ if __name__ == "__main__":
                             layers_x=[32,32,32],
                             layers_t=[],
                             layers=[32,32,32,32],
-                            dropout=0.4)
+                            dropout=0.4, eps=1e-3)
     
     
 
     optimizer = torch.optim.Adam(sn1.parameters(), lr=1e-3)
-    print(-torch.log(1e-10+dgp1.PDF(val_dict['t1'], val_dict['X'])).mean())
-    for i in range(3000):
+    log_f = torch.log(1e-10+dgp1.PDF(val_dict['T'], val_dict['X']))
+    log_s = torch.log(1e-10+dgp1.survival(val_dict['T'], val_dict['X']))
+    print(-(log_f * val_dict['E'] + log_s * (1-val_dict['E'])).mean())
+    for i in range(5000):
         optimizer.zero_grad()
-        loss = -1 * sn1.forward_f(train_dict['X'], train_dict['t1'].reshape(-1,1)).mean()
+        log_f = sn1.forward_f(train_dict['X'], train_dict['T'].reshape(-1,1))
+        log_s = sn1.forward_S(train_dict['X'], train_dict['T'].reshape(-1,1), mask=0)
+        loss = -(log_f * train_dict['E'].reshape(-1,1) + log_s * (1-train_dict['E'].reshape(-1,1))).mean()
         loss.backward()
         optimizer.step()
         if i % 100 == 0:
-            print(loss, -1 * sn1.forward_f(val_dict['X'], val_dict['t1'].reshape(-1,1)).mean())
+            with torch.no_grad():
+                log_f = sn1.forward_f(val_dict['X'], val_dict['T'].reshape(-1,1))
+                log_s = sn1.forward_S(val_dict['X'], val_dict['T'].reshape(-1,1), mask=0)
+                loss_val = -(log_f * val_dict['E'].reshape(-1,1) + log_s * (1-val_dict['E'].reshape(-1,1))).mean()
+                print(loss, loss_val)
         
 
     """sn = survival_net_basic(d_in_x=10,
