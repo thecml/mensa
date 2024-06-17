@@ -134,17 +134,45 @@ class NestedFrank:
 
 
         return (self.CDF(uv_eps) - self.CDF(uv))/self.eps
+    
+
+class ConvexCopula:
+    def __init__(self, copula1, copula2, beta, device):
+        self.copula1 = copula1
+        self.copula2 = copula2
+        self.beta = torch.tensor([beta], device=device).type(torch.float32)
+
+    def CDF(self, uv):
+        p = 1.0/(1+torch.exp(-self.beta))
+        return self.copula1.CDF(uv)* p + (1.0-p)*self.copula2.CDF(uv)
+    
+    def conditional_cdf(self, condition_on, uv):
+        p = 1.0/(1+torch.exp(-self.beta))
+        return self.copula1.conditional_cdf(condition_on, uv)* p + (1.0-p)*self.copula2.conditional_cdf(condition_on, uv)
+    
+    def enable_grad(self):
+        self.copula1.enable_grad()
+        self.copula2.enable_grad()
+        self.beta.requires_grad = True
+    
+    def parameters(self):
+        return self.copula1.parameters() + self.copula2.parameters() + [self.beta]
+        
 
 
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     u, v, w = simulation.simu_archimedean('frank', 3, 1000, 2.0)
     u = torch.from_numpy(u).reshape(-1,1)
     v = torch.from_numpy(v).reshape(-1,1)
     w = torch.from_numpy(w).reshape(-1,1)
     U = torch.cat([u,v,w], dim=1)
+    c2 = NestedFrank(torch.tensor([2]),torch.tensor([2]),1e-4,1e-4, 'cpu')
+    c1 = NestedClayton(torch.tensor([2]),torch.tensor([2]),1e-4,1e-4, 'cpu')
+    conv = ConvexCopula(c1, c2, beta=10000, device='cpu')
+    cdf_conv = conv.CDF(U)
     
-
     
     NC = NestedFrank(torch.tensor([2]),torch.tensor([2]),1e-4,1e-4, 'cpu')
     t1 = NC.CDF(U)
@@ -153,5 +181,6 @@ if __name__ == "__main__":
     t2 = c3.CDF(U)
     print(t1[:10])
     print(t2[:10])
+    print(cdf_conv[:10])
     
     
