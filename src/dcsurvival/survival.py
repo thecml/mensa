@@ -563,7 +563,7 @@ class MultiNDESurvival(nn.Module):
 
     def forward(self, x, t, c, max_iter = 2000):
         #S_E, density_E = self.sumo_e(x, t, gradient = True) # S_E = St = Survival marginals
-        surv_probs, densities = self.sumo(x, t, gradient = True)
+        surv_probs, densities = self.sumo(x, t, gradient=True)
         
         y, log_densities = list(), list()
         for event_prob, density in zip(surv_probs, densities): # for each event

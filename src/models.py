@@ -132,6 +132,41 @@ class Weibull_nonlinear:
     def rvs(self, x, u):
         shape, scale = self.pred_params(x)
         return scale * ((-LOG(u))**(1/shape))
+    
+class Weibull_log_linear:
+    def __init__(self, nf, mu, sigma, device, dtype) -> None:
+        self.nf = nf
+        self.mu = torch.tensor([mu], device=device).type(dtype)
+        self.sigma = torch.tensor([sigma], device=device).type(dtype)
+        self.coeff = torch.rand((nf,), device=device).type(dtype)
+    
+    def survival(self,t,x):
+        return torch.exp(-1*torch.exp((LOG(t)-self.mu-torch.matmul(x, self.coeff))/torch.exp(self.sigma)))
+    
+    def cum_hazard(self, t,x):
+        return torch.exp((LOG(t)-self.mu-torch.matmul(x, self.coeff))/torch.exp(self.sigma))
+    
+    def hazard(self, t,x):
+        return self.cum_hazard(t,x)/(t*torch.exp(self.sigma))
+    
+    def PDF(self,t,x):
+        return self.survival(t,x) * self.hazard(t,x)
+    
+    def CDF(self, t,x ):
+        return 1 - self.survival(t,x)
+    
+    def enable_grad(self):
+        self.sigma.requires_grad = True
+        self.mu.requires_grad = True
+        self.coeff.requires_grad = True
+    
+    def parameters(self):
+        return [self.sigma, self.mu, self.coeff]
+    
+    def rvs(self, x, u):
+        tmp = LOG(-1*LOG(u))*torch.exp(self.sigma)
+        tmp1 = torch.matmul(x, self.coeff) + self.mu
+        return torch.exp(tmp+tmp1)
 
 class CauseSpecificNet(torch.nn.Module):
     """Network structure similar to the DeepHit paper, but without the residual

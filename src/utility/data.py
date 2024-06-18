@@ -170,7 +170,7 @@ def format_data(X, y, dtype, device):
 
 def kendall_tau_to_theta(copula_name, k_tau):
     if copula_name == "clayton":
-        return k_tau / (1 - k_tau)
+        return 2 * k_tau / (1 - k_tau)
     elif copula_name == "frank":
         return -np.log(1 - k_tau * (1 - np.exp(-1)) / 4)
     elif copula_name == "gumbel":

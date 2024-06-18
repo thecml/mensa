@@ -695,10 +695,7 @@ def compute_l1_difference(truth_preds, model_preds, n_samples, steps):
 
 def predict_survival_curve(model, x_test, time_bins, truth=False):
     device = torch.device("cpu")
-    if truth == False:
-        model = copy.deepcopy(model).to(device)
     surv_estimate = torch.zeros((x_test.shape[0], time_bins.shape[0]), device=device)
-    x_test = torch.tensor(x_test, dtype=torch.float32)
     time_bins = torch.tensor(time_bins)
     for i in range(time_bins.shape[0]):
         surv_estimate[:,i] = model.survival(time_bins[i], x_test)

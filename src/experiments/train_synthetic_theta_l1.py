@@ -20,14 +20,15 @@ from dcsurvival.survival import DCSurvival, MultiNDESurvival, SurvNDE
 from tqdm import tqdm
 from utility.evaluator import LifelinesEvaluator
 import copy
-from models import Weibull_linear, Weibull_nonlinear
+from models import Weibull_linear, Weibull_nonlinear, Weibull_log_linear
 from torch.utils.data import DataLoader, TensorDataset
 import math
 from utility.data import format_data
 from utility.config import load_config
 from sota_builder import * # Import all SOTA models
-from utility.survival import risk_fn, compute_l1_difference
+from utility.survival import risk_fn, compute_l1_difference, predict_survival_curve
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
+from trainer import independent_train_loop_linear
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -44,9 +45,10 @@ device = torch.device("cpu")
 
 # Define test parameters
 DATASET_VERSIONS = ["linear"]
-COPULA_NAMES = ["frank", "gumbel", "clayton"]
-KENDALL_TAUS = np.arange(0, 0.9, 0.1)
-MODELS = ["cox"] #"coxnet", "coxboost", "rsf", "dsm", "dcph"
+COPULA_NAMES = ["clayton"] 
+#KENDALL_TAUS = np.arange(0, 0.9, 0.1)
+KENDALL_TAUS = [0.8]
+MODELS = ["weibull"] #"coxnet", "coxboost", "rsf", "dsm", "dcph", "weibull"
 N_SAMPLES = 10000
 N_FEATURES = 10
 
@@ -84,10 +86,12 @@ if __name__ == "__main__":
                 
                 # Make truth model
                 n_features = X_test.shape[1]
-                beta_e, shape_e, scale_e = dl.params
+                beta_e, shape_e, scale_e, beta_c, shape_c, scale_c, u_e = dl.params
                 if dataset_version == "linear":
-                    truth_model = Weibull_linear(n_features, alpha=shape_e, gamma=scale_e,
-                                                 beta=beta_e, device=device, dtype=dtype)
+                    truth_model_e = Weibull_linear(n_features, alpha=scale_e, gamma=shape_e,
+                                                   beta=beta_e, device=device, dtype=dtype)
+                    truth_model_c = Weibull_linear(n_features, alpha=scale_c, gamma=shape_c,
+                                                   beta=beta_c, device=device, dtype=dtype)
                 else:
                     truth_model = Weibull_nonlinear(n_features, alpha=shape_e, gamma=scale_e,
                                                     beta=beta_e, risk_function=risk_fn, device=device,
@@ -133,6 +137,27 @@ if __name__ == "__main__":
                                                  config, random_state=0, reset_model=True, device=device)
                     elif model_name == "mensa":
                         raise NotImplementedError()
+                    elif model_name == "weibull":
+                        model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
+                        model2 = Weibull_log_linear(n_features, 2, 1, device, dtype)
+                        train_dict = dict()
+                        train_dict['X'] = torch.tensor(X_train.to_numpy(), dtype=dtype)
+                        train_dict['T'] = torch.tensor(y_train['time'].copy(), dtype=dtype)
+                        train_dict['E'] = torch.tensor(y_train['event'].copy(), dtype=dtype)
+                        valid_dict = dict()
+                        valid_dict['X'] = torch.tensor(X_valid.to_numpy(), dtype=dtype)
+                        valid_dict['T'] = torch.tensor(y_valid['time'].copy(), dtype=dtype)
+                        valid_dict['E'] = torch.tensor(y_valid['event'].copy(), dtype=dtype)
+                        
+                        # Calculate loss for truth models
+                        from trainer import loss_function
+                        copula = Clayton.Clayton(4, device)
+                        truth_loss = loss_function(truth_model_e, truth_model_c, valid_dict, copula=copula)
+                        print(truth_loss)
+                        model1, model2 = independent_train_loop_linear(model1, model2,
+                                                                       train_dict, valid_dict, 1000)
+                        print(0)
+                        
                     else:
                         raise NotImplementedError()
                     
@@ -153,18 +178,29 @@ if __name__ == "__main__":
                         model_preds = survival_outputs.numpy()
                     elif model_name == "mensa":
                         raise NotImplementedError()
+                    elif model_name == "weibull":
+                        model_preds_e, _, _ = predict_survival_curve(model1, X_test_th, time_bins)
+                        model_preds_e = model_preds_e.numpy()
+                        model_preds_c, _, _ = predict_survival_curve(model2, X_test_th, time_bins)
+                        model_preds_c = model_preds_c.numpy()
                         
-                    # Compute L1 (Truth vs. Model)
-                    truth_preds = torch.zeros((X_test_th.shape[0], time_bins.shape[0]), device=device)
-                    for i in range(time_bins.shape[0]):
-                        truth_preds[:,i] = truth_model.survival(time_bins[i], X_test_th)
+                    # Compute L1 (Truth vs. Model) - event/censoring
                     n_samples = X_test_th.shape[0]
-                    l1 = float(compute_l1_difference(truth_preds, model_preds,
-                                                     n_samples, steps=time_bins))
+                    truth_preds_e = torch.zeros((X_test_th.shape[0], time_bins.shape[0]), device=device)
+                    for i in range(time_bins.shape[0]):
+                        truth_preds_e[:,i] = truth_model_e.survival(time_bins[i], X_test_th)
+                    l1_e = float(compute_l1_difference(truth_preds_e, model_preds_e,
+                                                       n_samples, steps=time_bins))
+                    truth_preds_c = torch.zeros((X_test_th.shape[0], time_bins.shape[0]), device=device)
+                    for i in range(time_bins.shape[0]):
+                        truth_preds_c[:,i] = truth_model_c.survival(time_bins[i], X_test_th)
+                    n_samples = X_test_th.shape[0]
+                    l1_c = float(compute_l1_difference(truth_preds_c, model_preds_c,
+                                                       n_samples, steps=time_bins))
                     
-                    print(f"Evaluated {model_name} - {dataset_version} - {round(k_tau, 3)} - {round(l1, 3)}")
-                    res_sr = pd.Series([model_name, dataset_version, copula_name, k_tau, l1],
-                                       index=["ModelName", "DatasetVersion", "Copula", "KTau", "L1"])
+                    print(f"Evaluated {model_name} - {dataset_version} - {round(k_tau, 3)} - {round(l1_e, 3)} - {round(l1_c, 3)}")
+                    res_sr = pd.Series([model_name, dataset_version, copula_name, k_tau, l1_e, l1_c],
+                                       index=["ModelName", "DatasetVersion", "Copula", "KTau", "L1E", "L1C"])
                     model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
                     model_results.to_csv(f"{cfg.RESULTS_DIR}/model_results.csv")
                     

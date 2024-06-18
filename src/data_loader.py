@@ -113,7 +113,11 @@ class LinearSyntheticDataLoader(BaseDataLoader):
         self.cat_features = self._get_cat_features(self.X)
         self.y_t = df['observed_time'].values
         self.y_e = df['event_indicator'].values
-        self.params = [beta_e, shape_e, scale_e]
+        self.params = [beta_e, shape_e, scale_e, beta_c, shape_c, scale_c, u_e]
+        
+        self.X_first_ten = X[:10,]
+        self.event_risk_first_ten = np.matmul(X, beta_e).squeeze()[:10,]
+        
         return self
     
     def split_data(self,
