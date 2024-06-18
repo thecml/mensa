@@ -125,9 +125,9 @@ class MultiNDE(nn.Module):
                                                                      layers_surv + [1],
                                                                      dropout) for _ in range(n_events)])
 
-    def forward(self, x, horizon, gradient = False):
+    def forward(self, x, horizon, gradient=False):
         # Go through neural network
-        x_embed = self.embedding(x) # Extract unconstrained NN # why 32 outputs?
+        x_embed = self.embedding(x) # Extract unconstrained NN
         time_outcome = horizon.clone().detach().requires_grad_(gradient) # Copy with independent gradient
         
         survival = [output_layer(torch.cat((x_embed, time_outcome.unsqueeze(1)), 1))

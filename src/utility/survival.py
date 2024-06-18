@@ -11,6 +11,8 @@ from typing import List, Tuple, Optional, Union
 from sksurv.linear_model.coxph import BreslowEstimator
 from utility.preprocessor import Preprocessor
 from pycox.preprocessing.label_transforms import LabTransDiscreteTime
+import copy
+from utility.data import relu
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -482,7 +484,8 @@ def make_time_bins(
         times: NumericArrayLike,
         num_bins: Optional[int] = None,
         use_quantiles: bool = True,
-        event: Optional[NumericArrayLike] = None
+        event: Optional[NumericArrayLike] = None,
+        dtype=torch.float32
 ) -> torch.Tensor:
     """
     Courtesy of https://ieeexplore.ieee.org/document/10158019
@@ -522,7 +525,7 @@ def make_time_bins(
         bins = np.unique(np.quantile(times, np.linspace(0, 1, num_bins)))
     else:
         bins = np.linspace(times.min(), times.max(), num_bins)
-    bins = torch.tensor(bins, dtype=torch.float)
+    bins = torch.tensor(bins, dtype=dtype)
     return bins
 
 def compute_unique_counts(
@@ -665,3 +668,38 @@ def check_and_convert(*args):
                 result = x[0]
 
     return result
+
+def risk_fn(x, coeff):
+    return relu(np.matmul(x, coeff).squeeze())
+
+def predict_survival_curve_truth_pred(truth_model, pred_model, x, time_steps):
+    device = torch.device("cpu")
+    pred_model = copy.deepcopy(pred_model).to(device)
+    surv1_estimate = torch.zeros((x.shape[0], time_steps.shape[0]),device=device)
+    surv1_truth = torch.zeros((x.shape[0], time_steps.shape[0]),device=device)
+    x = torch.tensor(x)
+    time_steps = torch.tensor(time_steps)
+    for i in range(time_steps.shape[0]):
+        surv1_estimate[:,i] = pred_model.survival(time_steps[i], x)
+        surv1_truth[:,i] = truth_model.survival(time_steps[i], x)
+    return surv1_truth, surv1_estimate, time_steps, time_steps.max()
+
+def compute_l1_difference(truth_preds, model_preds, n_samples, steps):
+    device = torch.device("cpu")
+    t_m = steps.max()
+    surv1 = truth_preds
+    surv2 = model_preds
+    #surv1, surv2, time_steps, t_m = predict_survival_curve_truth_pred(truth_model, pred_model, x, steps)
+    integ = torch.sum(torch.diff(torch.cat([torch.zeros(1), steps])) * torch.abs(surv1-surv2))
+    return (integ/t_m/n_samples).detach().numpy() # t_max and N are the same for all patients
+
+def predict_survival_curve(model, x_test, time_bins, truth=False):
+    device = torch.device("cpu")
+    if truth == False:
+        model = copy.deepcopy(model).to(device)
+    surv_estimate = torch.zeros((x_test.shape[0], time_bins.shape[0]), device=device)
+    x_test = torch.tensor(x_test, dtype=torch.float32)
+    time_bins = torch.tensor(time_bins)
+    for i in range(time_bins.shape[0]):
+        surv_estimate[:,i] = model.survival(time_bins[i], x_test)
+    return surv_estimate, time_bins, time_bins.max()

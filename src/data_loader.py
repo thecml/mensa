@@ -16,6 +16,11 @@ from pycop import simulation
 from scipy import stats
 from utility.data import (inverse_transform, inverse_transform_weibull, relu,
                           inverse_transform_exp, inverse_transform_lognormal)
+from utility.data import kendall_tau_to_theta, theta_to_kendall_tau
+from statsmodels.distributions.copula.api import (CopulaDistribution, GumbelCopula,
+                                                  FrankCopula, ClaytonCopula, IndependenceCopula)
+from utility.survival import make_stratified_split_single
+
 
 class BaseDataLoader(ABC):
     """
@@ -63,40 +68,42 @@ class BaseDataLoader(ABC):
         return data.select_dtypes(['object']).columns.tolist()
 
 class LinearSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_name='Frank', theta=10,
+    def load_data(self, copula_name='frank', k_tau=0,
                   n_samples=30000, n_features=10,
                   rng=np.random.default_rng(0)):
         # Generate synthetic data (time-to-event and censoring indicator)
         # with linear parametric proportional hazards model (Weibull CoxPH)
-        v_e=4; rho_e=14; v_c=3; rho_c=16
+        shape_e=4; scale_e=14; shape_c=3; scale_c=16
         
         X = rng.uniform(0, 1, (n_samples, n_features))
-        beta_c = rng.uniform(0, 1, (n_features,))
         beta_e = rng.uniform(0, 1, (n_features,))
+        beta_c = rng.uniform(0, 1, (n_features,))
 
         event_risk = np.matmul(X, beta_e).squeeze()
         censoring_risk = np.matmul(X, beta_c).squeeze()
-
-        if copula_name=='Frank':
-            u_e, u_c = simulation.simu_archimedean('frank', 2, n_samples, theta)
-        elif copula_name=='Gumbel':
-            u_e, u_c = simulation.simu_archimedean('gumbel', 2, n_samples, theta)
-        elif copula_name=='Clayton':
-            u_e, u_c = simulation.simu_archimedean('clayton', 2, n_samples, theta)
-        elif copula_name=="Independent":
+        
+        if k_tau > 0:
+            theta = kendall_tau_to_theta(copula_name, k_tau)
+            if copula_name == 'frank':
+                u_e, u_c = simulation.simu_archimedean('frank', 2, n_samples, theta)
+            elif copula_name == 'gumbel':
+                u_e, u_c = simulation.simu_archimedean('gumbel', 2, n_samples, theta)
+            elif copula_name == 'clayton':
+                u_e, u_c = simulation.simu_archimedean('clayton', 2, n_samples, theta)
+            else:
+                raise ValueError('Copula not implemented') 
+        else:
             u_e = rng.uniform(0, 1, n_samples)
             u_c = rng.uniform(0, 1, n_samples)
-        else:
-            raise ValueError('Copula not implemented') 
 
-        event_time = inverse_transform(u_e, event_risk, v_e, rho_e)
-        censoring_time = inverse_transform(u_c, censoring_risk, v_c, rho_c)
+        event_times = inverse_transform(u_e, event_risk, shape_e, scale_e)
+        censoring_times = inverse_transform(u_c, censoring_risk, shape_c, scale_c)
 
-        observed_time = np.minimum(event_time, censoring_time)
-        event_indicator = (event_time < censoring_time).astype(int)
+        observed_time = np.minimum(event_times, censoring_times)
+        event_indicator = (event_times < censoring_times).astype(int)
 
         data = np.concatenate([X, observed_time[:, None], event_indicator[:, None],
-                               event_time[:, None], censoring_time[:, None]], axis=1)
+                               event_times[:, None], censoring_times[:, None]], axis=1)
         label_cols = ['observed_time', 'event_indicator', 'event_time', 'censoring_time']
         columns = [f'X{i}' for i in range(n_features)] + label_cols
         df = pd.DataFrame(data, columns=columns)
@@ -106,24 +113,29 @@ class LinearSyntheticDataLoader(BaseDataLoader):
         self.cat_features = self._get_cat_features(self.X)
         self.y_t = df['observed_time'].values
         self.y_e = df['event_indicator'].values
-        self.params = [beta_e, beta_c]
+        self.params = [beta_e, shape_e, scale_e]
         return self
     
     def split_data(self,
                    train_size: float,
                    valid_size: float,
                    random_state=0):
-        X = self.X
-        y = convert_to_structured(self.y_t, self.y_e)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1-train_size,
-                                                            random_state=0)
-        X_train, X_valid, y_train, y_valid = train_test_split(X_train, y_train,
-                                                              test_size=valid_size,
-                                                              random_state=0)
+        df = self.X
+        df['time'] = self.y_t
+        df['event'] = self.y_e
+        df_train, df_valid, df_test = make_stratified_split_single(df, stratify_colname='both',
+                                                                   frac_train=0.7, frac_valid=0.1,
+                                                                   frac_test=0.2, random_state=0)
+        X_train = df_train.drop(['time', 'event'], axis=1)
+        y_train = convert_to_structured(df_train['time'].values, df_train['event'].values)
+        X_valid = df_valid.drop(['time', 'event'], axis=1)
+        y_valid = convert_to_structured(df_valid['time'].values, df_valid['event'].values)
+        X_test = df_test.drop(['time', 'event'], axis=1)
+        y_test = convert_to_structured(df_test['time'].values, df_test['event'].values)
         return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
 
 class NonlinearSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_name='Frank', theta=10, n_samples=30000,
+    def load_data(self, copula_name='frank', k_tau=0, n_samples=30000,
                   n_features=10, rng=np.random.default_rng(0)):
         # Generate synthetic data with parametric model (Weibull)
         hidden_dim = int(n_features/2)
@@ -135,25 +147,32 @@ class NonlinearSyntheticDataLoader(BaseDataLoader):
         
         beta_shape_e = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         beta_scale_e = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+
+        beta_shape_e = np.pad(beta_shape_e, (0, 1)) # pad 0
+        beta_scale_e = np.pad(beta_scale_e, (1, 0))
+        beta_shape_c = np.pad(beta_shape_c, (0, 1))
+        beta_scale_c = np.pad(beta_scale_c, (1, 0))
         
         hidden_rep = np.matmul(X, beta).squeeze()
         hidden_rep = relu(hidden_rep)
-        shape_c = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_c).squeeze()
-        scale_c = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_c).squeeze()
-        shape_e = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e).squeeze()
-        scale_e = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e).squeeze()
-        
-        if copula_name=='Frank':
-            u_e, u_c = simulation.simu_archimedean('frank', 2, n_samples, theta)
-        elif copula_name=='Gumbel':
-            u_e, u_c = simulation.simu_archimedean('gumbel', 2, n_samples, theta)
-        elif copula_name=='Clayton':
-            u_e, u_c = simulation.simu_archimedean('clayton', 2, n_samples, theta)
-        elif copula_name=="Independent":
+        shape_c = np.matmul(hidden_rep, beta_shape_c).squeeze()
+        scale_c = np.matmul(hidden_rep, beta_scale_c).squeeze()
+        shape_e = np.matmul(hidden_rep, beta_shape_e).squeeze()
+        scale_e = np.matmul(hidden_rep, beta_scale_e).squeeze()
+
+        if k_tau > 0:
+            theta = kendall_tau_to_theta(copula_name, k_tau)
+            if copula_name == 'frank':
+                u_e, u_c = simulation.simu_archimedean('frank', 2, n_samples, theta)
+            elif copula_name == 'gumbel':
+                u_e, u_c = simulation.simu_archimedean('gumbel', 2, n_samples, theta)
+            elif copula_name == 'clayton':
+                u_e, u_c = simulation.simu_archimedean('clayton', 2, n_samples, theta)
+            else:
+                raise ValueError('Copula not implemented') 
+        else:
             u_e = rng.uniform(0, 1, n_samples)
             u_c = rng.uniform(0, 1, n_samples)
-        else:
-            raise ValueError('Copula not implemented')
     
         event_time = inverse_transform_weibull(u_e, shape_e, scale_e)
         censoring_time = inverse_transform_weibull(u_c, shape_c, scale_c)
@@ -179,13 +198,18 @@ class NonlinearSyntheticDataLoader(BaseDataLoader):
                    train_size: float,
                    valid_size: float,
                    random_state=0):
-        X = self.X
-        y = convert_to_structured(self.y_t, self.y_e)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1-train_size,
-                                                            random_state=0)
-        X_train, X_valid, y_train, y_valid = train_test_split(X_train, y_train,
-                                                              test_size=valid_size,
-                                                              random_state=0)
+        df = self.X
+        df['time'] = self.y_t
+        df['event'] = self.y_e
+        df_train, df_valid, df_test = make_stratified_split_single(df, stratify_colname='both',
+                                                                 frac_train=0.7, frac_valid=0.1,
+                                                                 frac_test=0.2, random_state=0)
+        X_train = df_train.drop(['time', 'event'], axis=1)
+        y_train = convert_to_structured(df_train['time'].values, df_train['event'].values)
+        X_valid = df_valid.drop(['time', 'event'], axis=1)
+        y_valid = convert_to_structured(df_valid['time'].values, df_valid['event'].values)
+        X_test = df_test.drop(['time', 'event'], axis=1)
+        y_test = convert_to_structured(df_test['time'].values, df_test['event'].values)
         return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
     
 class CompetingRiskSyntheticDataLoader(BaseDataLoader):

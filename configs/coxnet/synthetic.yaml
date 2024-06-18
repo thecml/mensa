@@ -1,0 +1,6 @@
+l1_ratio: 1
+alpha_min_ratio: 0.1
+n_alphas: 10
+normalize: False
+tol: 0.1
+max_iter: 100000
