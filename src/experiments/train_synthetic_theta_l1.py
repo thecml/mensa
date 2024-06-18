@@ -43,7 +43,7 @@ torch.set_default_dtype(dtype)
 device = torch.device("cpu")
 
 # Define test parameters
-DATASET_VERSIONS = ["nonlinear"]
+DATASET_VERSIONS = ["linear"]
 COPULA_NAMES = ["frank", "gumbel", "clayton"]
 KENDALL_TAUS = np.arange(0, 0.9, 0.1)
 MODELS = ["cox"] #"coxnet", "coxboost", "rsf", "dsm", "dcph"
@@ -147,7 +147,7 @@ if __name__ == "__main__":
                         data_test["time"] = pd.Series(y_test['time'])
                         data_test["event"] = pd.Series(y_test['event']).astype(int)
                         mtlr_test_data = torch.tensor(data_test.drop(["time", "event"], axis=1).values,
-                                                      dtype=torch.float32, device=device)
+                                                      dtype=dtype, device=device)
                         survival_outputs, _, _ = make_mtlr_prediction(model, mtlr_test_data, time_bins, config)
                         survival_outputs = survival_outputs[:, 1:]
                         model_preds = survival_outputs.numpy()
@@ -162,7 +162,7 @@ if __name__ == "__main__":
                     l1 = float(compute_l1_difference(truth_preds, model_preds,
                                                      n_samples, steps=time_bins))
                     
-                    print(f"Evaluated {model_name} - {round(k_tau, 3)} - {round(l1, 3)}")
+                    print(f"Evaluated {model_name} - {dataset_version} - {round(k_tau, 3)} - {round(l1, 3)}")
                     res_sr = pd.Series([model_name, dataset_version, copula_name, k_tau, l1],
                                        index=["ModelName", "DatasetVersion", "Copula", "KTau", "L1"])
                     model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
