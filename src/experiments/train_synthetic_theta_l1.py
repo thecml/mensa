@@ -36,14 +36,14 @@ torch.manual_seed(0)
 random.seed(0)
 
 # Setup precision
-dtype = torch.float32
+dtype = torch.float64
 torch.set_default_dtype(dtype)
 
 # Setup device
 device = torch.device("cpu")
 
 # Define test parameters
-DATASET_VERSIONS = ["linear"]
+DATASET_VERSIONS = ["nonlinear"]
 COPULA_NAMES = ["frank", "gumbel", "clayton"]
 KENDALL_TAUS = np.arange(0, 0.9, 0.1)
 MODELS = ["cox"] #"coxnet", "coxboost", "rsf", "dsm", "dcph"
@@ -70,7 +70,7 @@ if __name__ == "__main__":
                                                                                          valid_size=0.5)
                 
                 # Make time bins
-                time_bins = make_time_bins(y_train['time'], event=y_train['event'])
+                time_bins = make_time_bins(y_train['time'], event=y_train['event'], dtype=dtype)
                 
                 # Scale data
                 X_train, X_valid, X_test = preprocess_data(X_train, X_valid, X_test,
@@ -87,10 +87,11 @@ if __name__ == "__main__":
                 beta_e, shape_e, scale_e = dl.params
                 if dataset_version == "linear":
                     truth_model = Weibull_linear(n_features, alpha=shape_e, gamma=scale_e,
-                                                 beta=beta_e, device=device)
+                                                 beta=beta_e, device=device, dtype=dtype)
                 else:
                     truth_model = Weibull_nonlinear(n_features, alpha=shape_e, gamma=scale_e,
-                                                    beta=beta_e, risk_function=risk_fn, device=device)
+                                                    beta=beta_e, risk_function=risk_fn, device=device,
+                                                    dtype=dtype)
                                     
                  # Evaluate each model
                 for model_name in MODELS:

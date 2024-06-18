@@ -1,8 +1,0 @@
-,ModelName,DatasetVersion,Copula,Theta,L1
-0,cox,nonlinear,frank,0.0,0.030761527417358315
-1,coxnet,nonlinear,frank,0.0,0.026799203399395885
-2,coxboost,nonlinear,frank,0.0,0.05866535465279095
-3,rsf,nonlinear,frank,0.0,0.08820327217972047
-4,dsm,nonlinear,frank,0.0,0.050508773077177806
-5,dcph,nonlinear,frank,0.0,0.033387623352049985
-6,mtlr,nonlinear,frank,0.0,0.1121908649802208

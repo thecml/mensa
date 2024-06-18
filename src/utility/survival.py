@@ -484,7 +484,8 @@ def make_time_bins(
         times: NumericArrayLike,
         num_bins: Optional[int] = None,
         use_quantiles: bool = True,
-        event: Optional[NumericArrayLike] = None
+        event: Optional[NumericArrayLike] = None,
+        dtype=torch.float32
 ) -> torch.Tensor:
     """
     Courtesy of https://ieeexplore.ieee.org/document/10158019
@@ -524,7 +525,7 @@ def make_time_bins(
         bins = np.unique(np.quantile(times, np.linspace(0, 1, num_bins)))
     else:
         bins = np.linspace(times.min(), times.max(), num_bins)
-    bins = torch.tensor(bins, dtype=torch.float)
+    bins = torch.tensor(bins, dtype=dtype)
     return bins
 
 def compute_unique_counts(

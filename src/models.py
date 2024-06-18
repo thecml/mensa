@@ -74,11 +74,11 @@ class EXP_nonlinear:
 
 
 class Weibull_linear:
-    def __init__(self, n_features, alpha, gamma, beta, device):
+    def __init__(self, n_features, alpha, gamma, beta, device, dtype):
         self.n_features = n_features
-        self.alpha = torch.tensor([alpha], device=device).type(torch.float32)
-        self.gamma = torch.tensor([gamma], device=device).type(torch.float32)
-        self.beta = torch.tensor(beta, device=device).type(torch.float32)
+        self.alpha = torch.tensor([alpha], device=device).type(dtype)
+        self.gamma = torch.tensor([gamma], device=device).type(dtype)
+        self.beta = torch.tensor(beta, device=device).type(dtype)
 
     def PDF(self ,t ,x):
         return self.hazard(t, x) * self.survival(t,x)
@@ -99,11 +99,11 @@ class Weibull_linear:
         return ((-LOG(u)/torch.exp(torch.matmul(x, self.beta)))**(1/self.gamma))*self.alpha
 
 class Weibull_nonlinear:
-    def __init__(self, n_features, alpha, gamma, beta, risk_function, device):
+    def __init__(self, n_features, alpha, gamma, beta, risk_function, device, dtype):
         self.n_features = n_features
-        self.alpha = torch.tensor(alpha,device=device)
-        self.gamma = torch.tensor(gamma, device=device)
-        self.beta = torch.tensor(beta, device=device)
+        self.alpha = torch.tensor(alpha, device=device).type(dtype)
+        self.gamma = torch.tensor(gamma, device=device).type(dtype)
+        self.beta = torch.tensor(beta, device=device).type(dtype)
         self.hidden_layer = risk_function
         
     def PDF(self ,t ,x):
