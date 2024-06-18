@@ -8,6 +8,7 @@ import copy
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import LabelEncoder
 from scipy import stats
+from scipy.special import lambertw
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -160,3 +161,29 @@ def array_to_tensor(array, dtype=None, device='cpu'):
     array_c = array.copy()
     tensor = torch.tensor(array_c, dtype=dtype).to(device)
     return tensor
+
+def format_data(X, y, dtype, device):
+    times = array_to_tensor(y['time'], dtype)
+    events = array_to_tensor(y['event'], dtype)
+    covariates = torch.tensor(X.to_numpy(), dtype=dtype).to(device)
+    return (covariates, times, events)
+
+def kendall_tau_to_theta(copula_name, k_tau):
+    if copula_name == "clayton":
+        return k_tau / (1 - k_tau)
+    elif copula_name == "frank":
+        return -np.log(1 - k_tau * (1 - np.exp(-1)) / 4)
+    elif copula_name == "gumbel":
+        return -1 / (k_tau - 1)
+    else:
+        raise ValueError('Copula not implemented')
+    
+def theta_to_kendall_tau(copula_name, theta):
+    if copula_name == "clayton":
+        return theta / (theta + 2)
+    elif copula_name == "frank":
+        return 1 - 4 * ((1 - np.exp(-theta)) / theta)
+    elif copula_name == "gumbel":
+        return (theta - 1) / theta
+    else:
+        raise ValueError('Copula not implemented')
