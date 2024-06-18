@@ -43,11 +43,11 @@ torch.set_default_dtype(dtype)
 device = torch.device("cpu")
 
 # Define test parameters
-DATASET_VERSIONS = ["nonlinear"]
+DATASET_VERSIONS = ["linear"]
 COPULA_NAMES = ["frank", "gumbel", "clayton"]
 KENDALL_TAUS = np.arange(0, 0.9, 0.1)
-MODELS = ["cox", "coxnet", "coxboost", "rsf", "dsm", "dcph", "mtlr", "mensa"]
-N_SAMPLES = 1000
+MODELS = ["cox"] #"coxnet", "coxboost", "rsf", "dsm", "dcph"
+N_SAMPLES = 10000
 N_FEATURES = 10
 
 if __name__ == "__main__":
@@ -163,7 +163,7 @@ if __name__ == "__main__":
                     
                     print(f"Evaluated {model_name} - {round(k_tau, 3)} - {round(l1, 3)}")
                     res_sr = pd.Series([model_name, dataset_version, copula_name, k_tau, l1],
-                                       index=["ModelName", "DatasetVersion", "Copula", "Theta", "L1"])
+                                       index=["ModelName", "DatasetVersion", "Copula", "KTau", "L1"])
                     model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
                     model_results.to_csv(f"{cfg.RESULTS_DIR}/model_results.csv")
                     

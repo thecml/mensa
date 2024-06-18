@@ -19,6 +19,8 @@ from utility.data import (inverse_transform, inverse_transform_weibull, relu,
 from utility.data import kendall_tau_to_theta, theta_to_kendall_tau
 from statsmodels.distributions.copula.api import (CopulaDistribution, GumbelCopula,
                                                   FrankCopula, ClaytonCopula, IndependenceCopula)
+from utility.survival import make_stratified_split_single
+
 
 class BaseDataLoader(ABC):
     """
@@ -118,13 +120,18 @@ class LinearSyntheticDataLoader(BaseDataLoader):
                    train_size: float,
                    valid_size: float,
                    random_state=0):
-        X = self.X
-        y = convert_to_structured(self.y_t, self.y_e)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1-train_size,
-                                                            random_state=0)
-        X_train, X_valid, y_train, y_valid = train_test_split(X_train, y_train,
-                                                              test_size=valid_size,
-                                                              random_state=0)
+        df = self.X
+        df['time'] = self.y_t
+        df['event'] = self.y_e
+        df_train, df_valid, df_test = make_stratified_split_single(df, stratify_colname='both',
+                                                                   frac_train=0.7, frac_valid=0.1,
+                                                                   frac_test=0.2, random_state=0)
+        X_train = df_train.drop(['time', 'event'], axis=1)
+        y_train = convert_to_structured(df_train['time'].values, df_train['event'].values)
+        X_valid = df_valid.drop(['time', 'event'], axis=1)
+        y_valid = convert_to_structured(df_valid['time'].values, df_valid['event'].values)
+        X_test = df_test.drop(['time', 'event'], axis=1)
+        y_test = convert_to_structured(df_test['time'].values, df_test['event'].values)
         return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
 
 class NonlinearSyntheticDataLoader(BaseDataLoader):
@@ -191,13 +198,18 @@ class NonlinearSyntheticDataLoader(BaseDataLoader):
                    train_size: float,
                    valid_size: float,
                    random_state=0):
-        X = self.X
-        y = convert_to_structured(self.y_t, self.y_e)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=1-train_size,
-                                                            random_state=0)
-        X_train, X_valid, y_train, y_valid = train_test_split(X_train, y_train,
-                                                              test_size=valid_size,
-                                                              random_state=0)
+        df = self.X
+        df['time'] = self.y_t
+        df['event'] = self.y_e
+        df_train, df_valid, df_test = make_stratified_split_single(df, stratify_colname='both',
+                                                                 frac_train=0.7, frac_valid=0.1,
+                                                                 frac_test=0.2, random_state=0)
+        X_train = df_train.drop(['time', 'event'], axis=1)
+        y_train = convert_to_structured(df_train['time'].values, df_train['event'].values)
+        X_valid = df_valid.drop(['time', 'event'], axis=1)
+        y_valid = convert_to_structured(df_valid['time'].values, df_valid['event'].values)
+        X_test = df_test.drop(['time', 'event'], axis=1)
+        y_test = convert_to_structured(df_test['time'].values, df_test['event'].values)
         return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
     
 class CompetingRiskSyntheticDataLoader(BaseDataLoader):
