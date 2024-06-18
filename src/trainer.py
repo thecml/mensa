@@ -51,6 +51,58 @@ def loss_function(model1, model2, data, copula=None):
     p2[torch.isnan(p2)] = 0
     return -torch.mean(p1 * data['E'] + (1-data['E'])*p2)
 
+def dependent_train_loop_linear(model1, model2, train_data, val_data,
+                               n_itr, optimizer1='Adam', lr1=5e-3, verbose=False, copula=None):
+    model1.enable_grad()
+    model2.enable_grad()
+    copula.enable_grad()
+    
+    min_val_loss = 1000
+    
+    optimizer = torch.optim.Adam([{"params": model1.parameters(), "lr": 5e-3},
+                                {"params": model2.parameters(), "lr": 5e-3},
+                                {"params": copula.parameters(), "lr": 5e-3}])
+    
+    for itr in range(n_itr):
+        optimizer.zero_grad()
+        loss = loss_function(model1, model2, train_data, copula)
+        loss.backward()
+        for p in copula.parameters():
+            p.grad = p.grad * 100
+            p.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
+        
+        optimizer.step()
+        
+        for p in copula.parameters():
+            if p <= 0.01:
+                with torch.no_grad():
+                    p[:] = torch.clamp(p, 0.01, 100)
+        
+        with torch.no_grad():
+            val_loss = loss_function(model1, model2, val_data, copula)
+            if not torch.isnan(val_loss) and val_loss < min_val_loss:
+                stop_itr =0
+                best_c1 = model1.coeff.detach().clone()
+                best_c2 = model2.coeff.detach().clone()
+                best_mu1 = model1.mu.detach().clone()
+                best_mu2 = model2.mu.detach().clone()
+                best_sig1 = model1.sigma.detach().clone()
+                best_sig2 = model2.sigma.detach().clone()
+                min_val_loss = val_loss.detach().clone()
+            else:
+                stop_itr += 1
+                if stop_itr == 2000:
+                    break
+                
+    model1.mu = best_mu1
+    model2.mu = best_mu2
+    model1.sigma = best_sig1
+    model2.sigma = best_sig2
+    model1.coeff = best_c1
+    model2.coeff = best_c2
+    
+    return model1, model2
+
 def independent_train_loop_linear(model1, model2, train_data, val_data,
                                   n_itr, optimizer1='Adam', optimizer2='Adam',
                                   lr1=5e-3, lr2=5e-3, sub_itr=5, verbose=False):
@@ -81,8 +133,6 @@ def independent_train_loop_linear(model1, model2, train_data, val_data,
         with torch.no_grad():
             val_loss = loss_function(model1, model2, val_data, None)
             val_loss_log.append(val_loss.detach().clone())
-            if itr % 100 == 0:
-                print(val_loss)
             if not torch.isnan(val_loss) and val_loss < min_val_loss:
                 stop_itr =0
                 best_c1 = model1.coeff.detach().clone()

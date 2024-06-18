@@ -55,6 +55,7 @@ class Clayton:
         else:
             c = (uv[:,1])**(-1.0*(self.theta+1.0))
         return (a**b) * c
+    
     def enable_grad(self):
         self.theta.requires_grad = True
     
@@ -63,6 +64,9 @@ class Clayton:
     
     def set_theta(self, new_val):
         self.theta = new_val
+        
+    def parameters(self):
+        return [self.theta]
 
     def PDF(self, u):
         u = u + 1e-30*(u<1e-30)

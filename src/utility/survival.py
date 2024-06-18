@@ -416,10 +416,11 @@ def encode_survival(
 
 def reformat_survival(
         dataset: pd.DataFrame,
-        time_bins: NumericArrayLike
+        time_bins: NumericArrayLike,
+        dtype: torch.dtype
 ) -> (torch.Tensor, torch.Tensor):
     '''Courtesy of https://github.com/shi-ang/BNN-ISD/tree/main'''
-    x = torch.tensor(dataset.drop(["time", "event"], axis=1).values, dtype=torch.float)
+    x = torch.tensor(dataset.drop(["time", "event"], axis=1).values, dtype=dtype)
     y = encode_survival(dataset["time"].values, dataset["event"].values, time_bins)
     return x, y
 
@@ -699,4 +700,4 @@ def predict_survival_curve(model, x_test, time_bins, truth=False):
     time_bins = torch.tensor(time_bins)
     for i in range(time_bins.shape[0]):
         surv_estimate[:,i] = model.survival(time_bins[i], x_test)
-    return surv_estimate, time_bins, time_bins.max()
+    return surv_estimate

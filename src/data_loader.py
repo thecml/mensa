@@ -215,8 +215,20 @@ class NonlinearSyntheticDataLoader(BaseDataLoader):
         X_test = df_test.drop(['time', 'event'], axis=1)
         y_test = convert_to_structured(df_test['time'].values, df_test['event'].values)
         return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
+
+class LinearCompetingRiskSyntheticDataLoader(BaseDataLoader):
+    def load_data(self, copula_name='frank', k_tau=0,
+                  n_samples=30000, n_features=10,
+                  rng=np.random.default_rng(0)):
+        pass
     
-class CompetingRiskSyntheticDataLoader(BaseDataLoader):
+    def split_data(self,
+                   train_size: float,
+                   valid_size: float,
+                   random_state=0):
+        pass
+
+class NonlinearCompetingRiskSyntheticDataLoader(BaseDataLoader):
     def load_data(self, copula_parameters=None, dist='Weibull',
                   n_samples=30000, n_features=10, rng=np.random.default_rng(0)):
         # Generate synthetic data (2 competing risks and censoring)
