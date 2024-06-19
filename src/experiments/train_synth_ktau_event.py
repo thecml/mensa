@@ -16,7 +16,7 @@ import torch.nn as nn
 from copulas import Clayton
 from utility.survival import convert_to_structured
 from dcsurvival.dirac_phi import DiracPhi
-from dcsurvival.survival import DCSurvival, MultiNDESurvival, SurvNDE
+from dcsurvival.survival import DCSurvival
 from tqdm import tqdm
 from utility.evaluator import LifelinesEvaluator
 import copy
@@ -29,6 +29,9 @@ from sota_builder import * # Import all SOTA models
 from utility.survival import risk_fn, compute_l1_difference, predict_survival_curve
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from trainer import independent_train_loop_linear, dependent_train_loop_linear, loss_function
+from dcsurvival.dirac_phi import DiracPhi
+from dcsurvival.survival import DCSurvival
+from dcsurvival.model import train_dcsurvival_model
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -48,8 +51,8 @@ DATASET_VERSIONS = ["linear"]
 COPULA_NAMES = ["clayton"] 
 #KENDALL_TAUS = np.arange(0, 0.9, 0.1)
 KENDALL_TAUS = [0, 0.25, 0.5, 0.8]
-MODELS = ["cox", "mtlr", "weibull-nocop", "weibull-cop"] #"coxnet", "coxboost", "rsf", "dsm", "dcph", "weibull"
-N_SAMPLES = 10000
+MODELS = ["cox", "mtlr", "weibull-nocop", "weibull-cop", "dcsurvival"] #"coxnet", "coxboost", "rsf", "dsm", "dcph", "weibull", "dcsurvival"
+N_SAMPLES = 1000
 N_FEATURES = 10
 
 if __name__ == "__main__":
@@ -68,8 +71,9 @@ if __name__ == "__main__":
                                                                   copula_name=copula_name,
                                                                   k_tau=k_tau, n_features=N_FEATURES)
                 num_features, cat_features = dl.get_features()
-                (X_train, y_train), (X_valid, y_valid), (X_test, y_test) = dl.split_data(train_size=0.7,
-                                                                                         valid_size=0.5)
+                (X_train, y_train), (X_valid, y_valid), (X_test, y_test) = dl.split_data(frac_train=0.7,
+                                                                                         frac_valid=0.1,
+                                                                                         frac_test=0.2)
                 
                 # Make time bins
                 time_bins = make_time_bins(y_train['time'], event=y_train['event'], dtype=dtype)
@@ -157,6 +161,16 @@ if __name__ == "__main__":
                         #print(truth_loss)
                         model1, model2 = dependent_train_loop_linear(model1, model2, train_dict,
                                                                      valid_dict, 15000, copula=copula)
+                    elif model_name == "dcsurvival":
+                        config = load_config(cfg.DCSURVIVAL_CONFIGS_DIR, f"synthetic.yaml")
+                        depth = config['depth']
+                        widths = config['widths']
+                        lc_w_range = config['lc_w_range']
+                        shift_w_range = config['shift_w_range']
+                        phi = DiracPhi(depth, widths, lc_w_range, shift_w_range, device, tol=1e-14).to(device)
+                        model = DCSurvival(phi, device, num_features=n_features, tol=1e-14).to(device)
+                        model = train_dcsurvival_model(model, X_train_th, X_valid_th, times_train_th, events_train_th,
+                                                       times_valid_th, events_valid_th, num_epochs=100, batch_size=32, device=device)
                     else:
                         raise NotImplementedError()
                     
@@ -176,24 +190,18 @@ if __name__ == "__main__":
                         model_preds = survival_outputs[:, 1:].numpy()
                     elif model_name in ["weibull-nocop", "weibull-cop"]:
                         model_preds = predict_survival_curve(model1, X_test_th, time_bins).numpy()
-                        #model_preds_c, _, _ = predict_survival_curve(model2, X_test_th, time_bins)
-                        #model_preds_c = model_preds_c.numpy()
+                    elif model_name == "dcsurvival":
+                        model_preds = predict_survival_curve(model, X_test_th, time_bins).numpy()
+                    else:
+                        raise NotImplementedError()
                         
-                    # Compute L1 (Truth vs. Model) - event/censoring
+                    # Compute L1 (Truth vs. Model) - event only
                     n_samples = X_test_th.shape[0]
                     truth_preds_e = torch.zeros((X_test_th.shape[0], time_bins.shape[0]), device=device)
                     for i in range(time_bins.shape[0]):
                         truth_preds_e[:,i] = truth_model_e.survival(time_bins[i], X_test_th)
                     l1_e = float(compute_l1_difference(truth_preds_e, model_preds,
                                                        n_samples, steps=time_bins))
-                    """
-                    truth_preds_c = torch.zeros((X_test_th.shape[0], time_bins.shape[0]), device=device)
-                    for i in range(time_bins.shape[0]):
-                        truth_preds_c[:,i] = truth_model_c.survival(time_bins[i], X_test_th)
-                    n_samples = X_test_th.shape[0]
-                    l1_c = float(compute_l1_difference(truth_preds_c, model_preds_c,
-                                                       n_samples, steps=time_bins))
-                    """
                     
                     print(f"Evaluated {model_name} - {dataset_version} - {round(k_tau, 3)} - {round(l1_e, 3)}")
                     res_sr = pd.Series([model_name, dataset_version, copula_name, k_tau, l1_e],

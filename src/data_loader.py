@@ -121,15 +121,18 @@ class LinearSyntheticDataLoader(BaseDataLoader):
         return self
     
     def split_data(self,
-                   train_size: float,
-                   valid_size: float,
+                   frac_train: float,
+                   frac_valid: float,
+                   frac_test: float,
                    random_state=0):
         df = self.X
         df['time'] = self.y_t
         df['event'] = self.y_e
         df_train, df_valid, df_test = make_stratified_split_single(df, stratify_colname='both',
-                                                                   frac_train=0.7, frac_valid=0.1,
-                                                                   frac_test=0.2, random_state=0)
+                                                                   frac_train=frac_train,
+                                                                   frac_valid=frac_valid,
+                                                                   frac_test=frac_test,
+                                                                   random_state=0)
         X_train = df_train.drop(['time', 'event'], axis=1)
         y_train = convert_to_structured(df_train['time'].values, df_train['event'].values)
         X_valid = df_valid.drop(['time', 'event'], axis=1)
@@ -199,15 +202,18 @@ class NonlinearSyntheticDataLoader(BaseDataLoader):
         return self
     
     def split_data(self,
-                   train_size: float,
-                   valid_size: float,
+                   frac_train: float,
+                   frac_valid: float,
+                   frac_test: float,
                    random_state=0):
         df = self.X
         df['time'] = self.y_t
         df['event'] = self.y_e
         df_train, df_valid, df_test = make_stratified_split_single(df, stratify_colname='both',
-                                                                 frac_train=0.7, frac_valid=0.1,
-                                                                 frac_test=0.2, random_state=0)
+                                                                   frac_train=frac_train,
+                                                                   frac_valid=frac_valid,
+                                                                   frac_test=frac_test,
+                                                                   random_state=0)
         X_train = df_train.drop(['time', 'event'], axis=1)
         y_train = convert_to_structured(df_train['time'].values, df_train['event'].values)
         X_valid = df_valid.drop(['time', 'event'], axis=1)
@@ -216,21 +222,9 @@ class NonlinearSyntheticDataLoader(BaseDataLoader):
         y_test = convert_to_structured(df_test['time'].values, df_test['event'].values)
         return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
 
-class LinearCompetingRiskSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_name='frank', k_tau=0,
-                  n_samples=30000, n_features=10,
-                  rng=np.random.default_rng(0)):
-        pass
-    
-    def split_data(self,
-                   train_size: float,
-                   valid_size: float,
-                   random_state=0):
-        pass
-
-class NonlinearCompetingRiskSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_parameters=None, dist='Weibull',
-                  n_samples=30000, n_features=10, rng=np.random.default_rng(0)):
+class CompetingRiskSyntheticDataLoader(BaseDataLoader):
+    def load_data(self, copula_parameters=None, dist='Weibull', n_samples=30000,
+                  n_features=10, linear=False, rng=np.random.default_rng(0)):
         # Generate synthetic data (2 competing risks and censoring)
         if copula_parameters is None:
             corrMatrix = np.array([[1, 0.8, 0], [0.8, 1, 0], [0, 0, 1]])
@@ -251,8 +245,10 @@ class NonlinearCompetingRiskSyntheticDataLoader(BaseDataLoader):
         beta_shape_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         beta_scale_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         
-        hidden_rep = np.matmul(X, beta).squeeze()
-        hidden_rep = relu(hidden_rep)
+        if linear:
+            hidden_rep = np.matmul(X, beta).squeeze()
+        else:
+            hidden_rep = relu(np.matmul(X, beta).squeeze())
 
         shape_e1 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e1).squeeze()
         scale_e1 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e1).squeeze()
@@ -349,7 +345,7 @@ class NonlinearCompetingRiskSyntheticDataLoader(BaseDataLoader):
     
 class MultiEventSyntheticDataLoader(BaseDataLoader):
     def load_data(self, copula_parameters=None, dist='Weibull', n_samples=30000,
-                  n_features=10, adm_cens_time=5, rng=np.random.default_rng(0)):
+                  n_features=10, adm_cens_time=5, linear=False, rng=np.random.default_rng(0)):
         # Generate synthetic data (3 multi events and adm. censoring)
         if copula_parameters is None:
             corrMatrix = np.array([[1, 0.8, 0], [0.8, 1, 0], [0, 0, 1]])
@@ -370,8 +366,10 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         beta_shape_e3 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         beta_scale_e3 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
         
-        hidden_rep = np.matmul(X, beta).squeeze()
-        hidden_rep = relu(hidden_rep)
+        if linear:
+            hidden_rep = np.matmul(X, beta).squeeze()
+        else:
+            hidden_rep = relu(np.matmul(X, beta).squeeze())
         
         shape_e1 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e1).squeeze()
         scale_e1 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e1).squeeze()
