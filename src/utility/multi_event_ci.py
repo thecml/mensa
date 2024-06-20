@@ -37,7 +37,7 @@ def all_events_ci(mod_out, test_time, test_event):
     cindex, _, _ = evaluator.concordance()
     return cindex
 
-def global_ci(mod_out, test_time, test_event):
+def global_C_index(mod_out, test_time, test_event, weight=True):
     '''
     each events
     mod_out: List of surv pred
@@ -45,6 +45,8 @@ def global_ci(mod_out, test_time, test_event):
     test_event: np.array of binary #patient, #event
     '''
     cindex_list = []
+    global_total_pairs = 0.0
+    global_concordant_pairs = 0.0
     for event_id in range(len(mod_out)):
         surv_pred_event = pd.DataFrame(mod_out[event_id])
         temp_test_time = test_time[:,event_id]
@@ -53,12 +55,17 @@ def global_ci(mod_out, test_time, test_event):
         surv_pred_event, temp_test_time, temp_test_event = sort_by_time(surv_pred_event, temp_test_time, temp_test_event)
         evaluator = LifelinesEvaluator(surv_pred_event.T, temp_test_time, temp_test_event)
 
-        cindex, _, _ = evaluator.concordance()
+        cindex, concordant_pairs, total_pairs = evaluator.concordance()
         cindex_list.append(cindex)
-    print ('each_events CI:', cindex_list)
-    return np.mean(cindex_list)
+        # print (cindex, concordant_pairs, total_pairs)
+        global_total_pairs += total_pairs
+        global_concordant_pairs += concordant_pairs
+    if weight:
+        return global_concordant_pairs/global_total_pairs
+    else:
+        return np.mean(cindex_list)
 
-def local_ci(mod_out, test_time, test_event):
+def local_C_index(mod_out, test_time, test_event):
     '''
     each patient
     mod_out: List of surv pred
@@ -73,17 +80,12 @@ def local_ci(mod_out, test_time, test_event):
         temp_test_time = test_time[patient_id,:]
         temp_test_event = test_event[patient_id,:]
         if np.sum(temp_test_event) != 0:
-
-            zero_indices = np.where(temp_test_event == 0)[0]
-            max_value = np.max(temp_test_time)
-            for idx in zero_indices:
-                if temp_test_time[idx] < max_value:
-                    temp_test_time[idx] = max_value+1
-            # print (evaluator.predicted_event_times, temp_test_time, temp_test_event)
-            evaluator = LifelinesEvaluator(surv_pred_event.T, temp_test_time, temp_test_event)
-            cindex, _, _ = evaluator.concordance()
-            cindex_list.append(cindex)
-            # print (cindex)
+            try:
+                evaluator = LifelinesEvaluator(surv_pred_event.T, temp_test_time, temp_test_event)
+                cindex, _, _ = evaluator.concordance()
+                cindex_list.append(cindex)
+            except:
+                continue
     return np.mean(cindex_list)
 
 # print ("all_event C index", all_events_C_index(mod_out, test_time, test_event))
