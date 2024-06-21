@@ -17,6 +17,7 @@ import copy
 import tqdm
 import math
 from scipy.interpolate import interp1d
+from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
 from data_loader import SingleEventSyntheticDataLoader
@@ -24,7 +25,6 @@ from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear
 from utility.survival import (make_time_bins, preprocess_data, convert_to_structured,
                               risk_fn, compute_l1_difference, predict_survival_function)
 from utility.data import (dotdict, format_data, format_data_as_dict_single)
-from utility.evaluation import LifelinesEvaluator
 from utility.config import load_config
 from mensa.model import train_mensa_model_2_events, make_mensa_model_2_events
 

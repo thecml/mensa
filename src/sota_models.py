@@ -26,7 +26,6 @@ from utility.data import MultiEventDataset
 from utility.data import dotdict
 from utility.survival import cox_survival, calculate_baseline_hazard
 from sksurv.linear_model.coxph import BreslowEstimator
-from utility.data import find_nearest
 
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]

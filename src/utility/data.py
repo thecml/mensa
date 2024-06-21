@@ -206,12 +206,3 @@ def format_data_as_dict_multi(X, y_t, y_e, dtype):
     data_dict['T2'] = torch.tensor(y_t[:,1], dtype=dtype)
     data_dict['T3'] = torch.tensor(y_t[:,2], dtype=dtype)
     return data_dict
-
-def find_nearest(A, B):
-    B_sorted = np.sort(B)
-    nearest_indices = np.searchsorted(B_sorted, A)
-    nearest_indices = np.clip(nearest_indices, 1, len(B_sorted) - 1)
-    left = B_sorted[nearest_indices - 1]
-    right = B_sorted[nearest_indices]
-    nearest_values = np.where(np.abs(A - left) < np.abs(A - right), left, right)
-    return nearest_values
