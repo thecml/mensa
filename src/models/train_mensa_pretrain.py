@@ -6,7 +6,7 @@ from trainer import train_mensa_model
 import torch
 import random
 import warnings
-from models import Mensa
+from dgp import Mensa
 from multi_evaluator import MultiEventEvaluator
 from data_loader import *
 from utility.survival import preprocess_data

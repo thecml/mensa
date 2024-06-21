@@ -3,7 +3,7 @@ from datetime import datetime
 from utility.survival import cox_survival
 import pandas as pd
 import numpy as np
-from utility.evaluator import LifelinesEvaluator
+from utility.evaluation import LifelinesEvaluator
 
 class MultiEventEvaluator():
     def __init__(self, data_test, data_train, model, config, device):

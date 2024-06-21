@@ -15,7 +15,6 @@ from utility.survival import reformat_survival
 from utility.loss import mtlr_nll, cox_nll
 from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split_multi, make_stratified_split_single
 from utility.data import MultiEventDataset
-from models import CoxPH
 from utility.data import dotdict
 from utility.survival import cox_survival, calculate_baseline_hazard
 from sksurv.linear_model.coxph import BreslowEstimator
@@ -101,7 +100,7 @@ def dependent_train_loop_linear(model1, model2, train_data, val_data,
     model1.coeff = best_c1
     model2.coeff = best_c2
     
-    return model1, model2
+    return model1, model2, copula
 
 def independent_train_loop_linear(model1, model2, train_data, val_data,
                                   n_itr, optimizer1='Adam', optimizer2='Adam',
@@ -178,7 +177,7 @@ def copula_loss_function(event_survival, event_pdf, targets, copula):
     
     return -torch.mean(p1*e1 + p2*e2 + (1-e1)*p1 + (1-e1)*p2)
     #return -torch.mean(p1 * data['E'] + (1-data['E'])*p2)
-
+"""
 def train_mensa_model(
         model: nn.Module,
         df_train: pd.DataFrame, # Dataframe with shape [x, Y1_T, Y2_T, Y1_E, Y2_E]
@@ -339,7 +338,7 @@ def train_mensa_model(
                                       torch.tensor(x_train_times, dtype=torch.float32).to(device),
                                       torch.tensor(x_train_events, dtype=torch.float32).to(device))
     return model
-
+"""
 def train_multi_model(
         model: nn.Module,
         df_train: pd.DataFrame, # Dataframe with shape [x, Y1_T, Y2_T, Y1_E, Y2_E]

@@ -1,8 +1,8 @@
 import torch as torch 
 from pycop import simulation
 import math
-from Copula import Clayton as triple_cl
-from Copula import Frank as triple_fr
+from Copula import Clayton3 as triple_cl
+from Copula import Frank3 as triple_fr
 import matplotlib.pyplot as plt
 
 def LOG(x):

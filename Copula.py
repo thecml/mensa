@@ -18,7 +18,7 @@ def log1mexp(x):
         (-x.exp()).log1p(),
     )
 
-class Frank:
+class Frank3:
     def __init__(self, theta, eps=1e-3, device='cpu'):
         self.theta = theta
         self.eps = torch.tensor([eps], device=device).type(torch.float32)
@@ -56,7 +56,7 @@ class Frank:
     def set_theta(self, new_val):
         self.theta = new_val
 
-class Gumbel:
+class Gumbel3:
     def __init__(self, theta, eps=1e-3, device='cpu'):
         self.theta = theta
         self.eps = torch.tensor([eps], device=device).type(torch.float32)
@@ -96,7 +96,7 @@ class Gumbel:
         self.theta = new_val
 
 
-class Clayton:
+class Clayton3:
     def __init__(self, theta, epsilon=1e-3, device='cpu'):
         self.theta = theta
         self.eps = torch.tensor([epsilon], device=device).type(torch.float32)

@@ -14,11 +14,11 @@ from utility.survival import convert_to_structured, convert_to_competing_risk
 from utility.data import dotdict
 from data_loader import get_data_loader
 from utility.survival import make_time_bins, preprocess_data
-from sota_builder import *
+from sota_models import *
 import config as cfg
 from utility.survival import compute_survival_curve, calculate_event_times
 from Evaluations.util import make_monotonic, check_monotonicity
-from utility.evaluator import LifelinesEvaluator
+from utility.evaluation import LifelinesEvaluator
 import torchtuples as tt
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from utility.survival import make_stratified_split_multi

@@ -6,7 +6,7 @@ from trainer import train_mensa_model
 import torch
 import random
 import warnings
-from models import Mensa
+from dgp import Mensa
 from multi_evaluator import MultiEventEvaluator
 from data_loader import *
 from utility.survival import preprocess_data
@@ -18,7 +18,7 @@ from utility.survival import convert_to_structured
 from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival, MultiDCSurvival
 from tqdm import tqdm
-from utility.evaluator import LifelinesEvaluator
+from utility.evaluation import LifelinesEvaluator
 import copy
 from dcsurvival.truth_net import Weibull_linear
 from torch.utils.data import DataLoader, TensorDataset
@@ -67,7 +67,7 @@ def predict_survival_curve(model, x_test, time_bins, truth=False):
 
 if __name__ == "__main__":
     # Load data
-    dl = LinearSyntheticDataLoader().load_data(n_samples=10000)
+    dl = SingleEventSyntheticDataLoader().load_data(n_samples=10000)
     num_features, cat_features = dl.get_features()
     (X_train, y_train), (X_valid, y_valid), (X_test, y_test) = dl.split_data(train_size=0.7,
                                                                              valid_size=0.5)

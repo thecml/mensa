@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from pycop import simulation
-from Copula import Frank, Gumbel
+from Copula import Frank3, Gumbel3
 from l1_eval import surv_diff
 from nested_copula import NestedClayton
 

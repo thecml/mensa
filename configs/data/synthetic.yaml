@@ -1,0 +1,9 @@
+# Single event
+
+# Competing risks
+alpha_e1: 18
+alpha_e2: 17
+alpha_e3: 16
+gamma_e1: 8
+gamma_e2: 8
+gamma_e3: 8

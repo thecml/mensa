@@ -6,10 +6,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 from sksurv.metrics import concordance_index_censored
-from utility.evaluator import LifelinesEvaluator
+from utility.evaluation import LifelinesEvaluator
 from inference import make_cox_prediction
 from trainer import train_model
-from models import CoxPH
+from dgp import CoxPH
 from utility.preprocessor import Preprocessor
 from utility.training import split_and_scale_data
 from torch.utils.data import DataLoader, TensorDataset
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         data_test["event"] = pd.Series(test_data[2].flatten()).astype(int)
 
         # Train model
-        config = dotdict(cfg.COX_PARAMS)
+        config = dotdict(cfg.DEEPSURV_PARAMS)
         n_features = data_train.shape[1] - 2
         model = CoxPH(in_features=n_features, config=config)
         model = train_model(model, data_train, time_bins, config=config,

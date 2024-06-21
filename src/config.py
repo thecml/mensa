@@ -7,6 +7,7 @@ DATA_DIR = Path.joinpath(ROOT_DIR, "data")
 MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
 CONFIGS_DIR = Path.joinpath(ROOT_DIR, 'configs')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
+DATA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'data')
 COX_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'cox')
 COXNET_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'coxnet')
 COXBOOST_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'coxboost')
@@ -93,7 +94,7 @@ HIERARCH_FULL_PARAMS = {
     'verbose': True
 }
 
-COX_PARAMS = {
+DEEPSURV_PARAMS = {
     'hidden_size': 32,
     'mu_scale': None,
     'rho_scale': -5,
@@ -103,8 +104,8 @@ COX_PARAMS = {
     'verbose': False,
     'lr': 0.005,
     'c1': 0.01,
-    'num_epochs': 50,
-    'dropout': 0.5,
+    'num_epochs': 100,
+    'dropout': 0.25,
     'n_samples_train': 10,
     'n_samples_test': 100,
     'batch_size': 32,

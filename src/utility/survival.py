@@ -55,7 +55,6 @@ def compute_survival_curve(model, X_train, X_test, e_train, t_train, event_times
 
 def make_stratified_split_multi(
         df: pd.DataFrame,
-        stratify_colname: str = 'event',
         frac_train: float = 0.5,
         frac_valid: float = 0.0,
         frac_test: float = 0.5,
@@ -68,9 +67,9 @@ def make_stratified_split_multi(
     frac_valid = frac_valid / frac_sum
     frac_test = frac_test / frac_sum
 
-    X = df[0].values  # Contains all columns.
-    columns = df[0].columns
-    labs = df[2]
+    X = df.values  # Contains all columns.
+    columns = df.columns
+    labs = pd.get_dummies(df['event']).to_numpy()
     
     if labs.shape[1] > 1: 
         traj_labs = get_trajectory_labels(labs)
@@ -188,7 +187,8 @@ def mtlr_survival(
 
 def cox_survival(
         baseline_survival: torch.Tensor,
-        linear_predictor: torch.Tensor
+        linear_predictor: torch.Tensor,
+        dtype: torch.dtype
 ) -> torch.Tensor:
     """
     Calculate the individual survival distributions based on the baseline survival curves and the liner prediction values.
@@ -200,7 +200,7 @@ def cox_survival(
     n_sample = linear_predictor.shape[0]
     n_data = linear_predictor.shape[1]
     risk_score = torch.exp(linear_predictor)
-    survival_curves = torch.empty((n_sample, n_data, baseline_survival.shape[0]), dtype=torch.float).to(linear_predictor.device)
+    survival_curves = torch.empty((n_sample, n_data, baseline_survival.shape[0]), dtype=dtype).to(linear_predictor.device)
     for i in range(n_sample):
         for j in range(n_data):
             survival_curves[i, j, :] = torch.pow(baseline_survival, risk_score[i, j])
@@ -462,7 +462,7 @@ def predict_median_survival_times(
     return median_probability_times
 
 def convert_to_structured (T, E):
-    default_dtypes = {"names": ("event", "time"), "formats": ("bool", "f8")}
+    default_dtypes = {"names": ("event", "time"), "formats": ("bool", "float64")}
     concat = list(zip(E, T))
     return np.array(concat, dtype=default_dtypes)
 
@@ -486,7 +486,7 @@ def make_time_bins(
         num_bins: Optional[int] = None,
         use_quantiles: bool = True,
         event: Optional[NumericArrayLike] = None,
-        dtype=torch.float32
+        dtype=torch.float64
 ) -> torch.Tensor:
     """
     Courtesy of https://ieeexplore.ieee.org/document/10158019
@@ -694,7 +694,7 @@ def compute_l1_difference(truth_preds, model_preds, n_samples, steps):
     integ = torch.sum(torch.diff(torch.cat([torch.zeros(1), steps])) * torch.abs(surv1-surv2))
     return (integ/t_m/n_samples).detach().numpy() # t_max and N are the same for all patients
 
-def predict_survival_curve(model, x_test, time_bins, truth=False):
+def predict_survival_function(model, x_test, time_bins, truth=False):
     device = torch.device("cpu")
     surv_estimate = torch.zeros((x_test.shape[0], time_bins.shape[0]), device=device)
     time_bins = torch.tensor(time_bins)

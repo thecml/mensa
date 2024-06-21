@@ -1,0 +1,17 @@
+# MTLR
+hidden_size: 64
+mu_scale: Null
+rho_scale: -5
+sigma1: 1
+sigma2: 0.002
+pi: 0.5
+c1: 0.01
+verbose: True
+lr: 0.00008
+num_epochs: 10
+dropout: 0.1
+n_samples_train: 10
+n_samples_test: 100
+batch_size: 32
+early_stop: True
+patience: 10
