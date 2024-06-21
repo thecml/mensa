@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import config as cfg
 from utility.survival import make_time_bins
-from utility.evaluator import LifelinesEvaluator
+from utility.evaluation import LifelinesEvaluator
 from data_loader import SyntheticDataLoader
 import torch
 import random
@@ -11,7 +11,7 @@ from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from utility.survival import preprocess_data
 import pycox
 import torchtuples as tt
-from models import CauseSpecificNet
+from dgp import CauseSpecificNet
 from pycox.models import DeepHitSingle
 from pycox.preprocessing.label_transforms import LabTransDiscreteTime
 from pycox.models import DeepHit

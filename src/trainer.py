@@ -15,7 +15,6 @@ from utility.survival import reformat_survival
 from utility.loss import mtlr_nll, cox_nll
 from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split_multi, make_stratified_split_single
 from utility.data import MultiEventDataset
-from models import CoxPH
 from utility.data import dotdict
 from utility.survival import cox_survival, calculate_baseline_hazard
 from sksurv.linear_model.coxph import BreslowEstimator
@@ -33,6 +32,130 @@ def multi_cox_loss_function(outputs, targets, model, config, copula=None):
     loss += cox_loss
   return torch.mean(loss)
 
+def loss_function(model1, model2, data, copula=None):
+    s1 = model1.survival(data['T'], data['X'])
+    s2 = model2.survival(data['T'], data['X'])
+    f1 = model1.PDF(data['T'], data['X'])
+    f2 = model2.PDF(data['T'], data['X'])
+    w = torch.mean(data['E'])
+    if copula is None:
+        p1 = LOG(f1) + LOG(s2)
+        p2 = LOG(f2) + LOG(s1)
+    else:
+        
+        S = torch.cat([s1.reshape(-1,1), s2.reshape(-1,1)], dim=1).clamp(0.001,0.999)
+        p1 = LOG(f1) + LOG(copula.conditional_cdf("u", S))
+        p2 = LOG(f2) + LOG(copula.conditional_cdf("v", S))
+    p1[torch.isnan(p1)] = 0
+    p2[torch.isnan(p2)] = 0
+    return -torch.mean(p1 * data['E'] + (1-data['E'])*p2)
+
+def dependent_train_loop_linear(model1, model2, train_data, val_data,
+                               n_itr, optimizer1='Adam', lr1=5e-3, verbose=False, copula=None):
+    model1.enable_grad()
+    model2.enable_grad()
+    copula.enable_grad()
+    
+    min_val_loss = 1000
+    
+    optimizer = torch.optim.Adam([{"params": model1.parameters(), "lr": 5e-3},
+                                {"params": model2.parameters(), "lr": 5e-3},
+                                {"params": copula.parameters(), "lr": 5e-3}])
+    
+    for itr in range(n_itr):
+        optimizer.zero_grad()
+        loss = loss_function(model1, model2, train_data, copula)
+        loss.backward()
+        for p in copula.parameters():
+            p.grad = p.grad * 100
+            p.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
+        
+        optimizer.step()
+        
+        for p in copula.parameters():
+            if p <= 0.01:
+                with torch.no_grad():
+                    p[:] = torch.clamp(p, 0.01, 100)
+        
+        with torch.no_grad():
+            val_loss = loss_function(model1, model2, val_data, copula)
+            if not torch.isnan(val_loss) and val_loss < min_val_loss:
+                stop_itr =0
+                best_c1 = model1.coeff.detach().clone()
+                best_c2 = model2.coeff.detach().clone()
+                best_mu1 = model1.mu.detach().clone()
+                best_mu2 = model2.mu.detach().clone()
+                best_sig1 = model1.sigma.detach().clone()
+                best_sig2 = model2.sigma.detach().clone()
+                min_val_loss = val_loss.detach().clone()
+            else:
+                stop_itr += 1
+                if stop_itr == 2000:
+                    break
+                
+    model1.mu = best_mu1
+    model2.mu = best_mu2
+    model1.sigma = best_sig1
+    model2.sigma = best_sig2
+    model1.coeff = best_c1
+    model2.coeff = best_c2
+    
+    return model1, model2, copula
+
+def independent_train_loop_linear(model1, model2, train_data, val_data,
+                                  n_itr, optimizer1='Adam', optimizer2='Adam',
+                                  lr1=5e-3, lr2=5e-3, sub_itr=5, verbose=False):
+    train_loss_log = []
+    val_loss_log = []
+    copula_log = torch.zeros((n_itr,))
+    model1.enable_grad()
+    model2.enable_grad()
+    
+    copula_grad_log = []
+    mu_grad_log = [[], []]
+    sigma_grad_log = [[], []]
+    coeff_grad_log = [[], []]
+    train_loss = []
+    val_loss = []
+    min_val_loss = 1000
+    stop_itr = 0
+    if optimizer1 == 'Adam':
+        model_optimizer = torch.optim.Adam(list(model1.parameters()) + list(model2.parameters()), lr=lr1, weight_decay=0.0)
+    
+    for itr in range(n_itr):
+        model_optimizer.zero_grad()
+        loss = loss_function(model1, model2, train_data, None)
+        loss.backward()
+        model_optimizer.step() 
+        train_loss_log.append(loss.detach().clone())
+    ##########################
+        with torch.no_grad():
+            val_loss = loss_function(model1, model2, val_data, None)
+            val_loss_log.append(val_loss.detach().clone())
+            if not torch.isnan(val_loss) and val_loss < min_val_loss:
+                stop_itr =0
+                best_c1 = model1.coeff.detach().clone()
+                best_c2 = model2.coeff.detach().clone()
+                best_mu1 = model1.mu.detach().clone()
+                best_mu2 = model2.mu.detach().clone()
+                best_sig1 = model1.sigma.detach().clone()
+                best_sig2 = model2.sigma.detach().clone()
+                min_val_loss = val_loss.detach().clone()
+            else:
+                stop_itr += 1
+                if stop_itr == 2000:  
+                    break
+                
+    model1.mu = best_mu1
+    model2.mu = best_mu2
+    model1.sigma = best_sig1
+    model2.sigma = best_sig2
+    model1.coeff = best_c1
+    model2.coeff = best_c2
+    return model1, model2
+
+
+    
 def copula_loss_function(event_survival, event_pdf, targets, copula):
     s1 = event_survival[0]
     s2 = event_survival[1]
@@ -54,7 +177,7 @@ def copula_loss_function(event_survival, event_pdf, targets, copula):
     
     return -torch.mean(p1*e1 + p2*e2 + (1-e1)*p1 + (1-e1)*p2)
     #return -torch.mean(p1 * data['E'] + (1-data['E'])*p2)
-
+"""
 def train_mensa_model(
         model: nn.Module,
         df_train: pd.DataFrame, # Dataframe with shape [x, Y1_T, Y2_T, Y1_E, Y2_E]
@@ -215,7 +338,7 @@ def train_mensa_model(
                                       torch.tensor(x_train_times, dtype=torch.float32).to(device),
                                       torch.tensor(x_train_events, dtype=torch.float32).to(device))
     return model
-
+"""
 def train_multi_model(
         model: nn.Module,
         df_train: pd.DataFrame, # Dataframe with shape [x, Y1_T, Y2_T, Y1_E, Y2_E]

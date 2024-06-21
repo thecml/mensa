@@ -183,7 +183,7 @@ if __name__ == "__main__":
     # 添加参数
     parser.add_argument("--theta_dgp", type=float, default=2.0, help="Description for theta_dgp")
     parser.add_argument("--initial_theta", type=float, default=8.0, help="Description for initial_theta")
-    parser.add_argument("--LR_optimal", type=str, default='CyclicLR', help="Description for LR_optimal")
+    parser.add_argument("--LR_optimal", type=str, default='None', help="Description for LR_optimal")
 
     args = parser.parse_args()
 
@@ -241,6 +241,13 @@ if __name__ == "__main__":
                                     {"params": indep_model2.parameters(), "lr": 1e-2},
                                     {"params": indep_model3.parameters(), "lr": 1e-2},
                                 ])
+#     optimizer = torch.optim.SGD(indep_model3.parameters(), lr=5e-3)
+
+#     optimizer = torch.optim.SGD([  {"params": indep_model1.parameters(), "lr": 1e-2},
+#                                     {"params": indep_model2.parameters(), "lr": 1e-2},
+#                                     {"params": indep_model3.parameters(), "lr": 1e-2},
+#                                 ])
+
     
     if LR_optimal == 'CyclicLR':
         scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=5e-3, max_lr=1e-1, step_size_up=2000, 

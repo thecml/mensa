@@ -27,7 +27,7 @@ from utility.survival import reformat_survival
 from utility.loss import mtlr_nll, cox_nll
 from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split_multi, cox_survival
 from utility.data import MultiEventDataset
-from models import CoxPH, MultiEventCoxPH
+from dgp import CoxPH, MultiEventCoxPH
 from utility.data import dotdict
 from utility.survival import mtlr_survival, mtlr_survival_multi
 
