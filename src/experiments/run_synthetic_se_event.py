@@ -27,14 +27,15 @@ from utility.survival import (make_time_bins, preprocess_data, convert_to_struct
 from utility.data import (dotdict, format_data, format_data_as_dict_single)
 from utility.config import load_config
 from mensa.model import train_mensa_model_2_events, make_mensa_model_2_events
+from utility.data import format_deephit_data
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival
 from dcsurvival.model import train_dcsurvival_model
 from sota_models import (make_cox_model, make_coxnet_model, make_coxboost_model, make_dcph_model,
-                         make_deephit_model, make_dsm_model, make_rsf_model, train_deepsurv_model,
-                         make_deepsurv_prediction, DeepSurv)
+                         make_deephit_multi, make_dsm_model, make_rsf_model, train_deepsurv_model,
+                         make_deepsurv_prediction, DeepSurv, make_deephit_single, train_deephit_model)
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from trainer import independent_train_loop_linear, dependent_train_loop_linear, loss_function
 
@@ -57,7 +58,7 @@ COPULA_NAMES = ["clayton"]
 #KENDALL_TAUS = np.arange(0, 0.9, 0.1)
 KENDALL_TAUS = [0.25] # between 0 and 0.8
 #MODELS = ["cox", "coxnet", "coxboost", "rsf", "dsm", "deepsurv", "mtlr", "dcsurvival", "mensa"]
-MODELS = ["deepsurv"]
+MODELS = ["deephit"]
 N_SAMPLES = 1000
 N_FEATURES = 10
 
@@ -118,6 +119,13 @@ if __name__ == "__main__":
                         data_train['event'] = train_dict['E']
                         model = train_deepsurv_model(model, data_train, time_bins, config=config, random_state=0,
                                                      reset_model=True, device=device, dtype=dtype)
+                    elif model_name == "deephit":
+                        config = dotdict(cfg.DEEPHIT_PARAMS)
+                        model = make_deephit_single(in_features=N_FEATURES, out_features=len(time_bins),
+                                                    duration_index=list(time_bins.numpy()), config=config)
+                        train_data, valid_data, out_features, duration_index = format_deephit_data(train_dict, valid_dict, len(time_bins))
+                        model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
+                                                    (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
                     elif model_name == "mtlr":
                         data_train = X_train.copy()
                         data_train["time"] = pd.Series(y_train['time'])
@@ -171,6 +179,8 @@ if __name__ == "__main__":
                                                       dtype=dtype, device=device)
                         survival_outputs, _, _ = make_mtlr_prediction(model, mtlr_test_data, time_bins, config)
                         model_preds = survival_outputs[:, 1:].numpy()
+                    elif model_name == "deephit":
+                        model_preds = model.predict_surv(test_dict['X'])
                     elif model_name == "mensa":
                         model_preds = predict_survival_function(model1, test_dict['X'], time_bins).numpy()
                     elif model_name == "dcsurvival":

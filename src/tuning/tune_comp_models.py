@@ -130,7 +130,7 @@ def train_deepsurv_model():
         duration_index = np.concatenate([[0], time_bins.numpy()])
         out_features = len(duration_index)
         num_risks = int(df_train['event'].max())
-        model = make_deephit_model(config, in_features, out_features, num_risks, duration_index)
+        model = make_deephit_multi(config, in_features, out_features, num_risks, duration_index)
         epochs = config['epochs']
         batch_size = config['batch_size']
         verbose = config['verbose']

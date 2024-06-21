@@ -33,7 +33,7 @@ from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival
 from dcsurvival.model import train_dcsurvival_model
 from sota_models import (make_cox_model, make_coxnet_model, make_coxboost_model, make_dcph_model,
-                          make_deephit_model, make_dsm_model, make_rsf_model)
+                          make_deephit_multi, make_dsm_model, make_rsf_model)
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from trainer import independent_train_loop_linear, dependent_train_loop_linear, loss_function
 

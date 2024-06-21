@@ -2,8 +2,6 @@ import pandas as pd
 import numpy as np
 import config as cfg
 from utility.survival import make_time_bins
-from utility.evaluation import LifelinesEvaluator
-from data_loader import SyntheticDataLoader
 import torch
 import random
 import warnings
@@ -11,11 +9,10 @@ from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from utility.survival import preprocess_data
 import pycox
 import torchtuples as tt
-from dgp import CauseSpecificNet
+from sota_models import CauseSpecificNet
 from pycox.models import DeepHitSingle
 from pycox.preprocessing.label_transforms import LabTransDiscreteTime
 from pycox.models import DeepHit
-from utility.survival import convert_to_comp_risk
 from utility.data import dotdict
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
@@ -102,4 +99,6 @@ if __name__ == "__main__":
     d_calib = lifelines_eval.d_calibration()[0]
     
     print(f"Done training. CI={round(ci,2)}, MAE={round(mae_hinge,2)}, D-Calib={round(d_calib,2)}")
+
+
     

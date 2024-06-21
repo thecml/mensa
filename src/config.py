@@ -200,7 +200,6 @@ RSF_PARAMS = {
     }
 
 DEEPHIT_PARAMS = {
-    'num_durations': 10,    
     'num_nodes_shared': [32, 32],
     'num_nodes_indiv': [32],
     'batch_norm': True,

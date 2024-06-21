@@ -9,6 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import LabelEncoder
 from scipy import stats
 from scipy.special import lambertw
+from pycox.preprocessing.label_transforms import LabTransDiscreteTime
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -206,3 +207,27 @@ def format_data_as_dict_multi(X, y_t, y_e, dtype):
     data_dict['T2'] = torch.tensor(y_t[:,1], dtype=dtype)
     data_dict['T3'] = torch.tensor(y_t[:,2], dtype=dtype)
     return data_dict
+
+def format_deephit_data(train_dict, valid_dict, num_durations):
+    class LabTransform(LabTransDiscreteTime):
+        def transform(self, durations, events):
+            durations, is_event = super().transform(durations, events > 0)
+            events[is_event == 0] = 0
+            return durations, events.astype('int64')
+    train_dict_dh = dict()
+    train_dict_dh['X'] = train_dict['X'].numpy()
+    train_dict_dh['E'] = train_dict['E'].numpy()
+    train_dict_dh['T'] = train_dict['T'].numpy()
+    valid_dict_dh = dict()
+    valid_dict_dh['X'] = valid_dict['X'].numpy()
+    valid_dict_dh['E'] = valid_dict['E'].numpy()
+    valid_dict_dh['T'] = valid_dict['T'].numpy()
+    labtrans = LabTransform(num_durations)
+    get_target = lambda data: (data['T'], data['E'])
+    y_train = labtrans.fit_transform(*get_target(train_dict_dh))
+    y_valid = labtrans.transform(*get_target(valid_dict_dh))
+    out_features = len(labtrans.cuts)
+    duration_index = labtrans.cuts
+    train_data = {'X': train_dict_dh['X'], 'T': y_train[0], 'E': y_train[1]}
+    valid_data = {'X': valid_dict_dh['X'], 'T': y_valid[0], 'E': y_valid[1]}
+    return train_data, valid_data, out_features, duration_index

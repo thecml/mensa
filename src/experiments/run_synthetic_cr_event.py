@@ -29,14 +29,15 @@ from utility.data import (dotdict, format_data, format_data_as_dict_single)
 from utility.config import load_config
 from utility.loss import triple_loss
 from mensa.model import train_mensa_model_3_events, make_mensa_model_3_events
+from utility.data import format_deephit_data
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival
 from dcsurvival.model import train_dcsurvival_model
 from sota_models import (make_cox_model, make_coxnet_model, make_coxboost_model, make_dcph_model,
-                          make_deephit_model, make_dsm_model, make_rsf_model, train_deepsurv_model,
-                          make_deepsurv_prediction, DeepSurv)
+                          make_deephit_multi, make_dsm_model, make_rsf_model, train_deepsurv_model,
+                          make_deepsurv_prediction, DeepSurv, make_deephit_multi, train_deephit_model)
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from trainer import independent_train_loop_linear, dependent_train_loop_linear, loss_function
 
@@ -58,7 +59,7 @@ DATASET_VERSIONS = ["linear"]
 COPULA_NAMES = ["clayton"] 
 #KENDALL_TAUS = np.arange(0, 0.9, 0.1)
 KENDALL_TAUS = [0.25]
-MODELS = ["deepsurv"]
+MODELS = ["deephit"]
 N_SAMPLES = 1000
 N_FEATURES = 10
 
@@ -85,24 +86,40 @@ if __name__ == "__main__":
                         config = load_config(cfg.COX_CONFIGS_DIR, f"synthetic.yaml")
                         model1 = make_cox_model(config)
                         model2 = make_cox_model(config)
+                        model3 = make_cox_model(config)
                         y_train_e1 = convert_to_structured(train_dict['T'], (train_dict['E'] == 0)*1.0)
                         y_train_e2 = convert_to_structured(train_dict['T'], (train_dict['E'] == 1)*1.0)
+                        y_train_e3 = convert_to_structured(train_dict['T'], (train_dict['E'] == 2)*1.0)
                         model1.fit(train_dict['X'], y_train_e1)
                         model2.fit(train_dict['X'], y_train_e2)
+                        model3.fit(train_dict['X'], y_train_e3)
                     elif model_name == "deepsurv":
                         config = dotdict(cfg.DEEPSURV_PARAMS)
                         model1 = DeepSurv(in_features=N_FEATURES, config=config)
                         model2 = DeepSurv(in_features=N_FEATURES, config=config)
+                        model3 = DeepSurv(in_features=N_FEATURES, config=config)
                         data_train1 = pd.DataFrame(train_dict['X'])
                         data_train1['time'] = train_dict['T']
                         data_train1['event'] = (train_dict['E'] == 0)*1.0
                         data_train2 = pd.DataFrame(train_dict['X'])
                         data_train2['time'] = train_dict['T']
                         data_train2['event'] = (train_dict['E'] == 1)*1.0
+                        data_train3 = pd.DataFrame(train_dict['X'])
+                        data_train3['time'] = train_dict['T']
+                        data_train3['event'] = (train_dict['E'] == 2)*1.0
                         model1 = train_deepsurv_model(model1, data_train1, time_bins, config=config, random_state=0,
                                                       reset_model=True, device=device, dtype=dtype)
                         model2 = train_deepsurv_model(model2, data_train2, time_bins, config=config, random_state=0,
                                                       reset_model=True, device=device, dtype=dtype)
+                        model3 = train_deepsurv_model(model3, data_train3, time_bins, config=config, random_state=0,
+                                                      reset_model=True, device=device, dtype=dtype)
+                    elif model_name == "deephit":
+                        config = dotdict(cfg.DEEPHIT_PARAMS)
+                        model = make_deephit_multi(in_features=N_FEATURES, out_features=len(time_bins),
+                                                   num_risks=3, duration_index=time_bins, config=config)
+                        train_data, valid_data, out_features, duration_index = format_deephit_data(train_dict, valid_dict, len(time_bins))
+                        model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
+                                                    (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
                     elif model_name == "mensa":
                         config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
                         model1, model2, model3, copula = make_mensa_model_3_events(N_FEATURES, start_theta=2.0, eps=1e-4,
@@ -118,25 +135,43 @@ if __name__ == "__main__":
                     if model_name == "cox":
                         preds_e1 = model1.predict_survival_function(test_dict['X'])
                         preds_e1 = np.row_stack([fn(time_bins) for fn in preds_e1])
+                        preds_e1 = pd.DataFrame(preds_e1, columns=time_bins)
                         preds_e2 = model2.predict_survival_function(test_dict['X'])
                         preds_e2 = np.row_stack([fn(time_bins) for fn in preds_e2])
-                        preds_e1 = pd.DataFrame(preds_e1, columns=time_bins)
                         preds_e2 = pd.DataFrame(preds_e2, columns=time_bins)
-                        all_preds = [preds_e1, preds_e2]
+                        preds_e3 = model3.predict_survival_function(test_dict['X'])
+                        preds_e3 = np.row_stack([fn(time_bins) for fn in preds_e3])
+                        preds_e3 = pd.DataFrame(preds_e3, columns=time_bins)
+                        all_preds = [preds_e1, preds_e2, preds_e3]
                     elif model_name == "deepsurv":
                         preds_e1, time_bins_model1, _ = make_deepsurv_prediction(model1, test_dict['X'],
-                                                                                     config=config, dtype=dtype)
+                                                                                 config=config, dtype=dtype)
                         preds_e2, time_bins_model2, _ = make_deepsurv_prediction(model2, test_dict['X'],
-                                                                                     config=config, dtype=dtype)
+                                                                                 config=config, dtype=dtype)
+                        preds_e3, time_bins_model3, _ = make_deepsurv_prediction(model3, test_dict['X'],
+                                                                                 config=config, dtype=dtype)
                         spline1 = interp1d(time_bins_model1, preds_e1, kind='linear', fill_value='extrapolate')
                         spline2 = interp1d(time_bins_model2, preds_e2, kind='linear', fill_value='extrapolate')
-                        all_preds = [spline1(time_bins), spline2(time_bins)]
+                        spline3 = interp1d(time_bins_model3, preds_e3, kind='linear', fill_value='extrapolate')
+                        all_preds = [spline1(time_bins), spline2(time_bins), spline3(time_bins)]
+                    elif model_name == "deephit":
+                        cif = model.predict_cif(test_dict['X'])
+                        model_time_bins = list(model.duration_index.numpy())
+                        cif1 = pd.DataFrame(1-cif[0], model_time_bins).T
+                        cif2 = pd.DataFrame(1-cif[1], model_time_bins).T
+                        cif3 = pd.DataFrame(1-cif[2], model_time_bins).T
+                        spline1 = interp1d(model_time_bins, cif1, kind='linear', fill_value='extrapolate')
+                        spline2 = interp1d(model_time_bins, cif2, kind='linear', fill_value='extrapolate')
+                        spline3 = interp1d(model_time_bins, cif3, kind='linear', fill_value='extrapolate')
+                        all_preds = [spline1(time_bins), spline2(time_bins), spline3(time_bins)]
                     elif model_name == "mensa":
                         preds_e1 = predict_survival_function(model1, test_dict['X'], time_bins).detach().numpy()
                         preds_e2 = predict_survival_function(model2, test_dict['X'], time_bins).detach().numpy()
+                        preds_e3 = predict_survival_function(model3, test_dict['X'], time_bins).detach().numpy()
                         preds_e1 = pd.DataFrame(preds_e1, columns=time_bins)
                         preds_e2 = pd.DataFrame(preds_e2, columns=time_bins)
-                        all_preds = [preds_e1, preds_e2]
+                        preds_e3 = pd.DataFrame(preds_e3, columns=time_bins)
+                        all_preds = [preds_e1, preds_e2, preds_e3]
                     else:
                         raise NotImplementedError()
                 
