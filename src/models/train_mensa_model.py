@@ -17,7 +17,7 @@ from utility.survival import convert_to_structured
 from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival
 from tqdm import tqdm
-from utility.evaluation import LifelinesEvaluator
+from SurvivalEVAL.Evaluator import LifelinesEvaluator
 import copy
 from torch.utils.data import DataLoader, TensorDataset
 from mensa.model import MensaNDE

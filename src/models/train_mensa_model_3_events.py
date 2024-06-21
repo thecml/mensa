@@ -2,35 +2,32 @@ import pandas as pd
 import numpy as np
 import config as cfg
 from utility.survival import make_time_bins
-from trainer import train_mensa_model
 import torch
 import random
 import warnings
-from dgp import Mensa
 from multi_evaluator import MultiEventEvaluator
 from data_loader import *
 from utility.survival import preprocess_data
 from utility.data import dotdict, array_to_tensor
 import torch.optim as optim
 import torch.nn as nn
-from copulas import Clayton
+from copula import Clayton
 from utility.survival import convert_to_structured
 from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival
-from utility.evaluation import LifelinesEvaluator
+from SurvivalEVAL.Evaluator import LifelinesEvaluator
 import copy
 from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear
 from torch.utils.data import DataLoader, TensorDataset
 import math
 from utility.data import format_data, format_data_as_dict_multi
 from utility.config import load_config
-from sota_models import * # Import all SOTA models
 from utility.survival import risk_fn, compute_l1_difference, predict_survival_function
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from trainer import independent_train_loop_linear, dependent_train_loop_linear, loss_function
 from copula import NestedClayton, NestedFrank, ConvexCopula
-from Evaluations.util import predict_median_survival_time
-from Evaluations.MeanError import mean_error
+from SurvivalEVAL.Evaluations.util import predict_median_survival_time
+from SurvivalEVAL.Evaluations.MeanError import mean_error
 from utility.loss import single_loss, triple_loss
 from mensa.model import train_mensa_model_3_events
 
