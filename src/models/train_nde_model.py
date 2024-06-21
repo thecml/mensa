@@ -13,7 +13,6 @@ from utility.survival import preprocess_data
 from utility.data import dotdict, array_to_tensor
 import torch.optim as optim
 import torch.nn as nn
-from copulas import Clayton
 from utility.survival import convert_to_structured
 from tqdm import tqdm
 from utility.evaluation import LifelinesEvaluator
@@ -61,7 +60,6 @@ if __name__ == "__main__":
     # Format data
     train_dict = format_data_as_dict_single(X_train, y_train, dtype)
     valid_dict = format_data_as_dict_single(X_valid, y_valid, dtype)
-    copula = Clayton.Clayton(torch.tensor([1], dtype=dtype), device)
     
     # Train model
     num_epochs = 100
