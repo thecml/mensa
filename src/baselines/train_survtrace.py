@@ -21,14 +21,13 @@ from Evaluations.util import make_monotonic, check_monotonicity
 from utility.evaluation import LifelinesEvaluator
 import torchtuples as tt
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from utility.survival import make_stratified_split_multi
-from utility.survival import make_stratified_split_single
+from utility.survival import make_stratified_split
 from utility.data import dotdict
 from hierarchical import util
-from utility.hierarch import format_hyperparams
+from utility.hierarchical import format_hyperparams
 from multi_evaluator import MultiEventEvaluator
 from pycox.preprocessing.label_transforms import LabTransDiscreteTime
-from utility.survival import make_time_bins_hierarchical
+from utility.survival import make_times_hierarchical
 
 from survtrace.dataset import load_data
 from survtrace.evaluate_utils import Evaluator

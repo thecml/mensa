@@ -58,7 +58,7 @@ COPULA_NAMES = ["clayton"]
 #KENDALL_TAUS = np.arange(0, 0.9, 0.1)
 KENDALL_TAUS = [0.25] # between 0 and 0.8
 #MODELS = ["cox", "coxnet", "coxboost", "rsf", "dsm", "deepsurv", "mtlr", "dcsurvival", "mensa"]
-MODELS = ["deephit"]
+MODELS = ["cox"]
 N_SAMPLES = 1000
 N_FEATURES = 10
 
@@ -181,10 +181,10 @@ if __name__ == "__main__":
                         model_preds = survival_outputs[:, 1:].numpy()
                     elif model_name == "deephit":
                         model_preds = model.predict_surv(test_dict['X'])
-                    elif model_name == "mensa":
-                        model_preds = predict_survival_function(model1, test_dict['X'], time_bins).numpy()
                     elif model_name == "dcsurvival":
                         model_preds = predict_survival_function(model, test_dict['X'], time_bins).numpy()
+                    elif model_name == "mensa":
+                        model_preds = predict_survival_function(model1, test_dict['X'], time_bins).numpy()
                     else:
                         raise NotImplementedError()
                         

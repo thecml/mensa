@@ -21,7 +21,6 @@ from Evaluations.util import make_monotonic, check_monotonicity
 from utility.evaluation import LifelinesEvaluator
 import torchtuples as tt
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from utility.survival import make_stratified_split_multi
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)

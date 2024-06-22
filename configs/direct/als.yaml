@@ -7,7 +7,7 @@ layer_size_fine_bins: #product of the second number has to equal the number of b
     - 4
 lr: 0.010 # ranges 0.0001 - 0.01
 reg_constant: 0.02 # 0.01 0.02 0.05
-n_batches: 5 # batch size = trainset/n_batches
+n_batches: 20 # batch size = trainset/n_batches
 backward_c_optim: False # global
 hierarchical_loss: False
 alpha: 0.0001 # 0.0001 0.05 0.0005 and 0.001

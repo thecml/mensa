@@ -15,6 +15,7 @@ RSF_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'rsf')
 DSM_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dsm')
 DCPH_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dcph')
 MTLR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mtlr')
+MTLRCR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mtlrcr')
 DEEPCR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deepcr')
 DCSURVIVAL_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dcsurvival')
 DEEPHIT_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deephit')
@@ -63,8 +64,8 @@ format (elements in order):
     number of extra time bins (that represent t > T, for individuals who do not experience event by end of horizon) 
 '''
 DIRECT_FULL_PARAMS = {
-    'theta_layer_size': [20], # size of the shared layer
-    'layer_size_fine_bins': [(20, 4), (20, 5)], #product of the second number has to equal the number of bins
+    'theta_layer_size': [32], # size of the shared layer
+    'layer_size_fine_bins': [(32, 5), (32, 5)], #product of the second number has to equal the number of bins
     'lr': 0.010, # ranges 0.0001 - 0.01
     'reg_constant': 0.02, # 0.01, 0.02, 0.05
     'n_batches': 5, # batch size = trainset/n_batches
@@ -79,9 +80,9 @@ DIRECT_FULL_PARAMS = {
 }
 
 HIERARCH_FULL_PARAMS = {
-    'theta_layer_size': [20],
-    'layer_size_fine_bins': [(20, 4), (20, 5)],
-    'lr': 0.025,
+    'theta_layer_size': [15],
+    'layer_size_fine_bins': [(15, 5), (15, 5)],
+    'lr': 0.001,
     'reg_constant': 0.05,
     'n_batches': 5,
     'backward_c_optim': False,

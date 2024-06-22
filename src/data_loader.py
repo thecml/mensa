@@ -17,7 +17,7 @@ from scipy import stats
 from utility.data import (inverse_transform, inverse_transform_weibull, relu,
                           inverse_transform_exp, inverse_transform_lognormal)
 from utility.data import kendall_tau_to_theta, theta_to_kendall_tau
-from utility.survival import make_stratified_split_single
+from utility.survival import make_stratified_split
 from dgp import Weibull_log_linear, Weibull_linear, Weibull_nonlinear
 import torch
 
@@ -118,16 +118,14 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
     
     def split_data(self, train_size: float, valid_size: float,
                    test_size: float, dtype=torch.float64, random_state=0):
-        #TODO: Implement proper strateifion on event times/event indicator
-        # stratify on observed time make_stratified_split_single()
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
         df['time'] = self.y_t
-        
-        train_df, remaining_df = train_test_split(df, train_size=0.7, random_state=random_state)
-        valid_df, test_df = train_test_split(remaining_df, test_size=0.5,random_state=random_state)
-        
-        dataframes = [train_df, valid_df, test_df]
+    
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size, random_state=0)
+    
+        dataframes = [df_train, df_valid, df_test]
         dicts = []
         for dataframe in dataframes:
             data_dict = dict()
@@ -210,10 +208,10 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         df['t2'] = self.y_t2
         df['t3'] = self.y_t3
         
-        train_df, remaining_df = train_test_split(df, train_size=0.7, random_state=random_state)
-        valid_df, test_df = train_test_split(remaining_df, test_size=0.5,random_state=random_state)
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size, random_state=0)
         
-        dataframes = [train_df, valid_df, test_df]
+        dataframes = [df_train, df_valid, df_test]
         dicts = []
         for dataframe in dataframes:
             data_dict = dict()
@@ -290,6 +288,7 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
     
     def split_data(self, train_size: float, valid_size: float,
                    test_size: float, dtype=torch.float64, random_state=0):
+        
         df = pd.DataFrame(self.X)
         df['e1'] = self.y_e[:,0]
         df['e2'] = self.y_e[:,1]
@@ -298,10 +297,10 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         df['t2'] = self.y_t[:,1]
         df['t3'] = self.y_t[:,2]
         
-        train_df, remaining_df = train_test_split(df, train_size=0.7, random_state=random_state)
-        valid_df, test_df = train_test_split(remaining_df, test_size=0.5,random_state=random_state)
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size, random_state=0)
         
-        dataframes = [train_df, valid_df, test_df]
+        dataframes = [df_train, df_valid, df_test]
         dicts = []
         for dataframe in dataframes:
             data_dict = dict()
@@ -342,50 +341,9 @@ class ALSDataLoader(BaseDataLoader):
         self.n_events = 4
         return self
 
-    def split_data(self, train_size: float,
-                   valid_size: float,
-                   random_state=0):
-        # Split multi event data
-        raw_data = self.X
-        event_time = self.y_t
-        labs = self.y_e
-        
-        traj_labs = labs
-        if labs.shape[1] > 1:
-            traj_labs = get_trajectory_labels(labs)
-
-        #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
-                                          random_state=random_state)
-        train_i, test_i = next(splitter.split(raw_data, traj_labs))
-
-        train_data = raw_data.iloc[train_i, :]
-        train_labs = labs[train_i, :]
-        train_event_time = event_time[train_i, :]
-
-        pretest_data = raw_data.iloc[test_i, :]
-        pretest_labs = labs[test_i, :]
-        pretest_event_time = event_time[test_i, :]
-
-        #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
-                                          random_state=random_state)
-        new_pretest_labs = get_trajectory_labels(pretest_labs)
-        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
-        test_data = pretest_data.iloc[test_i, :]
-        test_labs = pretest_labs[test_i, :]
-        test_event_time = pretest_event_time[test_i, :]
-
-        val_data = pretest_data.iloc[val_i, :]
-        val_labs = pretest_labs[val_i, :]
-        val_event_time = pretest_event_time[val_i, :]
-
-        #package for convenience
-        train_pkg = [train_data, train_event_time, train_labs]
-        valid_pkg = [val_data, val_event_time, val_labs]
-        test_pkg = [test_data, test_event_time, test_labs]
-
-        return (train_pkg, valid_pkg, test_pkg)
+    def split_data(self, train_size: float, valid_size: float,
+                   test_size: float, dtype=torch.float64, random_state=0):
+        raise NotImplementedError()
 
 class MimicDataLoader(BaseDataLoader):
     """
@@ -409,10 +367,8 @@ class MimicDataLoader(BaseDataLoader):
         self.n_events = 2
         return self
 
-    def split_data(self,
-                   train_size: float,
-                   valid_size: float,
-                   random_state=0):
+    def split_data(self, train_size: float, valid_size: float,
+                   test_size: float, dtype=torch.float64, random_state=0):
         '''
         Since MIMIC one patient has multiple events, we need to split by patients.
         '''
@@ -428,46 +384,7 @@ class MimicDataLoader(BaseDataLoader):
         print('num unique pats', np.unique(pat_map[:, 0]).shape)
         traj_labs = get_trajectory_labels(labs)
         
-        #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=train_size,
-                                          random_state=random_state)
-        train_i, test_i = next(splitter.split(raw_data, traj_labs))
-        
-        train_pats = pat_map[train_i, 0]
-        train_i = np.where(np.isin(pat_map[:, 0], train_pats))[0]
-        test_i = np.setdiff1d(np.arange(raw_data.shape[0]), train_i)
-    
-        train_data = raw_data[train_i, :]
-        train_labs = labs[train_i, :]
-        train_event_time = event_time[train_i, :]
-        
-        pretest_data = raw_data[test_i, :]
-        pretest_labs = labs[test_i, :]
-        pretest_event_time = event_time[test_i, :]
-        pretest_pats = pat_map[test_i, 0]
-        
-        #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
-                                          random_state=random_state)
-        test_i, val_i = next(splitter.split(pretest_data, pretest_labs))
-        test_pats = pretest_pats[test_i]
-        test_i = np.where(np.isin(pretest_pats, test_pats))[0]
-        val_i = np.setdiff1d(np.arange(pretest_pats.shape[0]), test_i)
-    
-        test_data = pretest_data[test_i, :]
-        test_labs = pretest_labs[test_i, :]
-        test_event_time = pretest_event_time[test_i, :]
-        
-        val_data = pretest_data[val_i, :]
-        val_labs = pretest_labs[val_i, :]
-        val_event_time = pretest_event_time[val_i, :]
-        
-        #package for convenience
-        train_package = [train_data, train_event_time, train_labs]
-        test_package = [test_data, test_event_time, test_labs]
-        validation_package = [val_data, val_event_time, val_labs]
-    
-        return train_package, test_package, validation_package
+        # TODO: Do the splitting using make_stratified_split() and return dicts
 
 class SeerDataLoader(BaseDataLoader):
     """
@@ -487,51 +404,9 @@ class SeerDataLoader(BaseDataLoader):
         self.n_events = 2
         return self
     
-    def split_data(self,
-                   train_size: float,
-                   valid_size: float,
-                   random_state=0):
-        # Split multi event data
-        raw_data = self.X
-        event_time = self.y_t
-        labs = self.y_e
-        
-        traj_labs = labs
-        if labs.shape[1] > 1: 
-            traj_labs = get_trajectory_labels(labs)
-
-        #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
-                                          random_state=random_state)
-        train_i, test_i = next(splitter.split(raw_data, traj_labs))
-
-        train_data = raw_data.iloc[train_i, :]
-        train_labs = labs[train_i, :]
-        train_event_time = event_time[train_i, :]
-
-        pretest_data = raw_data.iloc[test_i, :]
-        pretest_labs = labs[test_i, :]
-        pretest_event_time = event_time[test_i, :]
-
-        #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
-                                          random_state=random_state)
-        new_pretest_labs = get_trajectory_labels(pretest_labs)
-        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
-        test_data = pretest_data.iloc[test_i, :]
-        test_labs = pretest_labs[test_i, :]
-        test_event_time = pretest_event_time[test_i, :]
-
-        val_data = pretest_data.iloc[val_i, :]
-        val_labs = pretest_labs[val_i, :]
-        val_event_time = pretest_event_time[val_i, :]
-
-        #package for convenience
-        train_pkg = [train_data, train_event_time, train_labs]
-        valid_pkg = [val_data, val_event_time, val_labs]
-        test_pkg = [test_data, test_event_time, test_labs]
-
-        return (train_pkg, valid_pkg, test_pkg)
+    def split_data(self, train_size: float, valid_size: float,
+                   test_size: float, dtype=torch.float64, random_state=0):
+        raise NotImplementedError()
 
 class RotterdamDataLoader(BaseDataLoader):
     """
@@ -551,50 +426,9 @@ class RotterdamDataLoader(BaseDataLoader):
         self.n_events = 2
         return self
     
-    def split_data(self,
-                   train_size: float,
-                   valid_size: float,
-                   random_state=0):
-        # Split multi event data
-        raw_data = self.X
-        event_time = self.y_t
-        labs = self.y_e
-        
-        traj_labs = labs
-        if labs.shape[1] > 1: 
-            traj_labs = get_trajectory_labels(labs)
-
-        #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
-                                          random_state=random_state)
-        train_i, test_i = next(splitter.split(raw_data, traj_labs))
-
-        train_data = raw_data.iloc[train_i, :]
-        train_labs = labs[train_i, :]
-        train_event_time = event_time[train_i, :]
-
-        pretest_data = raw_data.iloc[test_i, :]
-        pretest_labs = labs[test_i, :]
-        pretest_event_time = event_time[test_i, :]
-
-        #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size)
-        new_pretest_labs = get_trajectory_labels(pretest_labs)
-        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
-        test_data = pretest_data.iloc[test_i, :]
-        test_labs = pretest_labs[test_i, :]
-        test_event_time = pretest_event_time[test_i, :]
-
-        val_data = pretest_data.iloc[val_i, :]
-        val_labs = pretest_labs[val_i, :]
-        val_event_time = pretest_event_time[val_i, :]
-
-        #package for convenience
-        train_pkg = [train_data, train_event_time, train_labs]
-        valid_pkg = [val_data, val_event_time, val_labs]
-        test_pkg = [test_data, test_event_time, test_labs]
-
-        return (train_pkg, valid_pkg, test_pkg)
+    def split_data(self, train_size: float, valid_size: float,
+                   test_size: float, dtype=torch.float64, random_state=0):
+        raise NotImplementedError()
     
 def get_data_loader(dataset_name:str) -> BaseDataLoader:
     if dataset_name == "seer":

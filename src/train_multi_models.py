@@ -17,15 +17,14 @@ from utility.survival import make_time_bins, preprocess_data
 from sota_models import *
 import config as cfg
 from utility.survival import compute_survival_curve, calculate_event_times
-from utility.survival import make_time_bins_hierarchical, digitize_and_convert
+from utility.survival import make_times_hierarchical, digitize_and_convert
 from Evaluations.util import make_monotonic, check_monotonicity
 from utility.evaluation import LifelinesEvaluator
 import torchtuples as tt
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from utility.survival import make_stratified_split_multi
 from utility.data import dotdict
 from hierarchical import util
-from utility.hierarch import format_hyperparams
+from utility.hierarchical import format_hyperparams
 from multi_evaluator import MultiEventEvaluator
 
 import warnings
@@ -74,9 +73,9 @@ if __name__ == "__main__":
             if model_name in ["direct-full", "hierarch-full"]:
                 data_settings = load_config(cfg.DATASET_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
                 num_bins = data_settings['num_bins']
-                train_event_bins = make_time_bins_hierarchical(train_data[1], num_bins=num_bins)
-                valid_event_bins = make_time_bins_hierarchical(valid_data[1], num_bins=num_bins)
-                test_event_bins = make_time_bins_hierarchical(test_data[1], num_bins=num_bins)
+                train_event_bins = make_times_hierarchical(train_data[1], num_bins=num_bins)
+                valid_event_bins = make_times_hierarchical(valid_data[1], num_bins=num_bins)
+                test_event_bins = make_times_hierarchical(test_data[1], num_bins=num_bins)
                 train_data_hierarch = [train_data[0], train_event_bins, train_data[2]]
                 valid_data_hierarch = [valid_data[0], valid_event_bins, valid_data[2]]
                 test_data_hierarch = [test_data[0], test_event_bins, test_data[2]]

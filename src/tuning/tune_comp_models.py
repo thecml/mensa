@@ -10,7 +10,7 @@ from sota_models import *
 from utility.data import dotdict
 import data_loader
 from utility.survival import make_time_bins, preprocess_data, convert_to_structured
-from utility.survival import make_time_bins_hierarchical, digitize_and_convert
+from utility.survival import make_times_hierarchical, digitize_and_convert
 from utility.data import calculate_vocab_size, format_data_for_survtrace
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from utility.evaluation import LifelinesEvaluator
@@ -18,7 +18,7 @@ from survtrace.model import SurvTraceMulti
 from survtrace.train_utils import Trainer
 from utility.config import load_config
 from hierarchical import util
-from utility.hierarch import format_hyperparams, get_layer_size_fine_bins
+from utility.hierarchical import format_hyperparams, get_layer_size_fine_bins
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -167,8 +167,8 @@ def train_deepsurv_model():
     elif model_name in ["direct", "hierarch"]:
         data_settings = load_config(cfg.DATASET_CONFIGS_DIR, f"{dataset_name}.yaml")
         num_bins = data_settings['num_bins']
-        train_event_bins = make_time_bins_hierarchical(train_data[1], num_bins=num_bins)
-        valid_event_bins = make_time_bins_hierarchical(valid_data[1], num_bins=num_bins)
+        train_event_bins = make_times_hierarchical(train_data[1], num_bins=num_bins)
+        valid_event_bins = make_times_hierarchical(valid_data[1], num_bins=num_bins)
         train_data_hierarch = [train_data[0], train_event_bins, train_data[2]]
         valid_data_hierarch = [valid_data[0], valid_event_bins, valid_data[2]]
         model_config = dotdict(config)

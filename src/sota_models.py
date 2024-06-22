@@ -21,7 +21,7 @@ from tqdm import trange
 from torch.utils.data import DataLoader, TensorDataset
 from utility.survival import reformat_survival
 from utility.loss import mtlr_nll, cox_nll
-from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split_multi, make_stratified_split_single
+from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split
 from utility.data import MultiEventDataset
 from utility.data import dotdict
 from utility.survival import cox_survival, calculate_baseline_hazard
@@ -208,7 +208,7 @@ def train_deepsurv_model(
         print(f"Training {model.get_name()}: reset mode is {reset_model}, number of epochs is {config.num_epochs}, "
               f"learning rate is {config.lr}, C1 is {config.c1}, "
               f"batch size is {config.batch_size}, device is {device}.")
-    data_train, _, data_val = make_stratified_split_single(data_train, stratify_colname='both',
+    data_train, _, data_val = make_stratified_split(data_train, stratify_colname='both',
                                                            frac_train=0.9, frac_test=0.1,
                                                            random_state=random_state)
 

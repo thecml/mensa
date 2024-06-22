@@ -53,6 +53,50 @@ def encode_survival(time: Union[float, int, np.ndarray],
             y[i, :, bin_idx:] = 1
     return torch.tensor(y.reshape(time.shape[0], -1), dtype=torch.float)
 
+def encode_survival_no_censoring(time: Union[float, int, np.ndarray],
+                                 event: Union[int, np.ndarray],
+                                 bins: np.ndarray) -> torch.Tensor:
+    """Encodes survival time and event indicator in the format
+    required for MTLR training.
+
+    For uncensored instances, one-hot encoding of binned survival time
+    is generated. Censoring is handled differently, with all possible
+    values for event time encoded as 1s. For example, if 5 time bins are used,
+    an instance experiencing event in bin 3 is encoded as [0, 0, 0, 1, 0], and
+    instance censored in bin 2 as [0, 0, 1, 1, 1]. Note that an additional
+    'catch-all' bin is added, spanning the range `(bins.max(), inf)`.
+    
+    Parameters
+    ----------
+    time
+        Time of event or censoring.
+    event
+        Event indicator (0 = censored).
+    bins
+        Bins used for time axis discretisation.
+
+    Returns
+    -------
+    torch.Tensor
+        Encoded survival times.
+    """
+    if isinstance(time, (float, int)):
+        time = np.array([time])
+    if isinstance(event, int):
+        event = np.array([event])
+
+    time = np.clip(time, 0, bins.max())
+    bin_idxs = np.digitize(time, bins)
+    num_events = len(np.unique(event))
+    # add extra bin [max_time, inf) at the end
+    y = np.zeros((time.shape[0], num_events, bins.shape[0] + 1), dtype=np.int32)
+    for i, e in enumerate(event):
+        bin_idx = bin_idxs[i]
+        if e > 0:
+            y[i, e - 1, bin_idx] = 1
+        else:
+            y[i, :, bin_idx:] = 1
+    return torch.tensor(y.reshape(time.shape[0], -1), dtype=torch.float)
 
 def reset_parameters(model: torch.nn.Module) -> torch.nn.Module:
     """Resets the parameters of a PyTorch module and its children."""

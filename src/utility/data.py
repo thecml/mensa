@@ -231,3 +231,27 @@ def format_deephit_data(train_dict, valid_dict, num_durations):
     train_data = {'X': train_dict_dh['X'], 'T': y_train[0], 'E': y_train[1]}
     valid_data = {'X': valid_dict_dh['X'], 'T': y_valid[0], 'E': y_valid[1]}
     return train_data, valid_data, out_features, duration_index
+
+def make_times_hierarchical(event_times, num_bins):
+    min_time = np.min(event_times[event_times != -1]) 
+    max_time = np.max(event_times[event_times != -1]) 
+    time_range = max_time - min_time
+    bin_size = time_range / num_bins
+    binned_event_time = np.floor((event_times - min_time) / bin_size)
+    binned_event_time[binned_event_time == num_bins] = num_bins - 1
+    return binned_event_time
+
+def format_hierarchical_data(train_dict, valid_dict, test_dict, num_bins):
+    train_times = np.stack([train_dict['T1'], train_dict['T2'], train_dict['T3']], axis=1)
+    valid_times = np.stack([valid_dict['T1'], valid_dict['T2'], valid_dict['T3']], axis=1)
+    test_times = np.stack([test_dict['T1'], test_dict['T2'], test_dict['T3']], axis=1)
+    train_event_bins = make_times_hierarchical(train_times, num_bins=num_bins)
+    valid_event_bins = make_times_hierarchical(valid_times, num_bins=num_bins)
+    test_event_bins = make_times_hierarchical(test_times, num_bins=num_bins)
+    train_events = np.array(pd.get_dummies(train_dict['E']))
+    valid_events = np.array(pd.get_dummies(valid_dict['E']))
+    test_events = np.array(pd.get_dummies(test_dict['E']))
+    train_data = [train_dict['X'], train_event_bins, train_events]
+    valid_data = [valid_dict['X'], valid_event_bins, valid_events]
+    test_data = [test_dict['X'], test_event_bins, test_events]
+    return train_data, valid_data, test_data

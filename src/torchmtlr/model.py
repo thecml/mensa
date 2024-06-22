@@ -33,7 +33,8 @@ class MTLRCR(nn.Module):
     def __init__(self,
                  in_features: int,
                  num_time_bins: int,
-                 num_events: int = 1):
+                 num_events: int = 1,
+                 dtype=torch.float64):
         """Initialises the module.
 
         Parameters
@@ -50,8 +51,8 @@ class MTLRCR(nn.Module):
 
         weight = torch.zeros(self.in_features,
                              (self.num_time_bins-1) * self.num_events,
-                             dtype=torch.float)
-        bias = torch.zeros((self.num_time_bins-1) * self.num_events)
+                             dtype=dtype)
+        bias = torch.zeros((self.num_time_bins-1) * self.num_events, dtype=dtype)
         self.mtlr_weight = nn.Parameter(weight)
         self.mtlr_bias = nn.Parameter(bias)
 
