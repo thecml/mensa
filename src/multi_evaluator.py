@@ -3,8 +3,8 @@ from datetime import datetime
 from utility.survival import cox_survival
 import pandas as pd
 import numpy as np
-from SurvivalEVAL import LifelinesEvaluator
-from utility.multi_event_ci import all_events_ci, global_ci, local_ci
+from utility.evaluator import LifelinesEvaluator
+from utility.evaluation import all_events_ci, global_ci, local_ci
 # import sys,os
 # sys.path.append('./SurvivalEVAL/')
 # from Evaluator import LifelinesEvaluator

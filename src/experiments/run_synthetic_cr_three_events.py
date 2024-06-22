@@ -31,6 +31,7 @@ from utility.config import load_config
 from utility.loss import triple_loss
 from mensa.model import train_mensa_model_3_events, make_mensa_model_3_events
 from utility.data import format_deephit_data, format_hierarchical_data
+from utility.evaluation import global_C_index, local_C_index
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
@@ -228,6 +229,12 @@ if __name__ == "__main__":
                         all_preds = [preds_e1, preds_e2, preds_e3]
                     else:
                         raise NotImplementedError()
+                    
+                    # Test local and global CI
+                    y_test_time = np.stack([test_dict['T1'], test_dict['T2'], test_dict['T3']], axis=1)
+                    y_test_event = np.array(pd.get_dummies(test_dict['E']))
+                    global_ci = global_C_index(all_preds, y_test_time, y_test_event)
+                    local_ci = local_C_index(all_preds, y_test_time, y_test_event)
                 
                     # Make evaluation for each event
                     pred_time_bins = torch.cat([torch.tensor([0], device=device, dtype=dtype), time_bins])
@@ -242,7 +249,8 @@ if __name__ == "__main__":
                         y_test_event = np.array([1] * n_test_samples)
                         lifelines_eval = LifelinesEvaluator(surv_preds_df.T, y_test_time, y_test_event,
                                                             y_train_time, y_train_event)
-                        ci = lifelines_eval.concordance()[0]
+                        
+                        ci =  lifelines_eval.concordance()[0]
                         ibs = lifelines_eval.integrated_brier_score(num_points=len(pred_time_bins))
                         mae = lifelines_eval.mae(method='Uncensored')
                         d_calib = lifelines_eval.d_calibration()[0]
@@ -253,9 +261,11 @@ if __name__ == "__main__":
                             truth_preds[:,i] = dgps[event_id].survival(pred_time_bins[i], test_dict['X'])
                         survival_l1 = float(compute_l1_difference(truth_preds, surv_preds, n_samples, steps=pred_time_bins))
                         
-                        metrics = [ci, ibs, mae, survival_l1, d_calib]
+                        metrics = [ci, ibs, mae, survival_l1, d_calib, global_ci, local_ci]
                         print(metrics)
                         res_sr = pd.Series([model_name, dataset_version, copula_name, k_tau] + metrics,
-                                           index=["ModelName", "DatasetVersion", "Copula", "KTau", "CI", "IBS", "MAE", "L1", "DCalib"])
+                                           index=["ModelName", "DatasetVersion", "Copula", "KTau",
+                                                  "CI", "IBS", "MAE", "L1", "DCalib", "GlobalCI", "LocalCI"])
                         model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
                         model_results.to_csv(f"{cfg.RESULTS_DIR}/model_results.csv")
+                        

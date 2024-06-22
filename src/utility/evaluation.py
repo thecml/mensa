@@ -1,7 +1,9 @@
 import sys,os
 # sys.path.append('./SurvivalEVAL/')
-from evaluator import LifelinesEvaluator
+from SurvivalEVAL import LifelinesEvaluator
 # from SurvivalEVAL.Evaluator import LifelinesEvaluator
+import pandas as pd
+import numpy as np
 
 def sort_by_time(surv_pred_event, temp_test_time, temp_test_event):
     '''
