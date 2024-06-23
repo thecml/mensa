@@ -169,8 +169,9 @@ def format_data(X, y, dtype, device):
     return (covariates, times, events)
 
 def kendall_tau_to_theta(copula_name, k_tau):
+    #TODO: Check this function (Ali)
     if copula_name == "clayton":
-        return k_tau / (1 - k_tau)
+        return 2 * k_tau / (1 - k_tau)
     elif copula_name == "frank":
         return -np.log(1 - k_tau * (1 - np.exp(-1)) / 4)
     elif copula_name == "gumbel":
@@ -179,6 +180,7 @@ def kendall_tau_to_theta(copula_name, k_tau):
         raise ValueError('Copula not implemented')
     
 def theta_to_kendall_tau(copula_name, theta):
+    #TODO: Check this function (Ali)
     if copula_name == "clayton":
         return theta / (theta + 2)
     elif copula_name == "frank":
@@ -187,3 +189,20 @@ def theta_to_kendall_tau(copula_name, theta):
         return (theta - 1) / theta
     else:
         raise ValueError('Copula not implemented')
+    
+def format_data_as_dict_single(X, y, dtype):
+    data_dict = dict()
+    data_dict['X'] = torch.tensor(X.to_numpy(), dtype=dtype)
+    data_dict['T'] = torch.tensor(y['time'].copy(), dtype=dtype)
+    data_dict['E'] = torch.tensor(y['event'].copy(), dtype=dtype)
+    return data_dict
+
+def format_data_as_dict_multi(X, y_t, y_e, dtype):
+    data_dict = dict()
+    data_dict['X'] = torch.tensor(X, dtype=dtype)
+    data_dict['E'] = torch.tensor(np.argmin(y_t, axis=1), dtype=dtype)
+    data_dict['T'] = torch.tensor(np.min(y_t, axis=1), dtype=dtype)
+    data_dict['T1'] = torch.tensor(y_t[:,0], dtype=dtype)
+    data_dict['T2'] = torch.tensor(y_t[:,1], dtype=dtype)
+    data_dict['T3'] = torch.tensor(y_t[:,2], dtype=dtype)
+    return data_dict

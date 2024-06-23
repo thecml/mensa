@@ -6,18 +6,6 @@ This is named as such since the mixing variable is a convex combination of dirac
 import torch
 import torch.nn as nn
 
-class MultiDiracPhi(nn.Module):
-    def __init__(self, depth, widths, lc_w_range, shift_w_range, device, tol, n_networks=1):
-        super(MultiDiracPhi, self).__init__()
-        
-        self.networks = nn.ModuleList()
-        for _ in range(n_networks):
-            net = DiracPhi(depth, widths, lc_w_range, shift_w_range, device, tol=tol)
-            self.networks.append(net)
-    
-    def forward(self, t_raw):
-        outputs = [net(t_raw) for net in self.networks]
-        return torch.stack(outputs, dim=-1)
 
 class DiracPhi(nn.Module):
     '''

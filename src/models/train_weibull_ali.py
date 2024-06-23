@@ -6,7 +6,7 @@ from trainer import train_mensa_model
 import torch
 import random
 import warnings
-from models import Mensa
+from dgp import Mensa
 from multi_evaluator import MultiEventEvaluator
 from data_loader import *
 from utility.survival import preprocess_data
@@ -19,9 +19,9 @@ from utility.survival import convert_to_structured
 from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival
 from tqdm import tqdm
-from utility.evaluator import LifelinesEvaluator
+from SurvivalEVAL.Evaluator import LifelinesEvaluator
 import copy
-from dcsurvival.truth_net import Weibull_linear
+from dgp import Weibull_linear
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -160,7 +160,7 @@ def independent_train_loop_linear(model1, model2, train_data, val_data,
 
 if __name__ == "__main__":
     # Load data
-    df, params = LinearSyntheticDataLoader(copula_name="Frank",
+    df, params = SingleEventSyntheticDataLoader(copula_name="Frank",
                                            n_features=10,
                                            n_samples=1000)
     X = df.drop(['observed_time', 'event_indicator',

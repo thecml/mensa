@@ -17,10 +17,9 @@ from scipy import stats
 from utility.data import (inverse_transform, inverse_transform_weibull, relu,
                           inverse_transform_exp, inverse_transform_lognormal)
 from utility.data import kendall_tau_to_theta, theta_to_kendall_tau
-from statsmodels.distributions.copula.api import (CopulaDistribution, GumbelCopula,
-                                                  FrankCopula, ClaytonCopula, IndependenceCopula)
 from utility.survival import make_stratified_split_single
-
+from dgp import Weibull_log_linear, Weibull_linear, Weibull_nonlinear
+import torch
 
 class BaseDataLoader(ABC):
     """
@@ -67,383 +66,255 @@ class BaseDataLoader(ABC):
     def _get_cat_features(self, data) -> List[str]:
         return data.select_dtypes(['object']).columns.tolist()
 
-class LinearSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_name='frank', k_tau=0,
-                  n_samples=30000, n_features=10,
+class SingleEventSyntheticDataLoader(BaseDataLoader):
+    def load_data(self, data_config, copula_name='clayton', k_tau=0, n_samples=10000,
+                  n_features=10, linear=True, device='cpu', dtype=torch.float64,
                   rng=np.random.default_rng(0)):
-        # Generate synthetic data (time-to-event and censoring indicator)
-        # with linear parametric proportional hazards model (Weibull CoxPH)
-        shape_e=4; scale_e=14; shape_c=3; scale_c=16
+        """
+        This method generates synthetic data for single event (and censoring)
+        DGP1: Data generation process for event
+        DGP2: Data generation process for censoring
+        """
+        alpha_e1 = data_config['alpha_e1']
+        alpha_e2 = data_config['alpha_e2']
+        gamma_e1 = data_config['gamma_e1']
+        gamma_e2 = data_config['gamma_e2']
         
-        X = rng.uniform(0, 1, (n_samples, n_features))
-        beta_e = rng.uniform(0, 1, (n_features,))
-        beta_c = rng.uniform(0, 1, (n_features,))
+        X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
+        beta = torch.rand((n_features,), device=device).type(dtype)
 
-        event_risk = np.matmul(X, beta_e).squeeze()
-        censoring_risk = np.matmul(X, beta_c).squeeze()
-        
-        if k_tau > 0:
-            theta = kendall_tau_to_theta(copula_name, k_tau)
-            if copula_name == 'frank':
-                u_e, u_c = simulation.simu_archimedean('frank', 2, n_samples, theta)
-            elif copula_name == 'gumbel':
-                u_e, u_c = simulation.simu_archimedean('gumbel', 2, n_samples, theta)
-            elif copula_name == 'clayton':
-                u_e, u_c = simulation.simu_archimedean('clayton', 2, n_samples, theta)
-            else:
-                raise ValueError('Copula not implemented') 
+        dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
+                              beta=beta, device=device, dtype=dtype)
+        dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
+                              beta=beta, device=device, dtype=dtype)
+        dgp1.coeff = torch.rand((n_features,), device=device, dtype=dtype)
+        dgp2.coeff = torch.rand((n_features,), device=device, dtype=dtype)
+    
+        if copula_name is None or k_tau == 0: #TODO: Fix if 0
+            uv = torch.randn((X.shape[0], 2), device=device, dtype=dtype) # Sample independent
+            #u_e = rng.uniform(0, 1, n_samples)
+            #u_c = rng.uniform(0, 1, n_samples)
         else:
-            u_e = rng.uniform(0, 1, n_samples)
-            u_c = rng.uniform(0, 1, n_samples)
-
-        event_times = inverse_transform(u_e, event_risk, shape_e, scale_e)
-        censoring_times = inverse_transform(u_c, censoring_risk, shape_c, scale_c)
-
-        observed_time = np.minimum(event_times, censoring_times)
-        event_indicator = (event_times < censoring_times).astype(int)
-
-        data = np.concatenate([X, observed_time[:, None], event_indicator[:, None],
-                               event_times[:, None], censoring_times[:, None]], axis=1)
-        label_cols = ['observed_time', 'event_indicator', 'event_time', 'censoring_time']
-        columns = [f'X{i}' for i in range(n_features)] + label_cols
-        df = pd.DataFrame(data, columns=columns)
+            theta = kendall_tau_to_theta(copula_name, k_tau)
+            u,v = simulation.simu_archimedean(copula_name, 2, X.shape[0], theta=theta)
+            u = torch.from_numpy(u).type(dtype).reshape(-1,1)
+            v = torch.from_numpy(v).type(dtype).reshape(-1,1)
+            uv = torch.cat([u, v], axis=1)
+        t1_times = dgp1.rvs(X, uv[:,0])
+        t2_times = dgp2.rvs(X, uv[:,1])
+        event_times = np.concatenate([t1_times.reshape(-1,1),
+                                      t2_times.reshape(-1,1)], axis=1)
         
-        self.X = df.drop(label_cols, axis=1)
-        self.num_features = self._get_num_features(self.X)
-        self.cat_features = self._get_cat_features(self.X)
-        self.y_t = df['observed_time'].values
-        self.y_e = df['event_indicator'].values
-        self.params = [beta_e, shape_e, scale_e]
+        observed_times = np.minimum(t1_times, t2_times)
+        event_indicators = (t1_times < t2_times).type(torch.int)
+        
+        columns = [f'X{i}' for i in range(n_features)]
+        self.X = pd.DataFrame(X, columns=columns)
+        self.y_e = event_indicators
+        self.y_t = observed_times
+        self.dgps = [dgp1, dgp2]
+        
         return self
     
-    def split_data(self,
-                   train_size: float,
-                   valid_size: float,
-                   random_state=0):
-        df = self.X
-        df['time'] = self.y_t
+    def split_data(self, train_size: float, valid_size: float,
+                   test_size: float, dtype=torch.float64, random_state=0):
+        #TODO: Implement proper strateifion on event times/event indicator
+        # stratify on observed time make_stratified_split_single()
+        df = pd.DataFrame(self.X)
         df['event'] = self.y_e
-        df_train, df_valid, df_test = make_stratified_split_single(df, stratify_colname='both',
-                                                                   frac_train=0.7, frac_valid=0.1,
-                                                                   frac_test=0.2, random_state=0)
-        X_train = df_train.drop(['time', 'event'], axis=1)
-        y_train = convert_to_structured(df_train['time'].values, df_train['event'].values)
-        X_valid = df_valid.drop(['time', 'event'], axis=1)
-        y_valid = convert_to_structured(df_valid['time'].values, df_valid['event'].values)
-        X_test = df_test.drop(['time', 'event'], axis=1)
-        y_test = convert_to_structured(df_test['time'].values, df_test['event'].values)
-        return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
-
-class NonlinearSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_name='frank', k_tau=0, n_samples=30000,
-                  n_features=10, rng=np.random.default_rng(0)):
-        # Generate synthetic data with parametric model (Weibull)
-        hidden_dim = int(n_features/2)
-        X = rng.uniform(0, 1, (n_samples, n_features))
-        beta = rng.uniform(0, 1, (n_features, hidden_dim))
-    
-        beta_shape_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_scale_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        
-        beta_shape_e = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_scale_e = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-
-        beta_shape_e = np.pad(beta_shape_e, (0, 1)) # pad 0
-        beta_scale_e = np.pad(beta_scale_e, (1, 0))
-        beta_shape_c = np.pad(beta_shape_c, (0, 1))
-        beta_scale_c = np.pad(beta_scale_c, (1, 0))
-        
-        hidden_rep = np.matmul(X, beta).squeeze()
-        hidden_rep = relu(hidden_rep)
-        shape_c = np.matmul(hidden_rep, beta_shape_c).squeeze()
-        scale_c = np.matmul(hidden_rep, beta_scale_c).squeeze()
-        shape_e = np.matmul(hidden_rep, beta_shape_e).squeeze()
-        scale_e = np.matmul(hidden_rep, beta_scale_e).squeeze()
-
-        if k_tau > 0:
-            theta = kendall_tau_to_theta(copula_name, k_tau)
-            if copula_name == 'frank':
-                u_e, u_c = simulation.simu_archimedean('frank', 2, n_samples, theta)
-            elif copula_name == 'gumbel':
-                u_e, u_c = simulation.simu_archimedean('gumbel', 2, n_samples, theta)
-            elif copula_name == 'clayton':
-                u_e, u_c = simulation.simu_archimedean('clayton', 2, n_samples, theta)
-            else:
-                raise ValueError('Copula not implemented') 
-        else:
-            u_e = rng.uniform(0, 1, n_samples)
-            u_c = rng.uniform(0, 1, n_samples)
-    
-        event_time = inverse_transform_weibull(u_e, shape_e, scale_e)
-        censoring_time = inverse_transform_weibull(u_c, shape_c, scale_c)
-    
-        observed_time = np.minimum(event_time, censoring_time)
-        event_indicator = (event_time < censoring_time).astype(int)
-        
-        data = np.concatenate([X, observed_time[:, None], event_indicator[:, None], event_time[:, None],
-                           censoring_time[:, None]], axis=1)
-        label_cols = ['observed_time', 'event_indicator', 'event_time', 'censoring_time']
-        columns = [f'X{i}' for i in range(n_features)] + label_cols
-        df = pd.DataFrame(data, columns=columns)
-    
-        self.X = df.drop(label_cols, axis=1)
-        self.num_features = self._get_num_features(self.X)
-        self.cat_features = self._get_cat_features(self.X)
-        self.y_t = df['observed_time'].values
-        self.y_e = df['event_indicator'].values
-        self.params = [beta, beta_shape_e, beta_scale_e]
-        return self
-    
-    def split_data(self,
-                   train_size: float,
-                   valid_size: float,
-                   random_state=0):
-        df = self.X
         df['time'] = self.y_t
-        df['event'] = self.y_e
-        df_train, df_valid, df_test = make_stratified_split_single(df, stratify_colname='both',
-                                                                 frac_train=0.7, frac_valid=0.1,
-                                                                 frac_test=0.2, random_state=0)
-        X_train = df_train.drop(['time', 'event'], axis=1)
-        y_train = convert_to_structured(df_train['time'].values, df_train['event'].values)
-        X_valid = df_valid.drop(['time', 'event'], axis=1)
-        y_valid = convert_to_structured(df_valid['time'].values, df_valid['event'].values)
-        X_test = df_test.drop(['time', 'event'], axis=1)
-        y_test = convert_to_structured(df_test['time'].values, df_test['event'].values)
-        return (X_train, y_train), (X_valid, y_valid), (X_test, y_test)
-    
+        
+        train_df, remaining_df = train_test_split(df, train_size=0.7, random_state=random_state)
+        valid_df, test_df = train_test_split(remaining_df, test_size=0.5,random_state=random_state)
+        
+        dataframes = [train_df, valid_df, test_df]
+        dicts = []
+        for dataframe in dataframes:
+            data_dict = dict()
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':'X9'].to_numpy(), dtype=dtype)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=dtype)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=dtype)
+            dicts.append(data_dict)
+            
+        return dicts[0], dicts[1], dicts[2]
+
 class CompetingRiskSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_parameters=None, dist='Weibull',
-                  n_samples=30000, n_features=10, rng=np.random.default_rng(0)):
-        # Generate synthetic data (2 competing risks and censoring)
-        if copula_parameters is None:
-            corrMatrix = np.array([[1, 0.8, 0], [0.8, 1, 0], [0, 0, 1]])
-            copula_parameters = [
-                {"type": "clayton", "weight": 1 / 3, "theta": 2},
-                {"type": "frank", "weight": 1 / 3, "theta": 1},
-                {"type": "gumbel", "weight": 1 / 3, "theta": 3}
-            ]
+    def load_data(self, data_config, copula_name='clayton', k_tau=0, n_samples=10000,
+                  n_features=10, linear=True, device='cpu', dtype=torch.float64,
+                  rng=np.random.default_rng(0)):
+        """
+        This method generates synthetic data for 2 competing risks (and censoring)
+        DGP1: Data generation process for event 1
+        DGP2: Data generation process for event 2
+        DGP3: Data generation process for censoring
+        """
+        alpha_e1 = data_config['alpha_e1']
+        alpha_e2 = data_config['alpha_e2']
+        alpha_e3 = data_config['alpha_e3']
+        gamma_e1 = data_config['gamma_e1']
+        gamma_e2 = data_config['gamma_e2']
+        gamma_e3 = data_config['gamma_e3']
         
-        X = rng.uniform(0, 1, (n_samples, n_features))
-        hidden_dim = int(n_features/2)
-        beta = rng.uniform(0, 1, (n_features, hidden_dim))
-
-        beta_shape_e1 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_scale_e1 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_shape_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_scale_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_shape_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_scale_c = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
+        beta = torch.rand((n_features,), device=device).type(dtype)
         
-        hidden_rep = np.matmul(X, beta).squeeze()
-        hidden_rep = relu(hidden_rep)
-
-        shape_e1 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e1).squeeze()
-        scale_e1 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e1).squeeze()
-        shape_e2 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e2).squeeze()
-        scale_e2 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e2).squeeze()
-        shape_c = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_c).squeeze()
-        scale_c = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_c).squeeze()
-
-        u_e1, u_e2, u_c = simulation.simu_mixture(3, n_samples, copula_parameters)
-
-        if dist == "Weibull":
-            e1_time = inverse_transform_weibull(u_e1, shape_e1, scale_e1)
-            e2_time = inverse_transform_weibull(u_e2, shape_e2, scale_e2)
-            c_time = inverse_transform_weibull(u_c, shape_c, scale_c)
-        elif dist == "Exp":
-            e1_time = inverse_transform_exp(u_e1, shape_e1, scale_e1)
-            e2_time = inverse_transform_exp(u_e2, shape_e2, scale_e2)
-            c_time = inverse_transform_exp(u_c, shape_c, scale_c)
-        elif dist == "Lognormal":
-            e1_time = inverse_transform_lognormal(u_e1, shape_e1, scale_e1)
-            e2_time = inverse_transform_lognormal(u_e2, shape_e2, scale_e2)
-            c_time = inverse_transform_lognormal(u_c, shape_c, scale_c)
+        dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
+                              beta=beta, device=device, dtype=dtype)
+        dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
+                              beta=beta, device=device, dtype=dtype)
+        dgp3 = Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3,
+                              beta=beta, device=device, dtype=dtype)
+        dgp1.coeff = torch.rand((n_features,), device=device, dtype=dtype)
+        dgp2.coeff = torch.rand((n_features,), device=device, dtype=dtype)
+        dgp3.coeff = torch.rand((n_features,), device=device, dtype=dtype)
+        
+        if copula_name is None or k_tau == 0: #TODO: Fix if 0
+            uv = torch.randn((X.shape[0], 3)) # Sample independent
         else:
-            raise ValueError('Dist not implemented')
+            theta = kendall_tau_to_theta(copula_name, k_tau)
+            u, v, w = simulation.simu_archimedean(copula_name, 3, X.shape[0], theta=theta)
+            u = torch.from_numpy(u).type(dtype).reshape(-1,1)
+            v = torch.from_numpy(v).type(dtype).reshape(-1,1)
+            w = torch.from_numpy(w).type(dtype).reshape(-1,1)
+            uv = torch.cat([u,v,w], axis=1)
+        t1_times = dgp1.rvs(X, uv[:,0])
+        t2_times = dgp2.rvs(X, uv[:,1])
+        t3_times = dgp3.rvs(X, uv[:,2])
+        event_times = np.concatenate([t1_times.reshape(-1,1),
+                                      t2_times.reshape(-1,1),
+                                      t3_times.reshape(-1,1)], axis=1)
+        event_indicators = np.argmin(event_times, axis=1)
+        observed_times = event_times[np.arange(event_times.shape[0]), event_indicators]
         
-        all_times = np.stack([e1_time, e2_time, c_time], axis=1)
-        observed_time = np.min(all_times, axis=1)
-        event_indicator = np.argmin(all_times, axis=1)
-
-        data = np.concatenate([X, observed_time[:, None], event_indicator[:, None],
-                               e1_time[:, None], e2_time[:, None], c_time[:, None]], axis=1)
-        label_cols = ['observed_time', 'event_indicator', 'e1_time', 'e2_time', 'c_time']
-        columns = [f'X{i}' for i in range(n_features)] + label_cols
-
-        df = pd.DataFrame(data, columns=columns)
-        self.X = df.drop(label_cols, axis=1)
-        self.num_features = self._get_num_features(self.X)
-        self.cat_features = self._get_cat_features(self.X)
-        self.y_t = np.stack((df['e1_time'].values, df['e2_time'].values, df['c_time'].values), axis=1)
+        columns = [f'X{i}' for i in range(n_features)]
+        self.X = pd.DataFrame(X, columns=columns)
+        self.y_e = event_indicators
+        self.y_t = observed_times
+        self.y_t1 = t1_times
+        self.y_t2 = t2_times
+        self.y_t3 = t3_times
+        self.dgps = [dgp1, dgp2, dgp3]
         
-        # Encode y_e to CR structure
-        events = df['event_indicator'].values.astype('int32')
-        num_events = int(np.max(events) + 1)
-        self.y_e = np.eye(num_events)[events]
-        
-        self.params = [beta, beta_shape_e1, beta_scale_e1, beta_shape_e2, beta_scale_e2]
         return self
-    
+   
     def split_data(self,
                    train_size: float,
                    valid_size: float,
+                   test_size: float,
+                   dtype=torch.float64,
                    random_state=0):
-        # Split multi event data
-        raw_data = self.X
-        event_time = self.y_t
-        labs = self.y_e
+        df = pd.DataFrame(self.X)
+        df['event'] = self.y_e
+        df['time'] = self.y_t
+        df['t1'] = self.y_t1
+        df['t2'] = self.y_t2
+        df['t3'] = self.y_t3
         
-        traj_labs = labs
-        if labs.shape[1] > 1: 
-            traj_labs = get_trajectory_labels(labs)
-
-        #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
-                                          random_state=random_state)
-        train_i, test_i = next(splitter.split(raw_data, traj_labs))
-
-        train_data = raw_data.iloc[train_i, :]
-        train_labs = labs[train_i, :]
-        train_event_time = event_time[train_i, :]
-
-        pretest_data = raw_data.iloc[test_i, :]
-        pretest_labs = labs[test_i, :]
-        pretest_event_time = event_time[test_i, :]
-
-        #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
-                                          random_state=random_state)
-        new_pretest_labs = get_trajectory_labels(pretest_labs)
-        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
-        test_data = pretest_data.iloc[test_i, :]
-        test_labs = pretest_labs[test_i, :]
-        test_event_time = pretest_event_time[test_i, :]
-
-        val_data = pretest_data.iloc[val_i, :]
-        val_labs = pretest_labs[val_i, :]
-        val_event_time = pretest_event_time[val_i, :]
-
-        #package for convenience
-        train_pkg = [train_data, train_event_time, train_labs]
-        valid_pkg = [val_data, val_event_time, val_labs]
-        test_pkg = [test_data, test_event_time, test_labs]
+        train_df, remaining_df = train_test_split(df, train_size=0.7, random_state=random_state)
+        valid_df, test_df = train_test_split(remaining_df, test_size=0.5,random_state=random_state)
         
-        return (train_pkg, valid_pkg, test_pkg)
-    
+        dataframes = [train_df, valid_df, test_df]
+        dicts = []
+        for dataframe in dataframes:
+            data_dict = dict()
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':'X9'].to_numpy(), dtype=dtype)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=dtype)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=dtype)
+            data_dict['T1'] = torch.tensor(dataframe['t1'].to_numpy(), dtype=dtype)
+            data_dict['T2'] = torch.tensor(dataframe['t2'].to_numpy(), dtype=dtype)
+            data_dict['T3'] = torch.tensor(dataframe['t3'].to_numpy(), dtype=dtype)
+            dicts.append(data_dict)
+            
+        return dicts[0], dicts[1], dicts[2]
+        
 class MultiEventSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, copula_parameters=None, dist='Weibull', n_samples=30000,
-                  n_features=10, adm_cens_time=5, rng=np.random.default_rng(0)):
-        # Generate synthetic data (3 multi events and adm. censoring)
-        if copula_parameters is None:
-            corrMatrix = np.array([[1, 0.8, 0], [0.8, 1, 0], [0, 0, 1]])
-            copula_parameters = [
-                {"type": "clayton", "weight": 1 / 4, "theta": 2},
-                {"type": "frank", "weight": 1 / 3, "theta": 1},
-                {"type": "gumbel", "weight": 1 / 4, "theta": 3}
-            ]
+    def load_data(self, data_config, copula_names=["clayton", "clayton", "clayton"],
+                  k_taus=[0, 0, 0], n_samples=10000, n_features=10, linear=True, device='cpu',
+                  adm_censoring_time=14, dtype=torch.float64, rng=np.random.default_rng(0)):
+        """
+        This method generates synthetic data for 3 multiple events (with adm. censoring)
+        DGP1: Data generation process for event 1
+        DGP2: Data generation process for event 2
+        DGP3: Data generation process for event 3
+        """
+        alpha_e1 = data_config['alpha_e1']
+        alpha_e2 = data_config['alpha_e2']
+        alpha_e3 = data_config['alpha_e3']
+        gamma_e1 = data_config['gamma_e1']
+        gamma_e2 = data_config['gamma_e2']
+        gamma_e3 = data_config['gamma_e3']
         
-        X = rng.uniform(0, 1, (n_samples, n_features))
-        hidden_dim = int(n_features/2)
-        beta = rng.uniform(0, 1, (n_features, hidden_dim))
+        thetas = [kendall_tau_to_theta(copula_names[i], k_taus[i]) for i in range(3)]
+        copula_parameters = [
+            {"type": copula_names[0], "weight": 1 / 3, "theta": thetas[0]},
+            {"type": copula_names[1], "weight": 1 / 3, "theta": thetas[1]},
+            {"type": copula_names[2], "weight": 1 / 3, "theta": thetas[2]}
+        ]
 
-        beta_shape_e1 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_scale_e1 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_shape_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_scale_e2 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_shape_e3 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
-        beta_scale_e3 = rng.uniform(0, 1, (int(hidden_dim*0.8),))
+        X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
+        beta = torch.rand((n_features,), device=device).type(dtype)
         
-        hidden_rep = np.matmul(X, beta).squeeze()
-        hidden_rep = relu(hidden_rep)
-        
-        shape_e1 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e1).squeeze()
-        scale_e1 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e1).squeeze()
-        shape_e2 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e2).squeeze()
-        scale_e2 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e2).squeeze()
-        shape_e3 = np.matmul(hidden_rep[:, 0:int(hidden_dim*0.8)], beta_shape_e3).squeeze()
-        scale_e3 = np.matmul(hidden_rep[:, -int(hidden_dim*0.8):], beta_scale_e3).squeeze()
+        dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
+                              beta=beta, device=device, dtype=dtype)
+        dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
+                              beta=beta, device=device, dtype=dtype)
+        dgp3 = Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3,
+                              beta=beta, device=device, dtype=dtype)
+        dgp1.coeff = torch.rand((n_features,), device=device, dtype=dtype)
+        dgp2.coeff = torch.rand((n_features,), device=device, dtype=dtype)
+        dgp3.coeff = torch.rand((n_features,), device=device, dtype=dtype)
 
         u_e1, u_e2, u_e3 = simulation.simu_mixture(3, n_samples, copula_parameters)
-
-        if dist == "Weibull":
-            e1_time = inverse_transform_weibull(u_e1, shape_e1, scale_e1)
-            e2_time = inverse_transform_weibull(u_e2, shape_e2, scale_e2)
-            e3_time = inverse_transform_weibull(u_e3, shape_e3, scale_e3)
-        elif dist == "Exp":
-            e1_time = inverse_transform_exp(u_e1, shape_e1, scale_e1)
-            e2_time = inverse_transform_exp(u_e2, shape_e2, scale_e2)
-            e3_time = inverse_transform_exp(u_e3, shape_e3, scale_e3)
-        elif dist == "Lognormal":
-            e1_time = inverse_transform_lognormal(u_e1, shape_e1, scale_e1)
-            e2_time = inverse_transform_lognormal(u_e2, shape_e2, scale_e2)
-            e3_time = inverse_transform_lognormal(u_e3, shape_e3, scale_e3)
-        else:
-            raise ValueError('Dist not implemented')
+        u = torch.from_numpy(u_e1).type(dtype).reshape(-1,1)
+        v = torch.from_numpy(u_e2).type(dtype).reshape(-1,1)
+        w = torch.from_numpy(u_e3).type(dtype).reshape(-1,1)
+        uv = torch.cat([u,v,w], axis=1)
+        
+        t1_times = dgp1.rvs(X, uv[:,0])
+        t2_times = dgp2.rvs(X, uv[:,1])
+        t3_times = dgp3.rvs(X, uv[:,2])
         
         # Make adm. censoring
-        event_times = np.stack([e1_time, e2_time, e3_time], axis=1)
-        event_times = np.minimum(event_times, adm_cens_time)
-        event_ind = (event_times < adm_cens_time).astype(int)
+        event_times = np.stack([t1_times, t2_times, t3_times], axis=1)
+        event_times = np.minimum(event_times, adm_censoring_time)
+        event_indicators = (event_times < adm_censoring_time).astype(int)
 
         # Format data
         columns = [f'X{i}' for i in range(n_features)]
-        df = pd.DataFrame(X, columns=columns)
-        self.X = df
-        self.num_features = self._get_num_features(self.X)
-        self.cat_features = self._get_cat_features(self.X)
-        self.y_t = np.stack((event_times[:,0], event_times[:,1], event_times[:,2]), axis=1)
-        self.y_e = np.stack((event_ind[:,0], event_ind[:,1], event_ind[:,2]), axis=1)
-        self.n_events = 3
+        self.X = pd.DataFrame(X, columns=columns)
+        self.y_t = event_times
+        self.y_e = event_indicators
+        self.dgps = [dgp1, dgp2, dgp3]
         
-        self.params = [beta, beta_shape_e1, beta_scale_e1, beta_shape_e2,
-                       beta_scale_e2, beta_shape_e3, beta_scale_e3]
         return self
     
-    def split_data(self, train_size: float,
-                   valid_size: float,
-                   random_state=0):
-        # Split multi event data
-        raw_data = self.X
-        event_time = self.y_t
-        labs = self.y_e
+    def split_data(self, train_size: float, valid_size: float,
+                   test_size: float, dtype=torch.float64, random_state=0):
+        df = pd.DataFrame(self.X)
+        df['e1'] = self.y_e[:,0]
+        df['e2'] = self.y_e[:,1]
+        df['e3'] = self.y_e[:,2]
+        df['t1'] = self.y_t[:,0]
+        df['t2'] = self.y_t[:,1]
+        df['t3'] = self.y_t[:,2]
         
-        traj_labs = labs
-        if labs.shape[1] > 1:
-            traj_labs = get_trajectory_labels(labs)
-
-        #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
-                                          random_state=random_state)
-        train_i, test_i = next(splitter.split(raw_data, traj_labs))
-
-        train_data = raw_data.iloc[train_i, :]
-        train_labs = labs[train_i, :]
-        train_event_time = event_time[train_i, :]
-
-        pretest_data = raw_data.iloc[test_i, :]
-        pretest_labs = labs[test_i, :]
-        pretest_event_time = event_time[test_i, :]
-
-        #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size,
-                                          random_state=random_state)
-        new_pretest_labs = get_trajectory_labels(pretest_labs)
-        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
-        test_data = pretest_data.iloc[test_i, :]
-        test_labs = pretest_labs[test_i, :]
-        test_event_time = pretest_event_time[test_i, :]
-
-        val_data = pretest_data.iloc[val_i, :]
-        val_labs = pretest_labs[val_i, :]
-        val_event_time = pretest_event_time[val_i, :]
-
-        #package for convenience
-        train_pkg = [train_data, train_event_time, train_labs]
-        valid_pkg = [val_data, val_event_time, val_labs]
-        test_pkg = [test_data, test_event_time, test_labs]
-
-        return (train_pkg, valid_pkg, test_pkg)
+        train_df, remaining_df = train_test_split(df, train_size=0.7, random_state=random_state)
+        valid_df, test_df = train_test_split(remaining_df, test_size=0.5,random_state=random_state)
+        
+        dataframes = [train_df, valid_df, test_df]
+        dicts = []
+        for dataframe in dataframes:
+            data_dict = dict()
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':'X9'].values, dtype=dtype)
+            data_dict['E'] = torch.stack([torch.tensor(dataframe['e1'].values, dtype=dtype),
+                                          torch.tensor(dataframe['e2'].values, dtype=dtype),
+                                          torch.tensor(dataframe['e3'].values, dtype=dtype)], axis=1)
+            data_dict['T'] = torch.stack([torch.tensor(dataframe['t1'].values, dtype=dtype),
+                                          torch.tensor(dataframe['t2'].values, dtype=dtype),
+                                          torch.tensor(dataframe['t3'].values, dtype=dtype)], axis=1)
+            dicts.append(data_dict)
+            
+        return dicts[0], dicts[1], dicts[2]
 
 class ALSDataLoader(BaseDataLoader):
     """

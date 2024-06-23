@@ -192,6 +192,7 @@ def train_mtlr_model(
         time_bins: NumericArrayLike,
         config: dotdict,
         random_state: int,
+        dtype: torch.dtype,
         reset_model: bool = True,
         device: torch.device = torch.device("cuda")
 ) -> nn.Module:
@@ -214,8 +215,8 @@ def train_mtlr_model(
     pbar = trange(config.num_epochs, disable=not config.verbose)
 
     start_time = datetime.now()
-    x, y = reformat_survival(data_train, time_bins)
-    x_val, y_val = reformat_survival(data_val, time_bins)
+    x, y = reformat_survival(data_train, time_bins, dtype)
+    x_val, y_val = reformat_survival(data_val, time_bins, dtype)
     x_val, y_val = x_val.to(device), y_val.to(device)
     train_loader = DataLoader(TensorDataset(x, y), batch_size=config.batch_size, shuffle=True)
     for i in pbar:

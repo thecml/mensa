@@ -1,0 +1,291 @@
+from sksurv.linear_model import CoxPHSurvivalAnalysis, CoxnetSurvivalAnalysis
+from sksurv.ensemble import GradientBoostingSurvivalAnalysis
+from sksurv.ensemble import RandomSurvivalForest
+from pycox.models import DeepHitSingle
+import torchtuples as tt
+from pycox.models import DeepHit
+from auton_survival.estimators import SurvivalModel
+import torch
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import argparse
+import pandas as pd
+from typing import List, Tuple, Optional, Union
+from datetime import datetime
+import torch
+import torch.optim as optim
+import torch.nn as nn
+from tqdm import trange
+from torch.utils.data import DataLoader, TensorDataset
+from utility.survival import reformat_survival
+from utility.loss import mtlr_nll, cox_nll
+from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split_multi, make_stratified_split_single
+from utility.data import MultiEventDataset
+from utility.data import dotdict
+from utility.survival import cox_survival, calculate_baseline_hazard
+from sksurv.linear_model.coxph import BreslowEstimator
+
+Numeric = Union[float, int, bool]
+NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
+
+class CauseSpecificNet(torch.nn.Module):
+    """Network structure similar to the DeepHit paper, but without the residual
+    connections (for simplicity).
+    """
+    def __init__(self, in_features, num_nodes_shared, num_nodes_indiv, num_risks,
+                out_features, batch_norm=True, dropout=None):
+        super().__init__()
+        self.shared_net = tt.practical.MLPVanilla(
+            in_features, num_nodes_shared[:-1], num_nodes_shared[-1],
+            batch_norm, dropout,
+        )
+        self.risk_nets = torch.nn.ModuleList()
+        for _ in range(num_risks):
+            net = tt.practical.MLPVanilla(
+                num_nodes_shared[-1], num_nodes_indiv, out_features,
+                batch_norm, dropout,
+            )
+            self.risk_nets.append(net)
+
+    def forward(self, input):
+        out = self.shared_net(input)
+        out = [net(out) for net in self.risk_nets]
+        out = torch.stack(out, dim=1)
+        return out
+    
+class DeepSurv(nn.Module):
+    def __init__(self, in_features: int, config: argparse.Namespace):
+        super().__init__()
+        if in_features < 1:
+            raise ValueError("The number of input features must be at least 1")
+        self.config = config
+        self.in_features = in_features
+        self.time_bins = None
+        self.cum_baseline_hazard = None
+        self.baseline_survival = None
+        n_hidden=100
+        
+        # Shared parameters
+        self.hidden = nn.Sequential(
+            nn.Linear(in_features, n_hidden),
+            nn.ReLU(),
+        )
+        self.fc1 = nn.Linear(n_hidden, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Shared embedding
+        hidden = self.hidden(x)
+        return self.fc1(hidden)
+
+    def calculate_baseline_survival(self, x, t, e):
+        outputs = self.forward(x)
+        self.time_bins, self.cum_baseline_azhard, self.baseline_survival = calculate_baseline_hazard(outputs, t, e)
+
+    def reset_parameters(self):
+        return self
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(in_features={self.in_features}"
+
+    def get_name(self):
+        return self._get_name()
+
+def make_cox_model(config):
+    n_iter = config['n_iter']
+    tol = config['tol']
+    model = CoxPHSurvivalAnalysis(alpha=0.0001, n_iter=n_iter, tol=tol)
+    return model
+
+def make_coxnet_model(config):
+    l1_ratio = config['l1_ratio']
+    alpha_min_ratio = config['alpha_min_ratio']
+    n_alphas = config['n_alphas']
+    normalize = config['normalize']
+    tol = config['tol']
+    max_iter = config['max_iter']
+    model = CoxnetSurvivalAnalysis(fit_baseline_model=True,
+                                   l1_ratio=l1_ratio,
+                                   alpha_min_ratio=alpha_min_ratio,
+                                   n_alphas=n_alphas,
+                                   normalize=normalize,
+                                   tol=tol,
+                                   max_iter=max_iter)
+    return model
+
+def make_coxboost_model(config):
+    n_estimators = config['n_estimators']
+    learning_rate = config['learning_rate']
+    max_depth = config['max_depth']
+    loss = config['loss']
+    min_samples_split = config['min_samples_split']
+    min_samples_leaf = config['min_samples_leaf']
+    max_features = config['max_features']
+    dropout_rate = config['dropout_rate']
+    subsample = config['subsample']
+    model = GradientBoostingSurvivalAnalysis(n_estimators=n_estimators,
+                                            learning_rate=learning_rate,
+                                            max_depth=max_depth,
+                                            loss=loss,
+                                            min_samples_split=min_samples_split,
+                                            min_samples_leaf=min_samples_leaf,
+                                            max_features=max_features,
+                                            dropout_rate=dropout_rate,
+                                            subsample=subsample,
+                                            random_state=0)
+    return model
+
+def make_dcph_model(config):
+    layers = config['network_layers']
+    n_iter = config['n_iter']
+    learning_rate = config['learning_rate']
+    batch_size = config['batch_size']
+    return SurvivalModel('dcph', random_seed=0, iters=n_iter, layers=layers,
+                         learning_rate=learning_rate, batch_size=batch_size)
+    
+def make_dsm_model(config):
+    layers = config['network_layers']
+    n_iter = config['n_iter']
+    learning_rate = config['learning_rate']
+    batch_size = config['batch_size']
+    return SurvivalModel('dsm', random_seed=0, iters=n_iter,
+                         layers=layers, distribution='Weibull',
+                         max_features='sqrt', learning_rate=learning_rate,
+                         batch_size=batch_size)
+
+def make_rsf_model(config):
+    n_estimators = config['n_estimators']
+    max_depth = config['max_depth']
+    min_samples_split = config['min_samples_split']
+    min_samples_leaf =  config['min_samples_leaf']
+    max_features = config['max_features']
+    model = RandomSurvivalForest(random_state=0,
+                                n_estimators=n_estimators,
+                                max_depth=max_depth,
+                                min_samples_split=min_samples_split,
+                                min_samples_leaf=min_samples_leaf,
+                                max_features=max_features)
+    return model
+
+"""
+def make_deephit_single_model(config, in_features, out_features, duration_index):
+    num_nodes = config['num_nodes']
+    batch_norm = config['batch_norm']
+    dropout = config['dropout']
+    net = tt.practical.MLPVanilla(in_features, num_nodes, out_features, batch_norm, dropout)
+    model = DeepHitSingle(net, tt.optim.Adam, alpha=config['alpha'],
+                          sigma=config['sigma'], duration_index=duration_index)
+    model.optimizer.set_lr(config['lr'])
+    return model
+"""
+
+def make_deephit_model(config, in_features, out_features, num_risks, duration_index):
+    num_nodes_shared = config['num_nodes_shared']
+    num_nodes_indiv = config['num_nodes_indiv']
+    batch_norm = config['batch_norm']
+    dropout = config['dropout']
+    net = CauseSpecificNet(in_features, num_nodes_shared, num_nodes_indiv, num_risks,
+                           out_features, batch_norm, dropout)
+    optimizer = tt.optim.AdamWR(lr=config['lr'],
+                                decoupled_weight_decay=config['weight_decay'],
+                                cycle_eta_multiplier=config['eta_multiplier'])
+    model = DeepHit(net, optimizer, alpha=config['alpha'], sigma=config['sigma'],
+                    duration_index=duration_index)
+    return model
+
+def train_deepsurv_model(
+        model: nn.Module,
+        data_train: pd.DataFrame,
+        time_bins: NumericArrayLike,
+        config: argparse.Namespace,
+        random_state: int,
+        reset_model: bool = True,
+        device: torch.device = torch.device("cuda"),
+        dtype: torch.dtype = torch.float64
+) -> nn.Module:
+    if config.verbose:
+        print(f"Training {model.get_name()}: reset mode is {reset_model}, number of epochs is {config.num_epochs}, "
+              f"learning rate is {config.lr}, C1 is {config.c1}, "
+              f"batch size is {config.batch_size}, device is {device}.")
+    data_train, _, data_val = make_stratified_split_single(data_train, stratify_colname='both',
+                                                           frac_train=0.9, frac_test=0.1,
+                                                           random_state=random_state)
+
+    train_size = data_train.shape[0]
+    val_size = data_val.shape[0]
+    optimizer = optim.Adam(model.parameters(), lr=config.lr)
+
+    if reset_model:
+        model.reset_parameters()
+
+    model = model.to(device)
+    model.train()
+    best_val_nll = np.inf
+    best_ep = -1
+
+    pbar = trange(config.num_epochs, disable=not config.verbose)
+
+    start_time = datetime.now()
+    x_train, t_train, e_train = (torch.tensor(data_train.drop(["time", "event"], axis=1).values, dtype=dtype),
+                                 torch.tensor(data_train["time"].values, dtype=dtype),
+                                 torch.tensor(data_train["event"].values, dtype=dtype))
+    x_val, t_val, e_val = (torch.tensor(data_val.drop(["time", "event"], axis=1).values, dtype=dtype).to(device),
+                           torch.tensor(data_val["time"].values, dtype=dtype).to(device),
+                           torch.tensor(data_val["event"].values, dtype=dtype).to(device))
+
+    train_loader = DataLoader(TensorDataset(x_train, t_train, e_train), batch_size=train_size, shuffle=True)
+    model.config.batch_size = train_size
+
+    for i in pbar:
+        nll_loss = 0
+        for xi, ti, ei in train_loader:
+            xi, ti, ei = xi.to(device), ti.to(device), ei.to(device)
+            optimizer.zero_grad()
+            y_pred = model.forward(xi)
+            nll_loss = cox_nll(y_pred, 1, 0, ti, ei, model, C1=config.c1)
+
+            nll_loss.backward()
+            optimizer.step()
+            # here should have only one iteration
+        logits_outputs = model.forward(x_val)
+        eval_nll = cox_nll(logits_outputs, 1, 0, t_val, e_val, model, C1=0)
+        pbar.set_description(f"[epoch {i + 1: 4}/{config.num_epochs}]")
+        pbar.set_postfix_str(f"nll-loss = {nll_loss.item():.4f}; "
+                                f"Validation nll = {eval_nll.item():.4f};")
+        if config.early_stop:
+            if best_val_nll > eval_nll:
+                best_val_nll = eval_nll
+                best_ep = i
+            if (i - best_ep) > config.patience:
+                print(f"Validation loss converges at {best_ep}-th epoch.")
+                break
+
+    end_time = datetime.now()
+    training_time = end_time - start_time
+    print(f"Training time: {training_time.total_seconds()}")
+    # model.eval()
+    model.calculate_baseline_survival(x_train.to(device), t_train.to(device), e_train.to(device))
+    return model
+
+def make_deepsurv_prediction(
+        model: DeepSurv,
+        x: torch.Tensor,
+        config: argparse.Namespace,
+        dtype: torch.dtype
+):
+    model.eval()
+    start_time = datetime.now()
+    with torch.no_grad():
+        pred = model.forward(x)
+        end_time = datetime.now()
+        inference_time = end_time - start_time
+        if config.verbose:
+            print(f"Inference time: {inference_time.total_seconds()}")
+        survival_curves = cox_survival(model.baseline_survival, pred, dtype)
+        survival_curves = survival_curves.squeeze()
+
+    time_bins = model.time_bins
+    return survival_curves, time_bins, survival_curves.unsqueeze(0).repeat(config.n_samples_test, 1, 1)
+    
+    

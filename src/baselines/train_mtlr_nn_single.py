@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import config as cfg
 from utility.survival import make_time_bins
-from utility.evaluator import LifelinesEvaluator
+from utility.evaluation import LifelinesEvaluator
 import torch
 import random
 import warnings

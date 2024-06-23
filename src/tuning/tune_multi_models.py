@@ -6,14 +6,14 @@ import config as cfg
 from pycox.evaluation import EvalSurv
 import torch
 from utility.tuning import *
-from sota_builder import *
+from sota_models import *
 from utility.data import dotdict
 import data_loader
 from utility.survival import make_time_bins, preprocess_data, convert_to_structured
 from utility.survival import make_time_bins_hierarchical, digitize_and_convert
 from utility.data import calculate_vocab_size, format_data_for_survtrace
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from utility.evaluator import LifelinesEvaluator
+from utility.evaluation import LifelinesEvaluator
 from survtrace.model import SurvTraceMulti
 from survtrace.train_utils import Trainer
 from utility.config import load_config
@@ -68,9 +68,9 @@ def main():
         raise ValueError("Model not found")
     
     sweep_id = wandb.sweep(sweep_config, project=f'{PROJECT_NAME}_{model_name}')
-    wandb.agent(sweep_id, train_model, count=N_RUNS)
+    wandb.agent(sweep_id, train_deepsurv_model, count=N_RUNS)
 
-def train_model():
+def train_deepsurv_model():
     if model_name == "direct":
         config_defaults = cfg.DIRECT_FULL_PARAMS
     elif model_name == "hierarch":

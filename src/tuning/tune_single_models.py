@@ -6,12 +6,12 @@ import config as cfg
 from pycox.evaluation import EvalSurv
 import torch
 from utility.tuning import *
-from sota_builder import *
+from sota_models import *
 from utility.data import dotdict
 import data_loader
 from utility.survival import make_time_bins, preprocess_data, convert_to_structured
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from utility.evaluator import LifelinesEvaluator
+from utility.evaluation import LifelinesEvaluator
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -64,12 +64,12 @@ def main():
         raise ValueError("Model not found")
     
     sweep_id = wandb.sweep(sweep_config, project=f'{PROJECT_NAME}_{model_name}')
-    wandb.agent(sweep_id, train_model, count=N_RUNS)
+    wandb.agent(sweep_id, train_deepsurv_model, count=N_RUNS)
 
-def train_model():
+def train_deepsurv_model():
 # Make and train mdoel
     if model_name == "cox":
-        config_defaults = cfg.COX_PARAMS
+        config_defaults = cfg.DEEPSURV_PARAMS
     elif model_name == "coxboost":
         config_defaults = cfg.COXBOOST_PARAMS
     elif model_name == "rsf":

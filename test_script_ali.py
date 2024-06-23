@@ -2,7 +2,9 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from pycop import simulation
-
+from Copula import Frank3, Gumbel3
+from l1_eval import surv_diff
+from nested_copula import NestedClayton
 
 
 
@@ -117,6 +119,74 @@ def single_loss(model, data, event_name='t1'):#estimates loss assuming every thi
 
 
 
+class Weibull_linear:
+    def __init__(self, nf, alpha, gamma, device):
+        #torch.manual_seed(0)
+        self.nf = nf
+        self.alpha = torch.tensor([alpha], device=device).type(torch.float32)
+        self.gamma = torch.tensor([gamma], device=device).type(torch.float32)
+        
+        self.coeff = torch.rand((nf,), device=device).type(torch.float32)#.clamp(0.1,1.0)
+        
+
+    def PDF(self ,t ,x):
+        return self.hazard(t, x) * self.survival(t,x)
+    
+    def CDF(self ,t ,x):   
+        return 1 - self.survival(t,x)
+    
+    def survival(self ,t ,x):   
+        return torch.exp(-self.cum_hazard(t,x))
+    
+    def hazard(self, t, x):
+        return ((self.gamma/self.alpha)*((t/self.alpha)**(self.gamma-1))) * torch.exp(torch.matmul(x, self.coeff))
+        
+
+    def cum_hazard(self, t, x):
+        return ((t/self.alpha)**self.gamma) * torch.exp(torch.matmul(x, self.coeff))
+    
+    
+    def rvs(self, x, u):
+        return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
+
+
+class Weibull_log_linear:
+    def __init__(self, nf, mu, sigma, device) -> None:
+        #torch.manual_seed(0)
+        self.nf = nf
+        self.mu = torch.tensor([mu], device=device).type(torch.float32)
+        self.sigma = torch.tensor([sigma], device=device).type(torch.float32)
+        self.coeff = torch.rand((nf,), device=device)
+    
+    def survival(self,t,x):
+        return torch.exp(-1*torch.exp((LOG(t)-self.mu-torch.matmul(x, self.coeff))/torch.exp(self.sigma)))
+    
+    def cum_hazard(self, t,x):
+        return torch.exp((LOG(t)-self.mu-torch.matmul(x, self.coeff))/torch.exp(self.sigma))
+    
+    def hazard(self, t,x):
+        return self.cum_hazard(t,x)/(t*torch.exp(self.sigma))
+    
+    def PDF(self,t,x):
+        return self.survival(t,x) * self.hazard(t,x)
+    
+    def CDF(self, t,x ):
+        return 1 - self.survival(t,x)
+    
+    def enable_grad(self):
+        self.sigma.requires_grad = True
+        self.mu.requires_grad = True
+        self.coeff.requires_grad = True
+    
+    def parameters(self):
+        return [self.sigma, self.mu, self.coeff]
+    
+    def rvs(self, x, u):
+        tmp = LOG(-1*LOG(u))*torch.exp(self.sigma)
+        tmp1 = torch.matmul(x, self.coeff) + self.mu
+        return torch.exp(tmp+tmp1)
+
+
 class Exp_linear:
     def __init__(self, bh, nf) -> None:
         self.nf = nf
@@ -174,21 +244,25 @@ if __name__ == "__main__":
     DEVICE = 'cpu'
     torch.manual_seed(0)
     np.random.seed(0)
-    nf = 1
+    nf = 10
     n_train = 10000
     n_val = 5000
     n_test = 5000
     x_dict = synthetic_x(n_train, n_val, n_test, nf, DEVICE)
-    dgp1 = Exp_linear(0.1, nf)
-    dgp2 = Exp_linear(0.06, nf)
-    dgp3 = Exp_linear(0.07, nf)
+    dgp1 = Weibull_linear(nf, alpha=17, gamma=3, device=DEVICE)
+    dgp2 = Weibull_linear(nf, alpha=16, gamma=3, device=DEVICE)
+    dgp3 = Weibull_linear(nf, alpha=17, gamma=4, device=DEVICE)
+
+    """dgp1 = Exp_linear(0.1, nf)
+    dgp2 = Exp_linear(0.09, nf)
+    dgp3 = Exp_linear(0.06, nf)"""
     dgp1.coeff = torch.rand((nf,),device=DEVICE)
     dgp2.coeff = torch.rand((nf,), device=DEVICE)
     dgp3.coeff = torch.rand((nf,), device=DEVICE)
 
 
     copula_dgp = 'clayton'
-    theta_dgp = 2.0
+    theta_dgp = 8.0
     eps = 1e-4
 
     train_dict, val_dict, test_dict = \
@@ -200,12 +274,15 @@ if __name__ == "__main__":
     #assert 0
 
     #copula for estimation
-    copula_start_point = 8.0
+    copula_start_point = 2.0
+    #copula = Clayton(torch.tensor([copula_start_point]),eps, DEVICE)
+    #copula = Frank(torch.tensor([copula_start_point]),eps, DEVICE)
     copula = Clayton(torch.tensor([copula_start_point]),eps, DEVICE)
+    copula = NestedClayton(torch.tensor([copula_start_point]),torch.tensor([copula_start_point]),eps,eps, DEVICE)
     
-    indep_model1 = Exp_linear_model(0.1, nf)
-    indep_model2 = Exp_linear_model(0.1, nf)
-    indep_model3 = Exp_linear_model(0.1, nf)
+    indep_model1 = Weibull_log_linear(nf, mu=2, sigma=2, device=DEVICE)
+    indep_model2 = Weibull_log_linear(nf, mu=2, sigma=2, device=DEVICE)
+    indep_model3 = Weibull_log_linear(nf, mu=2, sigma=2, device=DEVICE)
     
     indep_model1.enable_grad()
     indep_model2.enable_grad()
@@ -218,7 +295,7 @@ if __name__ == "__main__":
                                     {"params": indep_model3.parameters(), "lr": 1e-2},
                                 ])
     #add pretraining to make sure its possible to converge to the correct model
-    pre_trainn_epochs = 200
+    pre_trainn_epochs = 20
     for i in range(pre_trainn_epochs):
         optimizer.zero_grad()
         loss = single_loss(indep_model1, train_dict, 't1')
@@ -244,23 +321,26 @@ if __name__ == "__main__":
 
     #training loop
 
-    optimizer = torch.optim.Adam([  {"params": indep_model1.parameters(), "lr": 1e-2},
-                                    {"params": indep_model2.parameters(), "lr": 1e-2},
-                                    {"params": indep_model3.parameters(), "lr": 1e-2},
-                                    {"params": [copula.theta], "lr": 1e-3}
+    optimizer = torch.optim.Adam([  {"params": indep_model1.parameters(), "lr": 1e-3},
+                                    {"params": indep_model2.parameters(), "lr": 1e-3},
+                                    {"params": indep_model3.parameters(), "lr": 1e-3},
+                                    {"params": copula.parameters(), "lr": 1e-3}
                                 ])
     n_epochs = 10000
     for i in range(n_epochs):
         optimizer.zero_grad()
         loss = loss_triple(indep_model1, indep_model2, indep_model3, train_dict, copula)
         loss.backward()
+        for p in copula.parameters():
+            p.grad = p.grad * 1000
+            p.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
         
-        copula.theta.grad = copula.theta.grad*1000
+        #copula.theta.grad = copula.theta.grad*1000
         #play with the clip range to see if it makes any differences 
-        copula.theta.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
+        #copula.theta.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
         optimizer.step()
         if i%500 == 0:
-            print(loss, copula.theta)
+            print(loss, copula.parameters())
 
     print("###############################################################")
     #NLL of all of the events together
@@ -274,3 +354,8 @@ if __name__ == "__main__":
     print("Event 1--> trained model: ", single_loss(indep_model1, val_dict, 't1'), "\tDGP:", single_loss(dgp1, val_dict, 't1'))
     print("Event 2--> trained model: ", single_loss(indep_model2, val_dict, 't2'), "\tDGP:", single_loss(dgp2, val_dict, 't2'))
     print("Event 3--> trained model: ", single_loss(indep_model3, val_dict, 't3'), "\tDGP:", single_loss(dgp3, val_dict, 't3'))
+
+
+    print(surv_diff(dgp1, indep_model1, val_dict['X'], 200))
+    print(surv_diff(dgp2, indep_model2, val_dict['X'], 200))
+    print(surv_diff(dgp3, indep_model3, val_dict['X'], 200))
