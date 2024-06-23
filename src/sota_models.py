@@ -21,7 +21,7 @@ from tqdm import trange
 from torch.utils.data import DataLoader, TensorDataset
 from utility.survival import reformat_survival
 from utility.loss import mtlr_nll, cox_nll
-from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split_multi, make_stratified_split_single
+from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split
 from utility.data import MultiEventDataset
 from utility.data import dotdict
 from utility.survival import cox_survival, calculate_baseline_hazard
@@ -95,7 +95,7 @@ class DeepSurv(nn.Module):
 def make_cox_model(config):
     n_iter = config['n_iter']
     tol = config['tol']
-    model = CoxPHSurvivalAnalysis(alpha=0.0001, n_iter=n_iter, tol=tol)
+    model = CoxPHSurvivalAnalysis(alpha=0.0001)
     return model
 
 def make_coxnet_model(config):
@@ -180,7 +180,7 @@ def make_deephit_single_model(config, in_features, out_features, duration_index)
     return model
 """
 
-def make_deephit_model(config, in_features, out_features, num_risks, duration_index):
+def make_deephit_cr(config, in_features, out_features, num_risks, duration_index):
     num_nodes_shared = config['num_nodes_shared']
     num_nodes_indiv = config['num_nodes_indiv']
     batch_norm = config['batch_norm']
@@ -208,7 +208,7 @@ def train_deepsurv_model(
         print(f"Training {model.get_name()}: reset mode is {reset_model}, number of epochs is {config.num_epochs}, "
               f"learning rate is {config.lr}, C1 is {config.c1}, "
               f"batch size is {config.batch_size}, device is {device}.")
-    data_train, _, data_val = make_stratified_split_single(data_train, stratify_colname='both',
+    data_train, _, data_val = make_stratified_split(data_train, stratify_colname='both',
                                                            frac_train=0.9, frac_test=0.1,
                                                            random_state=random_state)
 
@@ -288,4 +288,39 @@ def make_deepsurv_prediction(
     time_bins = model.time_bins
     return survival_curves, time_bins, survival_curves.unsqueeze(0).repeat(config.n_samples_test, 1, 1)
     
+def make_deephit_single(in_features, out_features, time_bins, device, config):
+    num_nodes = config['num_nodes_shared']
+    batch_norm = config['batch_norm']
+    dropout = config['dropout']
+    labtrans = DeepHitSingle.label_transform(time_bins)
+    net = tt.practical.MLPVanilla(in_features=in_features, num_nodes=num_nodes,
+                                  out_features=labtrans.out_features, batch_norm=batch_norm,
+                                  dropout=dropout)
+    model = DeepHitSingle(net, tt.optim.Adam, device=device, alpha=0.2, sigma=0.1,
+                          duration_index=labtrans.cuts)
+    model.label_transform = labtrans
+    return model
     
+def make_deephit_multi(config, in_features, out_features, num_risks, duration_index):
+    num_nodes_shared = config['num_nodes_shared']
+    num_nodes_indiv = config['num_nodes_indiv']
+    batch_norm = config['batch_norm']
+    dropout = config['dropout']
+    net = CauseSpecificNet(in_features, num_nodes_shared, num_nodes_indiv, num_risks,
+                           out_features, batch_norm, dropout)
+    optimizer = tt.optim.AdamWR(lr=config['lr'],
+                                decoupled_weight_decay=config['weight_decay'],
+                                cycle_eta_multiplier=config['eta_multiplier'])
+    model = DeepHit(net, optimizer, alpha=config['alpha'], sigma=config['sigma'],
+                    duration_index=duration_index)
+
+def train_deephit_model(model, x_train, y_train, valid_data, config):
+    epochs = config['epochs']
+    batch_size = config['batch_size']
+    verbose = config['verbose']
+    if config['early_stop']:
+        callbacks = [tt.callbacks.EarlyStopping(patience=config['patience'])]
+    else:
+        callbacks = []
+    model.fit(x_train, y_train, batch_size, epochs, callbacks, verbose, val_data=valid_data)
+    return model

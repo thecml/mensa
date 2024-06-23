@@ -70,3 +70,33 @@ seer_settings = \
     'min_epoch': 1, \
     'max_epoch': 10 \
 }
+
+synthetic_cr_settings = \
+{
+    'num_events': 3, \
+    'num_bins': 15, \
+    'terminal_events': [0, 1, 2], \
+    'discrete': True, \
+    'event_ranks': {0:[1, 2], 1:[0, 2], 2:[0, 1]}, \
+    'event_groups': {0:[0, 1, 2]}, \
+    'min_time': 0, \
+    'max_time': 120, \
+    'min_epoch': 1, \
+    'max_epoch': 10 \
+}
+
+synthetic_me_settings = \
+{
+    'num_events': 3, \
+    'num_bins': 15, \
+    'terminal_events': [], \
+    'discrete': True, \
+    'event_ranks': {0:[], 1:[], 2:[]}, \
+    'event_groups': {0:[0, 1, 2],
+                     1:[0, 1, 2],
+                     2:[0, 1, 2]}, \
+    'min_time': 0, \
+    'max_time': 120, \
+    'min_epoch': 1, \
+    'max_epoch': 100 \
+}

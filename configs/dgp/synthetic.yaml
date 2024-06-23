@@ -1,0 +1,32 @@
+# Single event
+se_alpha_e1: 8
+se_alpha_e2: 9
+se_gamma_e1: 4
+se_gamma_e2: 3
+se_n_events: 2
+se_k_tau: 0.25
+se_n_samples: 1000
+se_n_features: 10
+
+# Competing risks
+cr_alpha_e1: 18
+cr_alpha_e2: 17
+cr_alpha_e3: 16
+cr_gamma_e1: 8
+cr_gamma_e2: 8
+cr_gamma_e3: 8
+cr_n_events: 3
+cr_k_tau: 0.25
+cr_n_samples: 1000
+cr_n_features: 10
+
+# Multi event
+me_alpha_e1: 18
+me_alpha_e2: 17
+me_alpha_e3: 16
+me_gamma_e1: 8
+me_gamma_e2: 8
+me_gamma_e3: 8
+me_n_events: 3
+me_n_samples: 1000
+me_n_features: 10

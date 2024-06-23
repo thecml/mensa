@@ -14,11 +14,7 @@ __pycache__/
 /data/pat_to_visit.csv
 
 # Results
-sota_results.csv
-sota_comp_results.csv
-sota_single_results.csv
-sota_multi_results.csv
-mensa_results.csv
+results/*.csv
 
 # NN weights
 weight*
@@ -234,3 +230,4 @@ l10n/
 .vscode/launch.json
 results/model_results.csv
 results/model_results2.csv
+results/synthetic_se_event.csv
