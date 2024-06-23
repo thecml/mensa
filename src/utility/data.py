@@ -10,6 +10,7 @@ from sklearn.preprocessing import LabelEncoder
 from scipy import stats
 from scipy.special import lambertw
 from pycox.preprocessing.label_transforms import LabTransDiscreteTime
+from survtrace.utils import LabelTransform
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -208,7 +209,25 @@ def format_data_as_dict_multi(X, y_t, y_e, dtype):
     data_dict['T3'] = torch.tensor(y_t[:,2], dtype=dtype)
     return data_dict
 
-def format_deephit_data(train_dict, valid_dict, num_durations):
+def format_data_deephit_single(train_dict, valid_dict, labtrans):
+    train_dict_dh = dict()
+    train_dict_dh['X'] = train_dict['X'].numpy()
+    train_dict_dh['E'] = train_dict['E'].numpy()
+    train_dict_dh['T'] = train_dict['T'].numpy()
+    valid_dict_dh = dict()
+    valid_dict_dh['X'] = valid_dict['X'].numpy()
+    valid_dict_dh['E'] = valid_dict['E'].numpy()
+    valid_dict_dh['T'] = valid_dict['T'].numpy()
+    get_target = lambda data: (data['T'], data['E'])
+    y_train = labtrans.transform(*get_target(train_dict_dh))
+    y_valid = labtrans.transform(*get_target(valid_dict_dh))
+    out_features = len(labtrans.cuts)
+    duration_index = labtrans.cuts
+    train_data = {'X': train_dict_dh['X'], 'T': y_train[0], 'E': y_train[1]}
+    valid_data = {'X': valid_dict_dh['X'], 'T': y_valid[0], 'E': y_valid[1]}
+    return train_data, valid_data, out_features, duration_index
+
+def format_data_deephit_cr(train_dict, valid_dict, time_bins):
     class LabTransform(LabTransDiscreteTime):
         def transform(self, durations, events):
             durations, is_event = super().transform(durations, events > 0)
@@ -222,9 +241,9 @@ def format_deephit_data(train_dict, valid_dict, num_durations):
     valid_dict_dh['X'] = valid_dict['X'].numpy()
     valid_dict_dh['E'] = valid_dict['E'].numpy()
     valid_dict_dh['T'] = valid_dict['T'].numpy()
-    labtrans = LabTransform(num_durations)
+    labtrans = LabTransform(time_bins.numpy())
     get_target = lambda data: (data['T'], data['E'])
-    y_train = labtrans.fit_transform(*get_target(train_dict_dh))
+    y_train = labtrans.transform(*get_target(train_dict_dh))
     y_valid = labtrans.transform(*get_target(valid_dict_dh))
     out_features = len(labtrans.cuts)
     duration_index = labtrans.cuts
@@ -255,3 +274,76 @@ def format_hierarchical_data(train_dict, valid_dict, test_dict, num_bins):
     valid_data = [valid_dict['X'], valid_event_bins, valid_events]
     test_data = [test_dict['X'], test_event_bins, test_events]
     return train_data, valid_data, test_data
+
+def format_hierarch_data_multi_event(train_dict, valid_dict, test_dict, num_bins):
+    train_event_bins = make_times_hierarchical(train_dict['T'].numpy(), num_bins=num_bins)
+    valid_event_bins = make_times_hierarchical(valid_dict['T'].numpy(), num_bins=num_bins)
+    test_event_bins = make_times_hierarchical(test_dict['T'].numpy(), num_bins=num_bins)
+    train_events = train_dict['E'].numpy()
+    valid_events = valid_dict['E'].numpy()
+    test_events = test_dict['E'].numpy()
+    train_data = [train_dict['X'], train_event_bins, train_events]
+    valid_data = [valid_dict['X'], valid_event_bins, valid_events]
+    test_data = [test_dict['X'], test_event_bins, test_events]
+    return train_data, valid_data, test_data
+
+def calculate_layer_size_hierarch(n_time_bins):
+    def find_factors(target):
+        factors = []
+        for i in range(1, int(target**0.5) + 1):
+            if target % i == 0:
+                factors.append(i)
+                if i != target // i:
+                    factors.append(target // i)
+        return factors
+    factors_of_target = find_factors(n_time_bins)
+    if 7 in factors_of_target:
+        return [(32, 6), (32, 6)]
+    if 6 in factors_of_target:
+        return [(32, 6), (32, 6)]
+    elif 5 in factors_of_target:
+        return [(32, 5), (32, 5)]
+    elif 4 in factors_of_target:
+        return [(32, 4), (32, 4)]
+    elif 3 in factors_of_target:
+        return [(32, 3), (32, 3)]
+    elif 2 in factors_of_target:
+        return [(32, 2), (32, 2)]
+    elif 1 in factors_of_target:
+        return [(32, 1), (32, 1)]
+    else:
+        raise ValueError("Could not find a factor of layer size")
+    
+def format_survtrace_data(train_dict, valid_dict, time_bins, n_events):
+    class LabTransform(LabTransDiscreteTime):
+        def transform(self, durations, events):
+            durations, is_event = super().transform(durations, events > 0)
+            events[is_event == 0] = 0
+            return durations, events.astype('int64')
+    train_dict_dh = dict()
+    train_dict_dh['X'] = train_dict['X'].numpy()
+    train_dict_dh['E'] = train_dict['E'].numpy()
+    train_dict_dh['T'] = train_dict['T'].numpy()
+    valid_dict_dh = dict()
+    valid_dict_dh['X'] = valid_dict['X'].numpy()
+    valid_dict_dh['E'] = valid_dict['E'].numpy()
+    valid_dict_dh['T'] = valid_dict['T'].numpy()
+    labtrans = LabTransform(time_bins.numpy())
+    get_target = lambda data: (data['T'], data['E'])
+    y_train = labtrans.transform(*get_target(train_dict_dh))
+    y_valid = labtrans.transform(*get_target(valid_dict_dh))
+    out_features = int(labtrans.out_features)
+    duration_index = labtrans.cuts
+    y_train_df, y_valid_df = pd.DataFrame(), pd.DataFrame()
+    y_train_df['duration'] = y_train[0]
+    y_valid_df['duration'] = y_valid[0]
+    y_train_df['proportion'] = y_train[1]
+    y_valid_df['proportion'] = y_valid[1]
+    #for i in range(n_events):
+    #    event_name = "event_{}".format(i)
+        #y_train_df[event_name] = (train_dict['E'] == i) * 1.0
+        #y_valid_df[event_name] = (valid_dict['E'] == i) * 1.0#z
+    #    y_train_df[event_name] = (train_dict['T'])
+    #    y_valid_df[event_name] = (valid_dict['T'])
+    return y_train_df, y_valid_df, duration_index, out_features
+        

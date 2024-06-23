@@ -95,7 +95,7 @@ class DeepSurv(nn.Module):
 def make_cox_model(config):
     n_iter = config['n_iter']
     tol = config['tol']
-    model = CoxPHSurvivalAnalysis(alpha=0.0001, n_iter=n_iter, tol=tol)
+    model = CoxPHSurvivalAnalysis(alpha=0.0001)
     return model
 
 def make_coxnet_model(config):
@@ -180,7 +180,7 @@ def make_deephit_single_model(config, in_features, out_features, duration_index)
     return model
 """
 
-def make_deephit_multi(config, in_features, out_features, num_risks, duration_index):
+def make_deephit_cr(config, in_features, out_features, num_risks, duration_index):
     num_nodes_shared = config['num_nodes_shared']
     num_nodes_indiv = config['num_nodes_indiv']
     batch_norm = config['batch_norm']
@@ -288,15 +288,20 @@ def make_deepsurv_prediction(
     time_bins = model.time_bins
     return survival_curves, time_bins, survival_curves.unsqueeze(0).repeat(config.n_samples_test, 1, 1)
     
-def make_deephit_single(in_features, out_features, duration_index, config):
+def make_deephit_single(in_features, out_features, time_bins, device, config):
     num_nodes = config['num_nodes_shared']
     batch_norm = config['batch_norm']
     dropout = config['dropout']
-    net = tt.practical.MLPVanilla(in_features, num_nodes, out_features, batch_norm, dropout)
-    model = DeepHitSingle(net, tt.optim.Adam, alpha=0.2, sigma=0.1, duration_index=duration_index)
+    labtrans = DeepHitSingle.label_transform(time_bins)
+    net = tt.practical.MLPVanilla(in_features=in_features, num_nodes=num_nodes,
+                                  out_features=labtrans.out_features, batch_norm=batch_norm,
+                                  dropout=dropout)
+    model = DeepHitSingle(net, tt.optim.Adam, device=device, alpha=0.2, sigma=0.1,
+                          duration_index=labtrans.cuts)
+    model.label_transform = labtrans
     return model
     
-def make_deephit_multi(in_features, out_features, num_risks, duration_index, config):
+def make_deephit_multi(config, in_features, out_features, num_risks, duration_index):
     num_nodes_shared = config['num_nodes_shared']
     num_nodes_indiv = config['num_nodes_indiv']
     batch_norm = config['batch_norm']
@@ -308,7 +313,6 @@ def make_deephit_multi(in_features, out_features, num_risks, duration_index, con
                                 cycle_eta_multiplier=config['eta_multiplier'])
     model = DeepHit(net, optimizer, alpha=config['alpha'], sigma=config['sigma'],
                     duration_index=duration_index)
-    return model
 
 def train_deephit_model(model, x_train, y_train, valid_data, config):
     epochs = config['epochs']

@@ -74,7 +74,7 @@ def train_deepsurv_model():
     if model_name == "direct":
         config_defaults = cfg.DIRECT_FULL_PARAMS
     elif model_name == "hierarch":
-        config_defaults = cfg.HIERARCH_FULL_PARAMS
+        config_defaults = cfg.HIERARCH_PARAMS
     else:
         raise ValueError("Model not found")
     

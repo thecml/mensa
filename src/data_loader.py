@@ -67,33 +67,42 @@ class BaseDataLoader(ABC):
         return data.select_dtypes(['object']).columns.tolist()
 
 class SingleEventSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, data_config, copula_name='clayton', k_tau=0, n_samples=10000,
-                  n_features=10, linear=True, device='cpu', dtype=torch.float64,
-                  rng=np.random.default_rng(0)):
+    def load_data(self, data_config, copula_name='clayton', k_tau=0,
+                  linear=True, device='cpu', dtype=torch.float64):
         """
         This method generates synthetic data for single event (and censoring)
         DGP1: Data generation process for event
         DGP2: Data generation process for censoring
         """
-        alpha_e1 = data_config['alpha_e1']
-        alpha_e2 = data_config['alpha_e2']
-        gamma_e1 = data_config['gamma_e1']
-        gamma_e2 = data_config['gamma_e2']
+        alpha_e1 = data_config['se_alpha_e1']
+        alpha_e2 = data_config['se_alpha_e2']
+        gamma_e1 = data_config['se_gamma_e1']
+        gamma_e2 = data_config['se_gamma_e2']
+        n_samples = data_config['se_n_samples']
+        n_features = data_config['se_n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
         beta = torch.rand((n_features,), device=device).type(dtype)
 
-        dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                              beta=beta, device=device, dtype=dtype)
-        dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                              beta=beta, device=device, dtype=dtype)
+        if linear:
+            dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
+                                beta=beta, device=device, dtype=dtype)
+            dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
+                                beta=beta, device=device, dtype=dtype)
+        else:
+            dgp1 = Weibull_nonlinear(n_features, alpha=alpha_e1, gamma=gamma_e1,
+                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
+            dgp2 = Weibull_nonlinear(n_features, alpha=alpha_e2, gamma=gamma_e2,
+                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
+            
         dgp1.coeff = torch.rand((n_features,), device=device, dtype=dtype)
         dgp2.coeff = torch.rand((n_features,), device=device, dtype=dtype)
     
-        if copula_name is None or k_tau == 0: #TODO: Fix if 0
-            uv = torch.randn((X.shape[0], 2), device=device, dtype=dtype) # Sample independent
-            #u_e = rng.uniform(0, 1, n_samples)
-            #u_c = rng.uniform(0, 1, n_samples)
+        if copula_name is None or k_tau == 0:
+            rng = np.random.default_rng(0)
+            u = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
+            v = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
+            uv = torch.stack([u, v], dim=1)
         else:
             theta = kendall_tau_to_theta(copula_name, k_tau)
             u,v = simulation.simu_archimedean(copula_name, 2, X.shape[0], theta=theta)
@@ -137,47 +146,57 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         return dicts[0], dicts[1], dicts[2]
 
 class CompetingRiskSyntheticDataLoader(BaseDataLoader):
-    def load_data(self, data_config, copula_name='clayton', k_tau=0, n_samples=10000,
-                  n_features=10, linear=True, device='cpu', dtype=torch.float64,
-                  rng=np.random.default_rng(0)):
+    def load_data(self, data_config, copula_name='clayton', k_tau=0,
+                  linear=True, device='cpu', dtype=torch.float64):
         """
         This method generates synthetic data for 2 competing risks (and censoring)
         DGP1: Data generation process for event 1
         DGP2: Data generation process for event 2
         DGP3: Data generation process for censoring
         """
-        alpha_e1 = data_config['alpha_e1']
-        alpha_e2 = data_config['alpha_e2']
-        alpha_e3 = data_config['alpha_e3']
-        gamma_e1 = data_config['gamma_e1']
-        gamma_e2 = data_config['gamma_e2']
-        gamma_e3 = data_config['gamma_e3']
+        alpha_e1 = data_config['cr_alpha_e1']
+        alpha_e2 = data_config['cr_alpha_e2']
+        alpha_e3 = data_config['cr_alpha_e3']
+        gamma_e1 = data_config['cr_gamma_e1']
+        gamma_e2 = data_config['cr_gamma_e2']
+        gamma_e3 = data_config['cr_gamma_e3']
+        n_samples = data_config['cr_n_samples']
+        n_features = data_config['cr_n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
         beta = torch.rand((n_features,), device=device).type(dtype)
         
-        dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                              beta=beta, device=device, dtype=dtype)
-        dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                              beta=beta, device=device, dtype=dtype)
-        dgp3 = Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3,
-                              beta=beta, device=device, dtype=dtype)
-        dgp1.coeff = torch.rand((n_features,), device=device, dtype=dtype)
-        dgp2.coeff = torch.rand((n_features,), device=device, dtype=dtype)
-        dgp3.coeff = torch.rand((n_features,), device=device, dtype=dtype)
+        if linear:
+            dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
+                                beta=beta, device=device, dtype=dtype)
+            dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
+                                beta=beta, device=device, dtype=dtype)
+            dgp3 = Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3,
+                                beta=beta, device=device, dtype=dtype)
+        else:
+            dgp1 = Weibull_nonlinear(n_features, alpha=alpha_e1, gamma=gamma_e1,
+                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
+            dgp2 = Weibull_nonlinear(n_features, alpha=alpha_e2, gamma=gamma_e2,
+                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
+            dgp3 = Weibull_nonlinear(n_features, alpha=alpha_e3, gamma=gamma_e3,
+                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
         
-        if copula_name is None or k_tau == 0: #TODO: Fix if 0
-            uv = torch.randn((X.shape[0], 3)) # Sample independent
+        if copula_name is None or k_tau == 0:
+            rng = np.random.default_rng(0)
+            u = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
+            v = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
+            w = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
+            uvw = torch.stack([u, v, w], dim=1)
         else:
             theta = kendall_tau_to_theta(copula_name, k_tau)
             u, v, w = simulation.simu_archimedean(copula_name, 3, X.shape[0], theta=theta)
             u = torch.from_numpy(u).type(dtype).reshape(-1,1)
             v = torch.from_numpy(v).type(dtype).reshape(-1,1)
             w = torch.from_numpy(w).type(dtype).reshape(-1,1)
-            uv = torch.cat([u,v,w], axis=1)
-        t1_times = dgp1.rvs(X, uv[:,0])
-        t2_times = dgp2.rvs(X, uv[:,1])
-        t3_times = dgp3.rvs(X, uv[:,2])
+            uvw = torch.cat([u,v,w], axis=1)
+        t1_times = dgp1.rvs(X, uvw[:,0])
+        t2_times = dgp2.rvs(X, uvw[:,1])
+        t3_times = dgp3.rvs(X, uvw[:,2])
         event_times = np.concatenate([t1_times.reshape(-1,1),
                                       t2_times.reshape(-1,1),
                                       t3_times.reshape(-1,1)], axis=1)
@@ -209,7 +228,8 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         df['t3'] = self.y_t3
         
         df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
-                                                            frac_valid=valid_size, frac_test=test_size, random_state=0)
+                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            random_state=random_state)
         
         dataframes = [df_train, df_valid, df_test]
         dicts = []
@@ -227,20 +247,22 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         
 class MultiEventSyntheticDataLoader(BaseDataLoader):
     def load_data(self, data_config, copula_names=["clayton", "clayton", "clayton"],
-                  k_taus=[0, 0, 0], n_samples=10000, n_features=10, linear=True, device='cpu',
-                  adm_censoring_time=14, dtype=torch.float64, rng=np.random.default_rng(0)):
+                  k_taus=[0, 0, 0], linear=True, device='cpu',
+                  adm_censoring_time=14, dtype=torch.float64):
         """
         This method generates synthetic data for 3 multiple events (with adm. censoring)
         DGP1: Data generation process for event 1
         DGP2: Data generation process for event 2
         DGP3: Data generation process for event 3
         """
-        alpha_e1 = data_config['alpha_e1']
-        alpha_e2 = data_config['alpha_e2']
-        alpha_e3 = data_config['alpha_e3']
-        gamma_e1 = data_config['gamma_e1']
-        gamma_e2 = data_config['gamma_e2']
-        gamma_e3 = data_config['gamma_e3']
+        alpha_e1 = data_config['me_alpha_e1']
+        alpha_e2 = data_config['me_alpha_e2']
+        alpha_e3 = data_config['me_alpha_e3']
+        gamma_e1 = data_config['me_gamma_e1']
+        gamma_e2 = data_config['me_gamma_e2']
+        gamma_e3 = data_config['me_gamma_e3']
+        n_samples = data_config['me_n_samples']
+        n_features = data_config['me_n_features']
         
         thetas = [kendall_tau_to_theta(copula_names[i], k_taus[i]) for i in range(3)]
         copula_parameters = [
@@ -252,15 +274,20 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
         beta = torch.rand((n_features,), device=device).type(dtype)
         
-        dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                              beta=beta, device=device, dtype=dtype)
-        dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                              beta=beta, device=device, dtype=dtype)
-        dgp3 = Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3,
-                              beta=beta, device=device, dtype=dtype)
-        dgp1.coeff = torch.rand((n_features,), device=device, dtype=dtype)
-        dgp2.coeff = torch.rand((n_features,), device=device, dtype=dtype)
-        dgp3.coeff = torch.rand((n_features,), device=device, dtype=dtype)
+        if linear:
+            dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
+                                  beta=beta, device=device, dtype=dtype)
+            dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
+                                  beta=beta, device=device, dtype=dtype)
+            dgp3 = Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3,
+                                  beta=beta, device=device, dtype=dtype)
+        else:
+            dgp1 = Weibull_nonlinear(n_features, alpha=alpha_e1, gamma=gamma_e1,
+                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
+            dgp2 = Weibull_nonlinear(n_features, alpha=alpha_e2, gamma=gamma_e2,
+                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
+            dgp3 = Weibull_nonlinear(n_features, alpha=alpha_e3, gamma=gamma_e3,
+                                     beta=beta, risk_function=relu, device=device, dtype=dtype) 
 
         u_e1, u_e2, u_e3 = simulation.simu_mixture(3, n_samples, copula_parameters)
         u = torch.from_numpy(u_e1).type(dtype).reshape(-1,1)
@@ -288,7 +315,6 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
     
     def split_data(self, train_size: float, valid_size: float,
                    test_size: float, dtype=torch.float64, random_state=0):
-        
         df = pd.DataFrame(self.X)
         df['e1'] = self.y_e[:,0]
         df['e2'] = self.y_e[:,1]
@@ -296,9 +322,11 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         df['t1'] = self.y_t[:,0]
         df['t2'] = self.y_t[:,1]
         df['t3'] = self.y_t[:,2]
+        df['time'] = self.y_t[:,0] # split on first time
         
         df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
-                                                            frac_valid=valid_size, frac_test=test_size, random_state=0)
+                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            random_state=random_state)
         
         dataframes = [df_train, df_valid, df_test]
         dicts = []
@@ -317,7 +345,7 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
 
 class ALSDataLoader(BaseDataLoader):
     """
-    Data loader for ALS dataset
+    Data loader for ALS dataset (ME)
     """
     def load_data(self, n_samples:int = None):
         df = pd.read_csv(f'{cfg.DATA_DIR}/als.csv', index_col=0)
@@ -347,8 +375,9 @@ class ALSDataLoader(BaseDataLoader):
 
 class MimicDataLoader(BaseDataLoader):
     """
-    Data loader for MIMIC dataset
+    Data loader for MIMIC dataset (CR)
     """
+    #TODO: Replace with MIMIC-IV
     def load_data(self, n_samples:int = None):
         '''
         t and e order, followed by arf, shock, death
@@ -376,7 +405,7 @@ class MimicDataLoader(BaseDataLoader):
             mimic_dict = pickle.load(f)
         raw_data = mimic_dict['X']
         event_time = mimic_dict['T']
-        labs = mimic_dict['E']        
+        labs = mimic_dict['E']
         not_early = mimic_dict['not_early']
         
         pat_map = pd.read_csv(str(Path(cfg.DATA_DIR)) + "/" + 'pat_to_visit.csv').to_numpy() #
@@ -388,7 +417,7 @@ class MimicDataLoader(BaseDataLoader):
 
 class SeerDataLoader(BaseDataLoader):
     """
-    Data loader for SEER dataset
+    Data loader for SEER dataset (CR)
     """
     def load_data(self, n_samples:int = None):
         df = pd.read_csv(f'{cfg.DATA_DIR}/seer_processed.csv')
@@ -410,8 +439,9 @@ class SeerDataLoader(BaseDataLoader):
 
 class RotterdamDataLoader(BaseDataLoader):
     """
-    Data loader for Rotterdam dataset
+    Data loader for Rotterdam dataset (ME)
     """
+    #TODO: Convert to competing risks (Weijie)
     def load_data(self, n_samples:int = None):
         df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
         if n_samples:

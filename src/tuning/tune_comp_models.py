@@ -82,7 +82,7 @@ def train_deepsurv_model():
     elif model_name == "direct":
         config_defaults = cfg.DIRECT_FULL_PARAMS
     elif model_name == "hierarch":
-        config_defaults = cfg.HIERARCH_FULL_PARAMS
+        config_defaults = cfg.HIERARCH_PARAMS
     else:
         raise ValueError("Model not found")
     
@@ -130,7 +130,7 @@ def train_deepsurv_model():
         duration_index = np.concatenate([[0], time_bins.numpy()])
         out_features = len(duration_index)
         num_risks = int(df_train['event'].max())
-        model = make_deephit_multi(config, in_features, out_features, num_risks, duration_index)
+        model = make_deephit_cr(config, in_features, out_features, num_risks, duration_index)
         epochs = config['epochs']
         batch_size = config['batch_size']
         verbose = config['verbose']

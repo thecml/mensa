@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from utility.survival import reformat_survival
 from utility.loss import mtlr_nll
 from torchmtlr.model import mtlr_neg_log_likelihood, mtlr_risk, mtlr_survival
-from torchmtlr.utils import make_time_bins, encode_survival, reset_parameters
+from torchmtlr.utils import make_time_bins, encode_mtlr_format, reset_parameters
 from torch.optim import Adam
 
 class dotdict(dict):
@@ -191,16 +191,18 @@ def train_mtlr_model(
     # model.eval()
     return model
 
-def train_mtlr_cr(x, y, model, time_bins,
-                  num_epochs=1000, lr=.01, weight_decay=0.,
-                  C1=1., batch_size=32,
-                  verbose=True, device="cpu"):
+def train_mtlr_cr(x_train, y_train, x_valid, y_valid, model, time_bins,
+                  num_epochs=1000, lr=.01, weight_decay=0., C1=1., batch_size=32,
+                  verbose=True, device="cpu", early_stop=True, patience=10):
     optimizer = make_optimizer(Adam, model, lr=lr, weight_decay=weight_decay)
     reset_parameters(model)
-    print(x.shape, y.shape)
     model = model.to(device)
     model.train()
-    train_loader = DataLoader(TensorDataset(x, y), batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(TensorDataset(x_train, y_train), batch_size=batch_size, shuffle=True)
+    valid_loader = DataLoader(TensorDataset(x_valid, y_valid), batch_size=batch_size, shuffle=False)
+    
+    best_val_nll = np.inf
+    best_ep = -1
     
     pbar =  trange(num_epochs, disable=not verbose)
     for i in pbar:
@@ -211,7 +213,19 @@ def train_mtlr_cr(x, y, model, time_bins,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            
+        logits_outputs = model.forward(x_valid)
+        eval_nll = mtlr_neg_log_likelihood(logits_outputs, y_valid, model, C1, average=True)
+        
         pbar.set_description(f"[epoch {i+1: 4}/{num_epochs}]")
         pbar.set_postfix_str(f"loss = {loss.item():.4f}")
+        
+        if early_stop:
+            if best_val_nll > eval_nll:
+                best_val_nll = eval_nll
+                best_ep = i
+            if (i - best_ep) > patience:
+                break
+        
     model.eval()
     return model

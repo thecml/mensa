@@ -8,7 +8,7 @@ from einops import rearrange
 
 import pandas as pd
 
-def encode_survival(time: Union[float, int, np.ndarray],
+def encode_mtlr_format(time: Union[float, int, np.ndarray],
                     event: Union[int, np.ndarray],
                     bins: np.ndarray) -> torch.Tensor:
     """Encodes survival time and event indicator in the format
@@ -53,7 +53,7 @@ def encode_survival(time: Union[float, int, np.ndarray],
             y[i, :, bin_idx:] = 1
     return torch.tensor(y.reshape(time.shape[0], -1), dtype=torch.float)
 
-def encode_survival_no_censoring(time: Union[float, int, np.ndarray],
+def encode_mtlr_format_no_censoring(time: Union[float, int, np.ndarray],
                                  event: Union[int, np.ndarray],
                                  bins: np.ndarray) -> torch.Tensor:
     """Encodes survival time and event indicator in the format

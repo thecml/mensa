@@ -8,21 +8,8 @@ MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
 CONFIGS_DIR = Path.joinpath(ROOT_DIR, 'configs')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 DATA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'data')
-COX_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'cox')
-COXNET_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'coxnet')
-COXBOOST_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'coxboost')
-RSF_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'rsf')
-DSM_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dsm')
-DCPH_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dcph')
-MTLR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mtlr')
-MTLRCR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mtlrcr')
-DEEPCR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deepcr')
-DCSURVIVAL_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dcsurvival')
-DEEPHIT_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deephit')
-DIRECT_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'direct')
 HIERARCH_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'hierarch')
-SURVTRACE_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'survtrace')
-DATASET_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dataset')
+DGP_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dgp')
 MENSA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mensa')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 
@@ -63,28 +50,13 @@ format (elements in order):
     boolean for whether to use deephit
     number of extra time bins (that represent t > T, for individuals who do not experience event by end of horizon) 
 '''
-DIRECT_FULL_PARAMS = {
-    'theta_layer_size': [32], # size of the shared layer
-    'layer_size_fine_bins': [(32, 5), (32, 5)], #product of the second number has to equal the number of bins
-    'lr': 0.010, # ranges 0.0001 - 0.01
-    'reg_constant': 0.02, # 0.01, 0.02, 0.05
-    'n_batches': 5, # batch size = trainset/n_batches
-    'backward_c_optim': False, # global
-    'hierarchical_loss': False,
-    'alpha': 0.0001, # 0.0001, 0.05, 0.0005, and 0.001
-    'sigma': 100, #10, 100, 1000
-    'use_theta': True,
-    'use_deephit': False,
-    'n_extra_bins': 1,
-    'verbose': True
-}
-
-HIERARCH_FULL_PARAMS = {
-    'theta_layer_size': [15],
-    'layer_size_fine_bins': [(15, 5), (15, 5)],
+HIERARCH_PARAMS = {
+    'theta_layer_size': [32],
+    'layer_size_fine_bins': [(32, 5), (32, 5)],
     'lr': 0.001,
     'reg_constant': 0.05,
-    'n_batches': 5,
+    'n_batches': 10,
+    'batch_size': 32,
     'backward_c_optim': False,
     'hierarchical_loss': True,
     'alpha': 0.0001,
@@ -95,23 +67,20 @@ HIERARCH_FULL_PARAMS = {
     'verbose': True
 }
 
-DEEPSURV_PARAMS = {
-    'hidden_size': 32,
-    'mu_scale': None,
-    'rho_scale': -5,
-    'sigma1': 1,
-    'sigma2': 0.002,
-    'pi': 0.5,
-    'verbose': False,
-    'lr': 0.005,
-    'c1': 0.01,
-    'num_epochs': 100,
-    'dropout': 0.25,
-    'n_samples_train': 10,
-    'n_samples_test': 100,
-    'batch_size': 32,
-    'early_stop': True,
-    'patience': 10
+COX_PARAMS = {
+    'alpha': 0,
+    'ties': 'breslow',
+    'n_iter': 100,
+    'tol': 1e-9
+}
+
+COXNET_PARAMS = {
+    'l1_ratio': 1,
+    'alpha_min_ratio': 0.1,
+    'n_alphas': 100,
+    'normalize': False,
+    'tol': 0.1,
+    'max_iter': 100000
 }
 
 COXBOOST_PARAMS = {
@@ -126,28 +95,9 @@ COXBOOST_PARAMS = {
     'subsample': 1.0,
     'seed': 0,
     'test_size': 0.3,
-    }
-
-COX_MULTI_PARAMS = {
-    'hidden_size': 32,
-    'mu_scale': None,
-    'rho_scale': -5,
-    'sigma1': 1,
-    'sigma2': 0.002,
-    'pi': 0.5,
-    'verbose': False,
-    'lr': 0.005,
-    'c1': 0.01,
-    'num_epochs': 10,
-    'dropout': 0.5,
-    'n_samples_train': 10,
-    'n_samples_test': 100,
-    'batch_size': 32,
-    'early_stop': True,
-    'patience': 10
 }
 
-COX_MULTI_GAUSSIAN_PARAMS = {
+DEEPSURV_PARAMS = {
     'hidden_size': 32,
     'mu_scale': None,
     'rho_scale': -5,
@@ -157,8 +107,8 @@ COX_MULTI_GAUSSIAN_PARAMS = {
     'verbose': False,
     'lr': 0.005,
     'c1': 0.01,
-    'num_epochs': 50,
-    'dropout': 0.5,
+    'num_epochs': 1000,
+    'dropout': 0.25,
     'n_samples_train': 10,
     'n_samples_test': 100,
     'batch_size': 32,
@@ -176,7 +126,7 @@ MTLR_PARAMS = {
     'verbose': False,
     'lr': 0.00008,
     'c1': 0.01,
-    'num_epochs': 100,
+    'num_epochs': 1000,
     'dropout': 0.5,
     'n_samples_train': 10,
     'n_samples_test': 100,
@@ -185,53 +135,73 @@ MTLR_PARAMS = {
     'patience': 10
 }
 
-DSM_PARAMS = {
-    'network_layers': [32, 32],
-    'learning_rate': 0.001,
-    'n_iters' : 100
-    }
-
 RSF_PARAMS = {
     'n_estimators': 100,
-    'max_depth' : None,
+    'max_depth': 3,
     'min_samples_split': 6,
     'min_samples_leaf': 3,
     'max_features': None,
     "random_state": 0
-    }
+}
+
+DSM_PARAMS = {
+    'network_layers': [32],
+    'learning_rate': 0.001,
+    'n_iter': 1000,
+    'batch_size': 32
+}
 
 DEEPHIT_PARAMS = {
-    'num_nodes_shared': [32, 32],
+    'num_nodes_shared': [32],
     'num_nodes_indiv': [32],
     'batch_norm': True,
     'verbose': False,
-    'dropout': 0.1,
+    'dropout': 0.25,
     'alpha': 0.2,
     'sigma': 0.1,
     'batch_size': 32,
-    'lr': 0.01,
+    'lr': 0.001,
     'weight_decay': 0.01,
     'eta_multiplier': 0.8,
-    'epochs': 100,
+    'epochs': 1000,
     'early_stop': True,
     'patience': 10,
 }
 
+MTLRCR_PARAMS = {
+    'hidden_size': 32,
+    'mu_scale': None,
+    'rho_scale': -5,
+    'sigma1': 1,
+    'sigma2': 0.002,
+    'pi': 0.5,
+    'verbose': False,
+    'lr': 1e-3,
+    'c1': 0.01,
+    'num_epochs': 1000,
+    'dropout': 0.5,
+    'n_samples_train': 10,
+    'n_samples_test': 100,
+    'batch_size': 32,
+    'early_stop': True,
+    'patience': 10
+}
+
 SURVTRACE_PARAMS = {
-    "num_hidden_layers": 3,
-    "hidden_size": 16,
-    "intermediate_size": 64,
+    "num_hidden_layers": 1,
+    "hidden_size": 32,
+    "intermediate_size": 32,
     "num_attention_heads": 2,
     "initializer_range": .02,
     "batch_size": 128,
     "weight_decay": 0,
-    "learning_rate": 0.0001,
-    "epochs": 100,
-    "early_stop_patience": 5,
-    "hidden_dropout_prob": 0,
+    "learning_rate": 1e-4,
+    "epochs": 10, #1000
+    "early_stop_patience": 10,
+    "hidden_dropout_prob": 0.25,
     "seed": 0,
     "hidden_act": "gelu",
-    "attention_probs_dropout_prob": 0.1,
+    "attention_probs_dropout_prob": 0.25,
     "layer_norm_eps": 1000000000000,
     "checkpoint": "./checkpoints/survtrace.pt",
     "max_position_embeddings": 512,
@@ -242,6 +212,9 @@ SURVTRACE_PARAMS = {
     "pruned_heads": {}
 }
 
-PARAMS_MENSA = {
-    
+DCSURVIVAL_PARAMS = {
+    'depth': 2,
+    'widths': [100, 100],
+    'lc_w_range': [0, 1.0],
+    'shift_w_range': [0., 2.0]
 }
