@@ -344,7 +344,7 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
 
 class ALSDataLoader(BaseDataLoader):
     """
-    Data loader for ALS dataset (ME)
+    Data loader for ALS dataset (ME). Use the PRO-ACT dataset.
     """
     def load_data(self, n_samples:int = None):
         df = pd.read_csv(f'{cfg.DATA_DIR}/als.csv', index_col=0)
@@ -359,6 +359,7 @@ class ALSDataLoader(BaseDataLoader):
         df = df.dropna(subset=['Handgrip_Strength']) #exclude people with no strength test
         events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
         self.X = df.drop(columns_to_drop, axis=1)
+        self.columns = list(self.X.columns)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
         times = [df[f'{event_col}_Observed'].values for event_col in events]
@@ -370,7 +371,35 @@ class ALSDataLoader(BaseDataLoader):
 
     def split_data(self, train_size: float, valid_size: float,
                    test_size: float, dtype=torch.float64, random_state=0):
-        raise NotImplementedError()
+        df = pd.DataFrame(self.X)
+        df['e1'] = self.y_e[:,0]
+        df['e2'] = self.y_e[:,1]
+        df['e3'] = self.y_e[:,2]
+        df['e4'] = self.y_e[:,3]
+        df['t1'] = self.y_t[:,0]
+        df['t2'] = self.y_t[:,1]
+        df['t3'] = self.y_t[:,2]
+        df['t4'] = self.y_t[:,3]
+        df['time'] = self.y_t[:,0] # split on first time
+        
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            random_state=random_state)
+        
+        dataframes = [df_train, df_valid, df_test]
+        event_cols = ['e1', 'e2', 'e3', 'e4']
+        time_cols = ['t1', 't2', 't3', 't4']
+        dicts = []
+        for dataframe in dataframes:
+            data_dict = dict()
+            data_dict['X'] = dataframe.drop(event_cols + time_cols + ['time'], axis=1).values
+            data_dict['E'] = np.stack([dataframe['e1'].values, dataframe['e2'].values,
+                                       dataframe['e3'].values, dataframe['e4'].values], axis=1).astype(np.int64)
+            data_dict['T'] = np.stack([dataframe['t1'].values, dataframe['t2'].values,
+                                       dataframe['t3'].values, dataframe['t4'].values], axis=1).astype(np.int64)
+            dicts.append(data_dict)
+            
+        return dicts[0], dicts[1], dicts[2]
 
 class MimicDataLoader(BaseDataLoader):
     """

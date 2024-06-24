@@ -120,8 +120,11 @@ if __name__ == "__main__":
                 data_train = pd.DataFrame(train_dict['X'])
                 data_train['time'] = train_dict['T']
                 data_train['event'] = (train_dict['E'] == i+1)*1.0
-                model = train_deepsurv_model(model, data_train, time_bins, config=config, random_state=0,
-                                             reset_model=True, device=device, dtype=dtype)
+                data_valid = pd.DataFrame(valid_dict['X'])
+                data_valid['time'] = valid_dict['T']
+                data_valid['event'] = (valid_dict['E'] == i+1)*1.0
+                model = train_deepsurv_model(model, data_train, data_valid, time_bins, config=config,
+                                             random_state=0, reset_model=True, device=device, dtype=dtype)
                 trained_models.append(model)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
@@ -209,39 +212,44 @@ if __name__ == "__main__":
             for trained_model in trained_models:
                 preds, time_bins_model, _ = make_deepsurv_prediction(trained_model, test_dict['X'],
                                                                      config=config, dtype=dtype)
-                spline1 = interp1d(time_bins_model, preds, kind='linear', fill_value='extrapolate')
-                all_preds.append(spline1(time_bins))
+                preds = pd.DataFrame(preds, columns=time_bins_model.numpy())
+                all_preds.append(preds)
         elif model_name == "deephit":
             cif = model.predict_cif(test_dict['X'])
             cif1 = pd.DataFrame((1-cif[0]).T, columns=time_bins.numpy())
             cif2 = pd.DataFrame((1-cif[1]).T, columns=time_bins.numpy())
             all_preds = [cif1.values, cif2.values]
-        elif model_name == "hierarch": #TODO
+        elif model_name == "hierarch":
             event_preds = util.get_surv_curves(test_data[0], model)
             bin_locations = np.linspace(0, config['max_time'], event_preds[0].shape[1])
             preds_e1 = pd.DataFrame(event_preds[0], columns=bin_locations)
             preds_e2 = pd.DataFrame(event_preds[1], columns=bin_locations)
-            spline1 = interp1d(bin_locations, preds_e1, kind='linear', fill_value='extrapolate') 
-            spline2 = interp1d(bin_locations, preds_e2, kind='linear', fill_value='extrapolate')
-            all_preds = [spline1(time_bins), spline2(time_bins)]
+            all_preds = [preds_e1, preds_e2]
         elif model_name == "mtlrcr":
             pred_prob = model(test_dict['X'])
             num_points = len(time_bins)
             preds_e1 = mtlr_survival(pred_prob[:,:num_time_bins]).detach().numpy()[:, 1:] # drop extra bin
             preds_e2 = mtlr_survival(pred_prob[:,num_time_bins:num_time_bins*2]).detach().numpy()[:, 1:]
+            preds_e1 = pd.Dataframe(preds_e1, columns=time_bins)
+            preds_e2 = pd.Dataframe(preds_e2, columns=time_bins)
             all_preds = [preds_e1, preds_e2]
         elif model_name == "dsm":
             X_test = pd.DataFrame(test_dict['X'], columns=[f'X{i}' for i in range(n_features)])
             model_preds = model.predict_survival(X_test, times=list(time_bins.numpy()))
-            all_preds = [model_preds.copy(), model_preds.copy()]
+            model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
+            all_preds = [model_preds, model_preds]
         elif model_name == "survtrace":
             preds_e1 = model.predict_surv(test_dict['X'], batch_size=config['batch_size'], event=0)[:, 1:] # drop extra bin
             preds_e2 = model.predict_surv(test_dict['X'], batch_size=config['batch_size'], event=1)[:, 1:]
+            preds_e1 = pd.DataFrame(preds_e1, columns=time_bins.numpy())
+            preds_e2 = pd.DataFrame(preds_e2, columns=time_bins.numpy())
             all_preds = [preds_e1, preds_e2]
         elif model_name == "mensa":
             preds_e1 = predict_survival_function(model1, test_dict['X'], time_bins).detach().numpy() # censoring
             preds_e2 = predict_survival_function(model2, test_dict['X'], time_bins).detach().numpy()
             preds_e3 = predict_survival_function(model3, test_dict['X'], time_bins).detach().numpy()
+            preds_e2 = pd.DataFrame(preds_e2, columns=time_bins.numpy())
+            preds_e3 = pd.DataFrame(preds_e3, columns=time_bins.numpy())
             all_preds = [preds_e2, preds_e3]
         else:
             raise NotImplementedError()
@@ -250,19 +258,19 @@ if __name__ == "__main__":
         y_test_time = np.stack([test_dict['T'], test_dict['T']], axis=1)
         y_test_event = np.stack([np.array((test_dict['E'] == 1)*1.0),
                                  np.array((test_dict['E'] == 2)*1.0)], axis=1)
-        global_ci = global_C_index(all_preds, y_test_time, y_test_event)
-        local_ci = local_C_index(all_preds, y_test_time, y_test_event)
+        all_preds_arr = [df.to_numpy() for df in all_preds]
+        global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
+        local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
     
         # Make evaluation for each event
         for event_id, surv_preds in enumerate(all_preds):
-            surv_preds_df = pd.DataFrame(surv_preds, columns=time_bins.numpy())
             n_train_samples = len(train_dict['X'])
             n_test_samples= len(test_dict['X'])
             y_train_time = train_dict['T']
             y_train_event = (train_dict['E'] == event_id+1)*1.0
             y_test_time = test_dict['T']
             y_test_event = (test_dict['E'] == event_id+1)*1.0
-            lifelines_eval = LifelinesEvaluator(surv_preds_df.T, y_test_time, y_test_event,
+            lifelines_eval = LifelinesEvaluator(surv_preds.T, y_test_time, y_test_event,
                                                 y_train_time, y_train_event)
             
             ci = lifelines_eval.concordance()[0]

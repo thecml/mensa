@@ -199,14 +199,13 @@ def format_data_as_dict_single(X, events, times, dtype):
     data_dict['T'] = torch.tensor(times, dtype=dtype)
     return data_dict
 
-def format_data_as_dict_multi(X, y_t, y_e, dtype):
+def format_data_as_dict_multi(X, y_e, y_t, dtype):
     data_dict = dict()
     data_dict['X'] = torch.tensor(X, dtype=dtype)
-    data_dict['E'] = torch.tensor(np.argmin(y_t, axis=1), dtype=dtype)
-    data_dict['T'] = torch.tensor(np.min(y_t, axis=1), dtype=dtype)
-    data_dict['T1'] = torch.tensor(y_t[:,0], dtype=dtype)
-    data_dict['T2'] = torch.tensor(y_t[:,1], dtype=dtype)
-    data_dict['T3'] = torch.tensor(y_t[:,2], dtype=dtype)
+    n_events = y_e.shape[1]
+    for i in range(n_events):
+        data_dict[f'E{i+1}'] = torch.tensor(y_e[:,i].astype(np.int64), dtype=torch.int64)
+        data_dict[f'T{i+1}'] = torch.tensor(y_t[:,i].astype(np.int64), dtype=torch.int64)
     return data_dict
 
 def format_data_deephit_single(train_dict, valid_dict, labtrans):
