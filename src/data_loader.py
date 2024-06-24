@@ -441,7 +441,6 @@ class RotterdamDataLoader(BaseDataLoader):
     """
     Data loader for Rotterdam dataset (ME)
     """
-    #TODO: Convert to competing risks (Weijie)
     def load_data(self, n_samples:int = None):
         df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
         if n_samples:
@@ -455,7 +454,6 @@ class RotterdamDataLoader(BaseDataLoader):
         self.y_e = np.stack((events[0], events[1]), axis=1)
         self.n_events = 2
         return self
-<<<<<<< HEAD
 
     def load_CR_data(self, n_samples:int = None):
         '''
@@ -549,12 +547,6 @@ class RotterdamDataLoader(BaseDataLoader):
         test_pkg = [test_data, test_event_time, test_labs]
 
         return (train_pkg, valid_pkg, test_pkg)
-=======
-    
-    def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
-        raise NotImplementedError()
->>>>>>> ef783effd5a6d8828f66166a9c06cc74b85389f1
     
 def get_data_loader(dataset_name:str) -> BaseDataLoader:
     if dataset_name == "seer":
