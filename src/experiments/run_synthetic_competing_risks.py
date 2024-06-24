@@ -74,7 +74,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv']
+MODELS = ['mensa', 'dgp']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -109,24 +109,19 @@ if __name__ == "__main__":
     for model_name in MODELS:
         if model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
-            model1 = DeepSurv(in_features=n_features, config=config)
-            model2 = DeepSurv(in_features=n_features, config=config)
-            model3 = DeepSurv(in_features=n_features, config=config)
-            data_train1 = pd.DataFrame(train_dict['X'])
-            data_train1['time'] = train_dict['T']
-            data_train1['event'] = (train_dict['E'] == 0)*1.0
-            data_train2 = pd.DataFrame(train_dict['X'])
-            data_train2['time'] = train_dict['T']
-            data_train2['event'] = (train_dict['E'] == 1)*1.0
-            data_train3 = pd.DataFrame(train_dict['X'])
-            data_train3['time'] = train_dict['T']
-            data_train3['event'] = (train_dict['E'] == 2)*1.0
-            model1 = train_deepsurv_model(model1, data_train1, time_bins, config=config, random_state=0,
-                                            reset_model=True, device=device, dtype=dtype)
-            model2 = train_deepsurv_model(model2, data_train2, time_bins, config=config, random_state=0,
-                                            reset_model=True, device=device, dtype=dtype)
-            model3 = train_deepsurv_model(model3, data_train3, time_bins, config=config, random_state=0,
-                                            reset_model=True, device=device, dtype=dtype)
+            trained_models = []
+            for i in range(n_events):
+                model = DeepSurv(in_features=n_features, config=config)
+                data_train = pd.DataFrame(train_dict['X'])
+                data_train['time'] = train_dict['T']
+                data_train['event'] = (train_dict['E'] == i)*1.0
+                data_valid = pd.DataFrame(valid_dict['X'])
+                data_valid['time'] = valid_dict['T']
+                data_valid['event'] = (valid_dict['E'] == i)*1.0
+                model = train_deepsurv_model(model, data_train, data_valid, time_bins,
+                                             config=config, random_state=0,
+                                             reset_model=True, device=device, dtype=dtype)
+                trained_models.append(model)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
             model = make_deephit_cr(in_features=n_features, out_features=len(time_bins),
@@ -205,105 +200,102 @@ if __name__ == "__main__":
             print(f"NLL all events: {triple_loss(model1, model2, model3, valid_dict, copula)}")
             print(f"DGP loss: {triple_loss(dgps[0], dgps[1], dgps[2], valid_dict, copula)}")
         elif model_name == "dgp":
-            model1 = dgps[0]
-            model2 = dgps[1]
-            model3 = dgps[2]
+            continue
         else:
             raise NotImplementedError()
         
         # Compute survival function
         n_samples = test_dict['X'].shape[0]
         if model_name == "deepsurv":
-            preds_e1, time_bins_model1, _ = make_deepsurv_prediction(model1, test_dict['X'],
-                                                                        config=config, dtype=dtype)
-            preds_e2, time_bins_model2, _ = make_deepsurv_prediction(model2, test_dict['X'],
-                                                                        config=config, dtype=dtype)
-            preds_e3, time_bins_model3, _ = make_deepsurv_prediction(model3, test_dict['X'],
-                                                                        config=config, dtype=dtype)
-            spline1 = interp1d(time_bins_model1, preds_e1, kind='linear', fill_value='extrapolate')
-            spline2 = interp1d(time_bins_model2, preds_e2, kind='linear', fill_value='extrapolate')
-            spline3 = interp1d(time_bins_model3, preds_e3, kind='linear', fill_value='extrapolate')
-            all_preds = [spline1(time_bins), spline2(time_bins), spline3(time_bins)]
+            all_preds = []
+            for trained_model in trained_models:
+                preds, time_bins_model, _ = make_deepsurv_prediction(trained_model, test_dict['X'],
+                                                                     config=config, dtype=dtype)
+                spline = interp1d(time_bins_model, preds, kind='linear', fill_value='extrapolate')
+                preds = pd.DataFrame(spline(time_bins), columns=time_bins.numpy())
+                all_preds.append(preds)
         elif model_name == "deephit":
             cif = model.predict_cif(test_dict['X'])
-            cif1 = pd.DataFrame((1-cif[0]).T, columns=time_bins.numpy())
-            cif2 = pd.DataFrame((1-cif[1]).T, columns=time_bins.numpy())
-            cif3 = pd.DataFrame((1-cif[2]).T, columns=time_bins.numpy())
-            all_preds = [cif1.values, cif2.values, cif3.values]
+            all_preds = []
+            for i in range(n_events):
+                cif_df = pd.DataFrame((1-cif[i]).T, columns=time_bins.numpy())
+                all_preds.append(cif_df)
         elif model_name == "hierarch":
             event_preds = util.get_surv_curves(test_data[0], model)
             bin_locations = np.linspace(0, config['max_time'], event_preds[0].shape[1])
-            preds_e1 = pd.DataFrame(event_preds[0], columns=bin_locations)
-            preds_e2 = pd.DataFrame(event_preds[1], columns=bin_locations)
-            preds_e3 = pd.DataFrame(event_preds[2], columns=bin_locations)
-            spline1 = interp1d(bin_locations, preds_e1, kind='linear', fill_value='extrapolate')
-            spline2 = interp1d(bin_locations, preds_e2, kind='linear', fill_value='extrapolate')
-            spline3 = interp1d(bin_locations, preds_e3, kind='linear', fill_value='extrapolate')
-            all_preds = [spline1(time_bins), spline2(time_bins), spline3(time_bins)]
+            all_preds = []
+            for event_pred in event_preds:
+                preds = pd.DataFrame(event_pred, columns=bin_locations)
+                spline = interp1d(bin_locations, preds, kind='linear', fill_value='extrapolate')
+                preds = pd.DataFrame(spline(time_bins), columns=time_bins.numpy())
+                all_preds.append(preds)
         elif model_name == "mtlrcr":
             pred_prob = model(test_dict['X'])
             num_points = len(time_bins)
             preds_e1 = mtlr_survival(pred_prob[:,:num_time_bins]).detach().numpy()[:, 1:] # drop extra bin
             preds_e2 = mtlr_survival(pred_prob[:,num_time_bins:num_time_bins*2]).detach().numpy()[:, 1:]
             preds_e3 = mtlr_survival(pred_prob[:,num_time_bins*2:]).detach().numpy()[:, 1:]
+            preds_e1 = pd.DataFrame(preds_e1, columns=time_bins.numpy())
+            preds_e2 = pd.DataFrame(preds_e2, columns=time_bins.numpy())
+            preds_e3 = pd.DataFrame(preds_e3, columns=time_bins.numpy())
             all_preds = [preds_e1, preds_e2, preds_e3]
         elif model_name == "dsm":
             X_test = pd.DataFrame(test_dict['X'], columns=[f'X{i}' for i in range(n_features)])
             model_preds = model.predict_survival(X_test, times=list(time_bins.numpy()))
-            all_preds = [model_preds.copy(), model_preds.copy(), model_preds.copy()]
+            model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
+            all_preds = [model_preds, model_preds]
         elif model_name == "survtrace":
-            preds_e1 = model.predict_surv(test_dict['X'], batch_size=32, event=0)[:, 1:] # drop extra bin
-            preds_e2 = model.predict_surv(test_dict['X'], batch_size=32, event=1)[:, 1:]
-            preds_e3 = model.predict_surv(test_dict['X'], batch_size=32, event=2)[:, 1:]
-            all_preds = [preds_e1, preds_e2, preds_e3]
+            all_preds = []
+            for i in range(n_events):
+                preds = model.predict_surv(test_dict['X'], batch_size=32, event=i)[:, 1:] # drop extra bin
+                preds = pd.DataFrame(preds, columns=time_bins.numpy())
+                all_preds.append(preds)
         elif model_name == "mensa":
-            preds_e1 = predict_survival_function(model1, test_dict['X'], time_bins).detach().numpy()
-            preds_e2 = predict_survival_function(model2, test_dict['X'], time_bins).detach().numpy()
-            preds_e3 = predict_survival_function(model3, test_dict['X'], time_bins).detach().numpy()
-            all_preds = [preds_e1, preds_e2, preds_e3]
+            all_preds = []
+            models = [model1, model2, model3]
+            for model in models:
+                preds = predict_survival_function(model, test_dict['X'], time_bins).detach().numpy()
+                preds = pd.DataFrame(preds, columns=time_bins.numpy())
+                all_preds.append(preds)
         elif model_name == "dgp":
-            preds_e1 = torch.zeros((n_samples, time_bins.shape[0]), device=device)
-            for i in range(time_bins.shape[0]):
-                preds_e1[:,i] = model1.survival(time_bins[i], test_dict['X'])
-            preds_e2 = torch.zeros((n_samples, time_bins.shape[0]), device=device)
-            for i in range(time_bins.shape[0]):
-                preds_e2[:,i] = model2.survival(time_bins[i], test_dict['X'])
-            preds_e3 = torch.zeros((n_samples, time_bins.shape[0]), device=device)
-            for i in range(time_bins.shape[0]):
-                preds_e3[:,i] = model3.survival(time_bins[i], test_dict['X'])
-            all_preds = [preds_e1, preds_e2, preds_e3]
+            all_preds = []
+            for model in dgps:
+                preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
+                for i in range(time_bins.shape[0]):
+                    preds[:,i] = model.survival(time_bins[i], test_dict['X'])
+                    preds = pd.DataFrame(preds, columns=time_bins.numpy())
+                    all_preds.append(preds)
         else:
             raise NotImplementedError()
         
         # Test local and global CI
         y_test_time = np.stack([test_dict['T1'], test_dict['T2'], test_dict['T3']], axis=1)
         y_test_event = np.array(pd.get_dummies(test_dict['E']))
-        global_ci = global_C_index(all_preds, y_test_time, y_test_event)
-        local_ci = local_C_index(all_preds, y_test_time, y_test_event)
+        all_preds_arr = [df.to_numpy() for df in all_preds]
+        global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
+        local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
     
         # Make evaluation for each event
-        pred_time_bins = torch.cat([torch.tensor([0], device=device, dtype=dtype), time_bins])
         for event_id, surv_preds in enumerate(all_preds):
-            surv_preds = np.hstack((np.ones((surv_preds.shape[0], 1)), surv_preds))
-            surv_preds_df = pd.DataFrame(surv_preds, columns=pred_time_bins.numpy())
             n_train_samples = len(train_dict['X'])
             n_test_samples= len(test_dict['X'])
             y_train_time = train_dict[f'T{event_id+1}']
             y_train_event = np.array([1] * n_train_samples)
             y_test_time = test_dict[f'T{event_id+1}']
             y_test_event = np.array([1] * n_test_samples)
-            lifelines_eval = LifelinesEvaluator(surv_preds_df.T, y_test_time, y_test_event,
+            lifelines_eval = LifelinesEvaluator(surv_preds.T, y_test_time, y_test_event,
                                                 y_train_time, y_train_event)
             
             ci =  lifelines_eval.concordance()[0]
-            ibs = lifelines_eval.integrated_brier_score(num_points=len(pred_time_bins))
+            ibs = lifelines_eval.integrated_brier_score(num_points=len(time_bins))
             mae = lifelines_eval.mae(method='Uncensored')
             d_calib = lifelines_eval.d_calibration()[0]
             
-            truth_preds = torch.zeros((n_samples, pred_time_bins.shape[0]), device=device)
-            for i in range(pred_time_bins.shape[0]):
-                truth_preds[:,i] = dgps[event_id].survival(pred_time_bins[i], test_dict['X'])
-            survival_l1 = float(compute_l1_difference(truth_preds, surv_preds, n_samples, steps=pred_time_bins))
+            truth_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
+            for i in range(time_bins.shape[0]):
+                truth_preds[:,i] = dgps[event_id].survival(time_bins[i], test_dict['X'])
+            survival_l1 = float(compute_l1_difference(truth_preds, surv_preds.to_numpy(),
+                                                      n_samples, steps=time_bins))
             
             metrics = [ci, ibs, mae, survival_l1, d_calib, global_ci, local_ci]
             print(metrics)

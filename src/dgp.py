@@ -134,7 +134,7 @@ class Weibull_log_linear:
         self.sigma = torch.tensor([sigma], device=device).type(dtype)
         self.coeff = torch.rand((nf,), device=device).type(dtype)
     
-    def survival(self,t,x):
+    def survival(self, t, x):
         return torch.exp(-1*torch.exp((LOG(t)-self.mu-torch.matmul(x, self.coeff))/torch.exp(self.sigma)))
     
     def cum_hazard(self, t,x):

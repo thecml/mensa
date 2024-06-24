@@ -36,7 +36,7 @@ from mensa.model import train_mensa_model_3_events, make_mensa_model_3_events
 from utility.data import (format_data_deephit_cr, format_hierarchical_data, calculate_layer_size_hierarch,
                           format_survtrace_data, format_data_as_dict_single)
 from utility.evaluation import global_C_index, local_C_index
-from data_loader import SeerDataLoader
+from data_loader import get_data_loader
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
@@ -82,12 +82,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--dataset_name', type=str, default='seer')
     
     args = parser.parse_args()
     seed = args.seed
+    dataset_name = args.dataset_name
     
     # Load and split data
-    dl = SeerDataLoader().load_data(n_samples=1000, device=device, dtype=dtype)
+    dl = get_data_loader(dataset_name)
+    dl = dl.load_data(n_samples=1000, device=device, dtype=dtype)
     df_train, df_valid, df_test = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                 random_state=seed)
     n_events = dl.n_events

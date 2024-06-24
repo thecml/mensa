@@ -57,7 +57,7 @@ torch.manual_seed(0)
 random.seed(0)
 
 # Define models
-MODELS = ['deepsurv']
+MODELS = ["cox", "coxnet", "coxboost", "rsf", "dsm", "deepsurv", "mtlr", "dcsurvival", "dgp"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -124,8 +124,11 @@ if __name__ == "__main__":
             data_train = pd.DataFrame(train_dict['X'])
             data_train['time'] = train_dict['T']
             data_train['event'] = train_dict['E']
-            model = train_deepsurv_model(model, data_train, time_bins, config=config, random_state=0,
-                                            reset_model=True, device=device, dtype=dtype)
+            data_valid = pd.DataFrame(valid_dict['X'])
+            data_valid['time'] = valid_dict['T']
+            data_valid['event'] = valid_dict['E']
+            model = train_deepsurv_model(model, data_train, data_valid, time_bins, config=config,
+                                         random_state=0, reset_model=True, device=device, dtype=dtype)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
             model = make_deephit_single(in_features=n_features, out_features=len(time_bins),
@@ -145,8 +148,8 @@ if __name__ == "__main__":
             num_time_bins = len(time_bins)
             model = mtlr(in_features=n_features, num_time_bins=num_time_bins, config=config)
             model = train_mtlr_model(model, data_train, data_valid, time_bins,
-                                        config, random_state=0, dtype=dtype,
-                                        reset_model=True, device=device)
+                                     config, random_state=0, dtype=dtype,
+                                     reset_model=True, device=device)
         elif model_name == "dcsurvival":
             config = dotdict(cfg.DCSURVIVAL_PARAMS)
             depth = config['depth']
@@ -162,12 +165,11 @@ if __name__ == "__main__":
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             model1, model2, copula = make_mensa_model_2_events(n_features, start_theta=2.0, eps=1e-4,
-                                                                device=device, dtype=dtype)
-            model1, model2, copula = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
-                                                                copula, n_epochs=100, lr=0.001)
+                                                               device=device, dtype=dtype)
+            model, _, _ = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
+                                                     copula, n_epochs=100, lr=0.001)
         elif model_name == "dgp":
-            model1 = dgps[0]
-            model2 = dgps[1]
+            continue
         else:
             raise NotImplementedError()
         
@@ -180,7 +182,7 @@ if __name__ == "__main__":
             model_preds = model.predict_survival(X_test, times=list(time_bins.numpy()))
         elif model_name == "deepsurv":
             model_preds, time_bins_deepsurv, _ = make_deepsurv_prediction(model, test_dict['X'],
-                                                                            config=config, dtype=dtype)
+                                                                          config=config, dtype=dtype)
             spline = interp1d(time_bins_deepsurv, model_preds, kind='linear', fill_value='extrapolate')
             model_preds = spline(time_bins)
         elif model_name == "mtlr":
@@ -188,7 +190,7 @@ if __name__ == "__main__":
             data_test["time"] = pd.Series(y_test['time'])
             data_test["event"] = pd.Series(y_test['event']).astype('int')
             mtlr_test_data = torch.tensor(data_test.drop(["time", "event"], axis=1).values,
-                                            dtype=dtype, device=device)
+                                          dtype=dtype, device=device)
             survival_outputs, _, _ = make_mtlr_prediction(model, mtlr_test_data, time_bins, config)
             model_preds = survival_outputs[:, 1:].numpy()
         elif model_name == "deephit":
@@ -196,11 +198,11 @@ if __name__ == "__main__":
         elif model_name == "dcsurvival":
             model_preds = predict_survival_function(model, test_dict['X'], time_bins).numpy()
         elif model_name == "mensa":
-            model_preds = predict_survival_function(model1, test_dict['X'], time_bins).numpy()
+            model_preds = predict_survival_function(model, test_dict['X'], time_bins).numpy()
         elif model_name == "dgp":
             model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
-                model_preds[:,i] = model1.survival(time_bins[i], test_dict['X'])
+                model_preds[:,i] = dgps[0].survival(time_bins[i], test_dict['X'])
         else:
             raise NotImplementedError()
             

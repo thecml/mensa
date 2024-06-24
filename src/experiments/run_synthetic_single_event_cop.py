@@ -54,7 +54,7 @@ torch.manual_seed(0)
 random.seed(0)
 
 # Define models
-MODELS = ['dgp']
+MODELS = ["mensa-nocop", "mensa-cop", "dgp"]
 
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
@@ -90,16 +90,15 @@ if __name__ == "__main__":
             model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
             model2 = Weibull_log_linear(n_features, 2, 1, device, dtype)
             model1, model2 = independent_train_loop_linear(model1, model2, train_dict,
-                                                            valid_dict, 1000)
+                                                           valid_dict, 1000)
         elif model_name == "mensa-cop":
             model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
             model2 = Weibull_log_linear(n_features, 2, 1, device, dtype)
             copula = Clayton2D(torch.tensor([1], dtype=dtype), device, dtype)
             model1, model2, copula = dependent_train_loop_linear(model1, model2, train_dict,
-                                                                    valid_dict, 1000, copula=copula)
+                                                                 valid_dict, 1000, copula=copula)
         elif model_name == "dgp":
-            model1 = dgps[0]
-            model2 = dgps[1]
+            continue
         else:
             raise NotImplementedError()
         
@@ -111,10 +110,10 @@ if __name__ == "__main__":
         elif model_name == "dgp":
             event_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
-                event_preds[:,i] = model1.survival(time_bins[i], test_dict['X'])
+                event_preds[:,i] = dgps[0].survival(time_bins[i], test_dict['X'])
             cens_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
-                cens_preds[:,i] = model2.survival(time_bins[i], test_dict['X'])
+                cens_preds[:,i] = dgps[1].survival(time_bins[i], test_dict['X'])
         else:
             raise NotImplementedError()
             
