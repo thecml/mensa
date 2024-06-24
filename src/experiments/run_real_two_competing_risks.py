@@ -3,7 +3,7 @@ run_synthetic_competing_risks.py
 ====================================
 Experiment 2.1
 
-Datasets: SEER, Rotterdam
+Datasets: SEER, Rotterdam, MIMIC-IV
 Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'survtrace', 'mensa', 'dgp']
 """
 
@@ -76,7 +76,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deephit']
+MODELS = ['deepsurv']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -114,18 +114,15 @@ if __name__ == "__main__":
     for model_name in MODELS:
         if model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
-            model1 = DeepSurv(in_features=n_features, config=config)
-            model2 = DeepSurv(in_features=n_features, config=config)
-            data_train1 = pd.DataFrame(train_dict['X'])
-            data_train1['time'] = train_dict['T']
-            data_train1['event'] = (train_dict['E'] == 0)*1.0
-            data_train2 = pd.DataFrame(train_dict['X'])
-            data_train2['time'] = train_dict['T']
-            data_train2['event'] = (train_dict['E'] == 1)*1.0
-            model1 = train_deepsurv_model(model1, data_train1, time_bins, config=config, random_state=0,
-                                          reset_model=True, device=device, dtype=dtype)
-            model2 = train_deepsurv_model(model2, data_train2, time_bins, config=config, random_state=0,
-                                          reset_model=True, device=device, dtype=dtype)
+            trained_models = []
+            for i in range(n_events):
+                model = DeepSurv(in_features=n_features, config=config)
+                data_train = pd.DataFrame(train_dict['X'])
+                data_train['time'] = train_dict['T']
+                data_train['event'] = (train_dict['E'] == i+1)*1.0
+                model = train_deepsurv_model(model, data_train, time_bins, config=config, random_state=0,
+                                             reset_model=True, device=device, dtype=dtype)
+                trained_models.append(model)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
             model = make_deephit_cr(in_features=n_features, out_features=len(time_bins),
@@ -208,13 +205,12 @@ if __name__ == "__main__":
         # Compute survival function
         n_samples = test_dict['X'].shape[0]
         if model_name == "deepsurv":
-            preds_e1, time_bins_model1, _ = make_deepsurv_prediction(model1, test_dict['X'],
+            all_preds = []
+            for trained_model in trained_models:
+                preds, time_bins_model, _ = make_deepsurv_prediction(trained_model, test_dict['X'],
                                                                      config=config, dtype=dtype)
-            preds_e2, time_bins_model2, _ = make_deepsurv_prediction(model2, test_dict['X'],
-                                                                     config=config, dtype=dtype)
-            spline1 = interp1d(time_bins_model1, preds_e1, kind='linear', fill_value='extrapolate')
-            spline2 = interp1d(time_bins_model2, preds_e2, kind='linear', fill_value='extrapolate')
-            all_preds = [spline1(time_bins), spline2(time_bins)]
+                spline1 = interp1d(time_bins_model, preds, kind='linear', fill_value='extrapolate')
+                all_preds.append(spline1(time_bins))
         elif model_name == "deephit":
             cif = model.predict_cif(test_dict['X'])
             cif1 = pd.DataFrame((1-cif[0]).T, columns=time_bins.numpy())
@@ -239,8 +235,8 @@ if __name__ == "__main__":
             model_preds = model.predict_survival(X_test, times=list(time_bins.numpy()))
             all_preds = [model_preds.copy(), model_preds.copy()]
         elif model_name == "survtrace":
-            preds_e1 = model.predict_surv(test_dict['X'], batch_size=32, event=0)[:, 1:] # drop extra bin
-            preds_e2 = model.predict_surv(test_dict['X'], batch_size=32, event=1)[:, 1:]
+            preds_e1 = model.predict_surv(test_dict['X'], batch_size=config['batch_size'], event=0)[:, 1:] # drop extra bin
+            preds_e2 = model.predict_surv(test_dict['X'], batch_size=config['batch_size'], event=1)[:, 1:]
             all_preds = [preds_e1, preds_e2]
         elif model_name == "mensa":
             preds_e1 = predict_survival_function(model1, test_dict['X'], time_bins).detach().numpy() # censoring
