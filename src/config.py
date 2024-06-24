@@ -196,7 +196,7 @@ SURVTRACE_PARAMS = {
     "batch_size": 128,
     "weight_decay": 0,
     "learning_rate": 1e-4,
-    "epochs": 10, #1000
+    "epochs": 100,
     "early_stop_patience": 10,
     "hidden_dropout_prob": 0.25,
     "seed": 0,

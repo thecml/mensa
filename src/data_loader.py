@@ -376,7 +376,7 @@ class MimicDataLoader(BaseDataLoader):
     """
     Data loader for MIMIC dataset (CR)
     """
-    #TODO: Replace with MIMIC-IV
+    #TODO: Replace with MIMIC-IV (Weijie)
     def load_data(self, n_samples:int = None):
         '''
         t and e order, followed by arf, shock, death
