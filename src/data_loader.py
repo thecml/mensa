@@ -550,7 +550,55 @@ class RotterdamDataLoader(BaseDataLoader):
         self.y_e = np.stack((events[0], events[1]), axis=1)
         self.n_events = 2
         return self
-    
+
+    def load_CR_data(self, n_samples:int = None):
+        '''
+        convert competing risk
+        event: 0 censor, 1 death, 2 recur
+        '''
+        df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
+        size_mapping = {
+            '<=20': 10,
+            '20-50': 35,
+            '>50': 75
+        }
+        # Apply mapping
+        df['size_map'] = df['size'].replace(size_mapping)
+        
+        def get_time(row):
+            if row['event'] == 0:
+                return min(row['rtime'], row['dtime'])
+            elif row['event'] == 1:
+                return row['dtime']
+            elif row['event'] == 2:
+                return row['rtime']
+            else:
+                raise ValueError("error in time")
+ 
+        def get_event(row):
+            if row['recur'] == 0 and row['death'] == 0:
+                return 0
+            elif row['rtime'] <= row['dtime'] and row['recur'] == 1:
+                return 2
+            elif row['dtime'] <= row['rtime'] and row['death'] == 1:
+                return 1
+            elif row['death'] == 1 and row['recur'] == 0: #some scenaro, recur time censor but earlier than death.
+                return 1
+            else:
+                raise ValueError("error in event")
+        
+        df['event'] = df.apply(get_event, axis=1)
+        df['time'] = df.apply(get_time, axis=1)
+        self.X = df.drop(['pid', 'size', 'rtime', 'recur', 'dtime', 'death'], axis=1)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+        self.y_t = df['time']
+        self.y_e = df['event']
+        self.n_events = 2
+        return self
+        
     def split_data(self,
                    train_size: float,
                    valid_size: float,
