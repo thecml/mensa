@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import config as cfg
 from torch.utils.data import DataLoader, TensorDataset
-from utility.survival import make_stratified_split_multi, convert_to_structured, make_time_bins, make_event_times
+from utility.survival import convert_to_structured, make_time_bins, make_event_times
 from sklearn.preprocessing import StandardScaler
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 from utility.preprocessor import Preprocessor

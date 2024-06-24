@@ -5,8 +5,6 @@ from utility.survival import make_time_bins
 import torch
 import random
 import warnings
-from multi_evaluator import MultiEventEvaluator
-from data_loader import *
 from utility.survival import preprocess_data
 from utility.data import dotdict, array_to_tensor
 import torch.optim as optim
@@ -30,6 +28,7 @@ from SurvivalEVAL.Evaluations.util import predict_median_survival_time
 from SurvivalEVAL.Evaluations.MeanError import mean_error
 from utility.loss import single_loss, triple_loss
 from mensa.model import train_mensa_model_3_events
+from pycop import simulation
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 

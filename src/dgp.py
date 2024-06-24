@@ -13,7 +13,7 @@ import torchtuples as tt
 from abc import abstractmethod
 from utility.bnn_distributions import ParametrizedGaussian, ScaleMixtureGaussian, InverseGamma
 from utility.data import dotdict
-from torchmtlr import pack_sequence
+from torchmtlr.model import pack_sequence
 
 def LOG(x):
     return torch.log(x+1e-20*(x<1e-20))
