@@ -29,7 +29,7 @@ from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear
 from utility.survival import (make_time_bins, preprocess_data, convert_to_structured,
                               risk_fn, compute_l1_difference, predict_survival_function,
                               make_times_hierarchical)
-from utility.data import (dotdict, format_data, format_data_as_dict_single)
+from utility.data import dotdict
 from utility.config import load_config
 from utility.loss import triple_loss
 from mensa.model import train_mensa_model_3_events, make_mensa_model_3_events
@@ -79,8 +79,8 @@ if __name__ == "__main__":
                                                    linear=linear, device=device, dtype=dtype)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
     
-    n_features = data_config['me_n_features']
-    n_samples = data_config['me_n_samples']
+    n_samples = train_dict['X'].shape[0]
+    n_features = train_dict['X'].shape[1]
     n_events = data_config['me_n_events']
     dgps = dl.dgps
 

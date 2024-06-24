@@ -192,11 +192,11 @@ def theta_to_kendall_tau(copula_name, theta):
     else:
         raise ValueError('Copula not implemented')
     
-def format_data_as_dict_single(X, y, dtype):
+def format_data_as_dict_single(X, events, times, dtype):
     data_dict = dict()
-    data_dict['X'] = torch.tensor(X.to_numpy(), dtype=dtype)
-    data_dict['T'] = torch.tensor(y['time'].copy(), dtype=dtype)
-    data_dict['E'] = torch.tensor(y['event'].copy(), dtype=dtype)
+    data_dict['X'] = torch.tensor(X, dtype=dtype)
+    data_dict['E'] = torch.tensor(events, dtype=dtype)
+    data_dict['T'] = torch.tensor(times, dtype=dtype)
     return data_dict
 
 def format_data_as_dict_multi(X, y_t, y_e, dtype):

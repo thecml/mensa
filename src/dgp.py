@@ -11,7 +11,6 @@ import torch.nn as nn
 from tqdm import trange
 import torchtuples as tt
 from abc import abstractmethod
-from utility.bnn_distributions import ParametrizedGaussian, ScaleMixtureGaussian, InverseGamma
 from utility.data import dotdict
 from torchmtlr.model import pack_sequence
 

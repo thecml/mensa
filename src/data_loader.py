@@ -14,8 +14,7 @@ from hierarchical.data_settings import *
 import pickle
 from pycop import simulation
 from scipy import stats
-from utility.data import (inverse_transform, inverse_transform_weibull, relu,
-                          inverse_transform_exp, inverse_transform_lognormal)
+from utility.data import relu
 from utility.data import kendall_tau_to_theta, theta_to_kendall_tau
 from utility.survival import make_stratified_split
 from dgp import Weibull_log_linear, Weibull_linear, Weibull_nonlinear
@@ -419,24 +418,36 @@ class SeerDataLoader(BaseDataLoader):
     """
     Data loader for SEER dataset (CR)
     """
-    def load_data(self, n_samples:int = None):
+    def load_data(self, n_samples:int = None, device='cpu', dtype=torch.float64):
         df = pd.read_csv(f'{cfg.DATA_DIR}/seer_processed.csv')
+        
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
+            
         self.X = df.drop(['duration', 'event_heart', 'event_breast'], axis=1)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
-        events = ['heart', 'breast']
-        events = [df[f'event_{event_col}'].values for event_col in events]
-        self.y_t = np.stack((df[f'duration'].values, df[f'duration'].values), axis=1)
-        self.y_e = np.stack((events[0], events[1]), axis=1)
+
+        encoded_events = np.zeros(len(df), dtype=int)
+        encoded_events[df['event_heart'] == 1] = 1
+        encoded_events[df['event_breast'] == 1] = 2
+
+        self.y_t = np.array(df['duration'])
+        self.y_e = encoded_events
         self.n_events = 2
         return self
     
     def split_data(self, train_size: float, valid_size: float,
                    test_size: float, dtype=torch.float64, random_state=0):
-        raise NotImplementedError()
-
+        df = pd.DataFrame(self.X)
+        df['event'] = self.y_e
+        df['time'] = self.y_t
+        
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            random_state=random_state)
+        return df_train, df_valid, df_test
+        
 class RotterdamDataLoader(BaseDataLoader):
     """
     Data loader for Rotterdam dataset (ME)

@@ -79,8 +79,8 @@ if __name__ == "__main__":
                                                     linear=linear, copula_name=copula_name,
                                                     k_tau=k_tau, device=device, dtype=dtype)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
-    n_features = data_config['se_n_features']
-    n_samples = data_config['se_n_samples']
+    n_samples = train_dict['X'].shape[0]
+    n_features = train_dict['X'].shape[1]
     n_events = data_config['se_n_events']
     dgps = dl.dgps
     
@@ -209,7 +209,7 @@ if __name__ == "__main__":
         for i in range(time_bins.shape[0]):
             truth_preds_e[:,i] = dgps[0].survival(time_bins[i], test_dict['X'])
         l1_e = float(compute_l1_difference(truth_preds_e, model_preds,
-                                            n_samples, steps=time_bins))
+                                           n_samples, steps=time_bins))
         
         print(f"Evaluated {model_name} - {linear} - {round(k_tau, 3)} - {round(l1_e, 3)}")
         res_sr = pd.Series([model_name, linear, copula_name, k_tau, l1_e],

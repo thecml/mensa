@@ -257,9 +257,9 @@ def train_mensa_model_3_events(train_dict, valid_dict, model1, model2, model3, c
     model3.enable_grad()
     copula.enable_grad()
     optimizer = torch.optim.Adam([{"params": model1.parameters(), "lr": lr},
-                                    {"params": model2.parameters(), "lr": lr},
-                                    {"params": model3.parameters(), "lr": lr},
-                                    {"params": copula.parameters(), "lr": lr}])
+                                  {"params": model2.parameters(), "lr": lr},
+                                  {"params": model3.parameters(), "lr": lr},
+                                  {"params": copula.parameters(), "lr": lr}])
     for i in range(n_epochs):
         optimizer.zero_grad()
         loss = triple_loss(model1, model2, model3, train_dict, copula)

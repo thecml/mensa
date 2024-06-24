@@ -75,8 +75,8 @@ if __name__ == "__main__":
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config, linear=linear,
                                                     copula_name=copula_name, k_tau=k_tau)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
-    n_features = data_config['se_n_features']
-    n_samples = data_config['se_n_samples']
+    n_samples = train_dict['X'].shape[0]
+    n_features = train_dict['X'].shape[1]
     n_events = data_config['se_n_events']
     dgps = dl.dgps
     
