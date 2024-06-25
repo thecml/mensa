@@ -286,32 +286,17 @@ def format_hierarch_data_multi_event(train_dict, valid_dict, test_dict, num_bins
     test_data = [test_dict['X'], test_event_bins, test_events]
     return train_data, valid_data, test_data
 
-def calculate_layer_size_hierarch(n_time_bins):
-    def find_factors(target):
-        factors = []
-        for i in range(1, int(target**0.5) + 1):
-            if target % i == 0:
-                factors.append(i)
-                if i != target // i:
-                    factors.append(target // i)
-        return factors
-    factors_of_target = find_factors(n_time_bins)
-    if 7 in factors_of_target:
-        return [(32, 6), (32, 6)]
-    if 6 in factors_of_target:
-        return [(32, 6), (32, 6)]
-    elif 5 in factors_of_target:
-        return [(32, 5), (32, 5)]
-    elif 4 in factors_of_target:
-        return [(32, 4), (32, 4)]
-    elif 3 in factors_of_target:
-        return [(32, 3), (32, 3)]
-    elif 2 in factors_of_target:
-        return [(32, 2), (32, 2)]
-    elif 1 in factors_of_target:
-        return [(32, 1), (32, 1)]
-    else:
-        raise ValueError("Could not find a factor of layer size")
+def calculate_layer_size_hierarch(layer_size, n_time_bins):
+    def find_factors(n):
+        for i in range(2, int(n**0.5) + 1):
+            if n % i == 0:
+                factor1 = i
+                factor2 = n // i
+                if factor1 < factor2:
+                    return factor1, factor2
+        return None
+    result = find_factors(n_time_bins)
+    return [(layer_size, result[0]), (layer_size, result[1])]
     
 def format_survtrace_data(train_dict, valid_dict, time_bins, n_events):
     class LabTransform(LabTransDiscreteTime):

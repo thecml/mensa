@@ -74,7 +74,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['mensa', 'dgp']
+MODELS = ['deepsurv', 'hierarch']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -133,17 +133,18 @@ if __name__ == "__main__":
             config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"synthetic_cr.yaml")
             n_time_bins = len(time_bins)
             train_data, valid_data, test_data = format_hierarchical_data(train_dict, valid_dict,
-                                                                            test_dict, n_time_bins)
+                                                                         test_dict, n_time_bins)
             config['min_time'] = int(train_data[1].min())
             config['max_time'] = int(train_data[1].max())
             config['num_bins'] = len(time_bins)
             params = cfg.HIERARCH_PARAMS
             params['n_batches'] = int(n_samples/params['batch_size'])
-            params['layer_size_fine_bins'] = calculate_layer_size_hierarch(n_time_bins)
+            layer_size = params['layer_size_fine_bins'][0][0]
+            params['layer_size_fine_bins'] = calculate_layer_size_hierarch(layer_size, n_time_bins)
             hyperparams = format_hierarchical_hyperparams(params)
             verbose = params['verbose']
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
-                                                valid_data, config, hyperparams, verbose)
+                                              valid_data, config, hyperparams, verbose)
         elif model_name == "mtlrcr":
             train_times = np.digitize(train_dict['T'], bins=time_bins).astype(np.int64)
             train_events = train_dict['E'].type(torch.int64)

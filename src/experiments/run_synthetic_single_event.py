@@ -57,7 +57,7 @@ torch.manual_seed(0)
 random.seed(0)
 
 # Define models
-MODELS = ["cox", "coxnet", "coxboost", "rsf", "dsm", "deepsurv", "mtlr", "dcsurvival", "dgp"]
+MODELS = ["mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -167,7 +167,7 @@ if __name__ == "__main__":
             model1, model2, copula = make_mensa_model_2_events(n_features, start_theta=2.0, eps=1e-4,
                                                                device=device, dtype=dtype)
             model, _, _ = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
-                                                     copula, n_epochs=100, lr=0.001)
+                                                     copula, n_epochs=2000, lr=0.005)
         elif model_name == "dgp":
             continue
         else:

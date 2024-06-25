@@ -39,12 +39,8 @@ from utility.evaluation import global_C_index, local_C_index
 from data_loader import get_data_loader
 
 # SOTA
-from dcsurvival.dirac_phi import DiracPhi
-from dcsurvival.survival import DCSurvival
-from dcsurvival.model import train_dcsurvival_model
-from sota_models import (make_cox_model, make_coxnet_model, make_coxboost_model, make_dcph_model,
-                          make_deephit_cr, make_dsm_model, make_rsf_model, train_deepsurv_model,
-                          make_deepsurv_prediction, DeepSurv, make_deephit_cr, train_deephit_model)
+from sota_models import (make_deephit_cr, make_dsm_model, train_deepsurv_model,
+                         make_deepsurv_prediction, DeepSurv, make_deephit_cr, train_deephit_model)
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction, train_mtlr_cr
 from trainer import independent_train_loop_linear, dependent_train_loop_linear, loss_function
 from hierarchical.data_settings import synthetic_cr_settings
@@ -76,7 +72,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv']
+MODELS = ['hierarch']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -137,7 +133,7 @@ if __name__ == "__main__":
             model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
                                         (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
         elif model_name == "hierarch":
-            config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"synthetic_cr.yaml")
+            config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"seer.yaml")
             n_time_bins = len(time_bins)
             train_data, valid_data, test_data = format_hierarchical_data(train_dict, valid_dict,
                                                                          test_dict, n_time_bins)
@@ -146,7 +142,8 @@ if __name__ == "__main__":
             config['num_bins'] = len(time_bins)
             params = cfg.HIERARCH_PARAMS
             params['n_batches'] = int(n_samples/params['batch_size'])
-            params['layer_size_fine_bins'] = calculate_layer_size_hierarch(n_time_bins)
+            layer_size = params['layer_size_fine_bins'][0][0]
+            params['layer_size_fine_bins'] = calculate_layer_size_hierarch(layer_size, n_time_bins)
             hyperparams = format_hierarchical_hyperparams(params)
             verbose = params['verbose']
             model = util.get_model_and_output("hierarch_full", train_data, test_data,

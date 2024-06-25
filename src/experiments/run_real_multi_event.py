@@ -147,7 +147,8 @@ if __name__ == "__main__":
             config['num_bins'] = n_time_bins
             params = cfg.HIERARCH_PARAMS
             params['n_batches'] = int(n_samples/params['batch_size'])
-            params['layer_size_fine_bins'] = calculate_layer_size_hierarch(n_time_bins)
+            layer_size = params['layer_size_fine_bins'][0][0]
+            params['layer_size_fine_bins'] = calculate_layer_size_hierarch(layer_size, n_time_bins)
             hyperparams = format_hierarchical_hyperparams(params)
             verbose = params['verbose']
             model = util.get_model_and_output("hierarch_full", train_data, test_data,

@@ -18,6 +18,9 @@ from SurvivalEVAL.Evaluator import LifelinesEvaluator
 import copy
 from torch.utils.data import DataLoader, TensorDataset
 from mensa.model import MensaNDE
+from utility.config import load_config
+from utility.survival import predict_survival_function, compute_l1_difference
+from copula import Clayton2D, Frank2D
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -26,76 +29,79 @@ torch.manual_seed(0)
 random.seed(0)
 
 # Setup precision
-torch.set_default_dtype(torch.float64)
+dtype = torch.float64
+torch.set_default_dtype(dtype)
 
 # Setup device
 device = "cpu" # use CPU
 device = torch.device(device)
 
 if __name__ == "__main__":
-    # Load data
-    dl = SingleEventSyntheticDataLoader().load_data(n_samples=10000)
-    num_features, cat_features = dl.get_features()
-    (X_train, y_train), (X_valid, y_valid), (X_test, y_test) = dl.split_data(train_size=0.7,
-                                                                             valid_size=0.1,
-                                                                             test_size=0.2)
+    # Load and split data
+    data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic.yaml")
+    dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config,
+                                                    linear=True, copula_name="clayton",
+                                                    k_tau=0.25, device=device, dtype=dtype)
+    train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
+    n_events = data_config['se_n_events']
+    dgps = dl.dgps
+    
+    print(f"Goal theta: {kendall_tau_to_theta('clayton', 0.25)}")
     
     # Make time bins
-    time_bins = make_time_bins(y_train['time'], event=y_train['event'])
-
-    # Scale data
-    X_train, X_valid, X_test = preprocess_data(X_train, X_valid, X_test,
-                                               cat_features, num_features,
-                                               as_array=True)
-    
-    # Format data
-    times_tensor_train = array_to_tensor(y_train['time'], torch.float32)
-    event_indicator_tensor_train = array_to_tensor(y_train['event'], torch.float32)
-    covariate_tensor_train = torch.tensor(X_train).to(device)
-    times_tensor_val = array_to_tensor(y_valid['time'], torch.float32)
-    event_indicator_tensor_val = array_to_tensor(y_valid['event'], torch.float32)
-    covariate_tensor_val = torch.tensor(X_valid).to(device)
-    times_tensor_test = array_to_tensor(y_test['time'], torch.float32)
-    event_indicator_tensor_test = array_to_tensor(y_test['event'], torch.float32)
-    covariate_tensor_test = torch.tensor(X_test).to(device)
+    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
     
     # Define params
     batch_size = 32
-    num_epochs = 1000
-    early_stop_epochs = 100
+    num_epochs = 5000
+    early_stop_epochs = 300
     
     # Make model
-    model = MensaNDE(device=device, n_features=X_train.shape[1], tol=1e-14).to(device)
-    optimizer = optim.Adam([{"params": model.sumo.parameters(), "lr": 1e-3}])
+    model = MensaNDE(hidden_size=32, hidden_surv=32, dropout_rate=0.25,
+                     device=device, n_features=train_dict['X'].shape[1], tol=1e-14).to(device)
+    copula = Clayton2D(torch.tensor([5.0], dtype=dtype), device, dtype)
+    optimizer = optim.Adam([{"params": model.sumo.parameters(), "lr": 0.005},
+                            {"params": copula.parameters(), "lr": 0.005}])
 
     # Make data loaders
-    train_loader = DataLoader(TensorDataset(covariate_tensor_train,
-                                            times_tensor_train,
-                                            event_indicator_tensor_train),
+    train_loader = DataLoader(TensorDataset(train_dict['X'],
+                                            train_dict['T'],
+                                            train_dict['E']),
                               batch_size=batch_size, shuffle=True)
-    valid_loader = DataLoader(TensorDataset(covariate_tensor_val,
-                                            times_tensor_val,
-                                            event_indicator_tensor_val),
+    valid_loader = DataLoader(TensorDataset(valid_dict['X'],
+                                            valid_dict['T'],
+                                            valid_dict['E']),
                               batch_size=batch_size, shuffle=False)
         
     # Train model
+    copula.enable_grad()
+    
     best_valid_logloss = float('-inf')
     epochs_no_improve = 0
     for epoch in tqdm(range(num_epochs), disable=True):
         for xi, ti, ei in train_loader:
             optimizer.zero_grad()
-            logloss = model(xi, ti, ei, max_iter=10000)
-            (-logloss).backward()
-            optimizer.step()
+            loss = model(xi, ti, ei, copula, max_iter=10000)
+            loss.backward()
+            for p in copula.parameters():
+                p.grad = p.grad * 1000.0
+                p.grad.clamp_(torch.tensor([-1.0]), torch.tensor([1.0]))
             
+            optimizer.step()
+        
+            for p in copula.parameters():
+                if p <= 0.01:
+                    with torch.no_grad():
+                        p[:] = torch.clamp(p, 0.01, 100)
+        
         if epoch % 10 == 0:
             total_val_logloss = 0
             for xi, ti, ei in valid_loader:
-                val_logloss = model(xi, ti, ei, max_iter=1000)
+                val_logloss = model(xi, ti, ei, copula, max_iter=10000)
                 total_val_logloss += val_logloss
             total_val_logloss /= len(valid_loader)
             
-            print(f"Valid NLL: {-total_val_logloss}")
+            print(f"Valid NLL: {total_val_logloss} - {copula.theta}")
             
             if total_val_logloss > (best_valid_logloss + 1):
                 best_valid_logloss = total_val_logloss
@@ -109,3 +115,16 @@ if __name__ == "__main__":
             break
         
     print("Done training")
+    
+    # Predict survial funcion
+    model_preds = predict_survival_function(model, test_dict['X'], time_bins).numpy()
+    
+    # Compute L1 (Truth vs. Model) - event only
+    n_samples = test_dict['X'].shape[0]
+    truth_preds_e = torch.zeros((n_samples, time_bins.shape[0]), device=device)
+    for i in range(time_bins.shape[0]):
+        truth_preds_e[:,i] = dgps[0].survival(time_bins[i], test_dict['X'])
+    l1_e = float(compute_l1_difference(truth_preds_e, model_preds,
+                                       n_samples, steps=time_bins))
+    
+    print(f"Evaluated mensa - {True} - {round(0.25, 3)} - {round(l1_e, 3)}")

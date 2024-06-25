@@ -77,6 +77,8 @@ def dependent_train_loop_linear(model1, model2, train_data, val_data,
                 with torch.no_grad():
                     p[:] = torch.clamp(p, 0.01, 100)
         
+        print(copula.theta)
+        
         with torch.no_grad():
             val_loss = loss_function(model1, model2, val_data, copula)
             if not torch.isnan(val_loss) and val_loss < min_val_loss:
