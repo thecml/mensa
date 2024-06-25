@@ -197,6 +197,7 @@ def make_deephit_cr(config, in_features, out_features, num_risks, duration_index
 def train_deepsurv_model(
         model: nn.Module,
         data_train: pd.DataFrame,
+        data_valid: pd.DataFrame,
         time_bins: NumericArrayLike,
         config: argparse.Namespace,
         random_state: int,
@@ -208,12 +209,8 @@ def train_deepsurv_model(
         print(f"Training {model.get_name()}: reset mode is {reset_model}, number of epochs is {config.num_epochs}, "
               f"learning rate is {config.lr}, C1 is {config.c1}, "
               f"batch size is {config.batch_size}, device is {device}.")
-    data_train, _, data_val = make_stratified_split(data_train, stratify_colname='both',
-                                                           frac_train=0.9, frac_test=0.1,
-                                                           random_state=random_state)
-
     train_size = data_train.shape[0]
-    val_size = data_val.shape[0]
+    val_size = data_valid.shape[0]
     optimizer = optim.Adam(model.parameters(), lr=config.lr)
 
     if reset_model:
@@ -230,9 +227,9 @@ def train_deepsurv_model(
     x_train, t_train, e_train = (torch.tensor(data_train.drop(["time", "event"], axis=1).values, dtype=dtype),
                                  torch.tensor(data_train["time"].values, dtype=dtype),
                                  torch.tensor(data_train["event"].values, dtype=dtype))
-    x_val, t_val, e_val = (torch.tensor(data_val.drop(["time", "event"], axis=1).values, dtype=dtype).to(device),
-                           torch.tensor(data_val["time"].values, dtype=dtype).to(device),
-                           torch.tensor(data_val["event"].values, dtype=dtype).to(device))
+    x_val, t_val, e_val = (torch.tensor(data_valid.drop(["time", "event"], axis=1).values, dtype=dtype).to(device),
+                           torch.tensor(data_valid["time"].values, dtype=dtype).to(device),
+                           torch.tensor(data_valid["event"].values, dtype=dtype).to(device))
 
     train_loader = DataLoader(TensorDataset(x_train, t_train, e_train), batch_size=train_size, shuffle=True)
     model.config.batch_size = train_size

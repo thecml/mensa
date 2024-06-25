@@ -51,8 +51,8 @@ format (elements in order):
     number of extra time bins (that represent t > T, for individuals who do not experience event by end of horizon) 
 '''
 HIERARCH_PARAMS = {
-    'theta_layer_size': [32],
-    'layer_size_fine_bins': [(32, 5), (32, 5)],
+    'theta_layer_size': [100],
+    'layer_size_fine_bins': [(50, 5), (50, 5)],
     'lr': 0.001,
     'reg_constant': 0.05,
     'n_batches': 10,
@@ -60,7 +60,7 @@ HIERARCH_PARAMS = {
     'backward_c_optim': False,
     'hierarchical_loss': True,
     'alpha': 0.0001,
-    'sigma': 100,
+    'sigma': 10,
     'use_theta': True,
     'use_deephit': False,
     'n_extra_bins': 1,
@@ -196,7 +196,7 @@ SURVTRACE_PARAMS = {
     "batch_size": 128,
     "weight_decay": 0,
     "learning_rate": 1e-4,
-    "epochs": 10, #1000
+    "epochs": 100,
     "early_stop_patience": 10,
     "hidden_dropout_prob": 0.25,
     "seed": 0,

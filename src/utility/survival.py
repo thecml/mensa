@@ -664,5 +664,5 @@ def predict_survival_function(model, x_test, time_bins, truth=False):
     surv_estimate = torch.zeros((x_test.shape[0], time_bins.shape[0]), device=device)
     time_bins = torch.tensor(time_bins)
     for i in range(time_bins.shape[0]):
-        surv_estimate[:,i] = model.survival(time_bins[i], x_test)
+        surv_estimate[:,i] = model.survival(time_bins[i], x_test)[1] # use event
     return surv_estimate
