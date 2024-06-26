@@ -425,7 +425,7 @@ class MimicDataLoader(BaseDataLoader):
         return self
 
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+                   test_size: float, random_state=0):
         '''
         Since MIMIC one patient has multiple events, we need to split by patients.
         '''
@@ -447,7 +447,7 @@ class SeerDataLoader(BaseDataLoader):
     """
     Data loader for SEER dataset (CR)
     """
-    def load_data(self, n_samples:int = None, device='cpu', dtype=torch.float64):
+    def load_data(self, n_samples:int = None):
         df = pd.read_csv(f'{cfg.DATA_DIR}/seer_processed.csv')
         
         if n_samples:
@@ -479,26 +479,11 @@ class SeerDataLoader(BaseDataLoader):
         
 class RotterdamDataLoader(BaseDataLoader):
     """
-    Data loader for Rotterdam dataset (ME)
+    Data loader for Rotterdam dataset (CR)
     """
     def load_data(self, n_samples:int = None):
-        df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
-        if n_samples:
-            df = df.sample(n=n_samples, random_state=0)
-        self.X = df.drop(['pid', 'rtime', 'recur', 'dtime', 'death'], axis=1)
-        self.num_features = self._get_num_features(self.X)
-        self.cat_features = self._get_cat_features(self.X)
-        times = [df['rtime'].values, df['dtime'].values]
-        events = [df['recur'].values, df['death'].values]
-        self.y_t = np.stack((times[0], times[1]), axis=1)
-        self.y_e = np.stack((events[0], events[1]), axis=1)
-        self.n_events = 2
-        return self
-
-    def load_CR_data(self, n_samples:int = None):
         '''
-        convert competing risk
-        event: 0 censor, 1 death, 2 recur
+        Events: 0 censor, 1 death, 2 recur
         '''
         df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
         if n_samples:
@@ -535,7 +520,7 @@ class RotterdamDataLoader(BaseDataLoader):
         
         df['event'] = df.apply(get_event, axis=1)
         df['time'] = df.apply(get_time, axis=1)
-        self.X = df.drop(['pid', 'size', 'rtime', 'recur', 'dtime', 'death'], axis=1)
+        self.X = df.drop(['pid', 'size', 'rtime', 'recur', 'dtime', 'death', 'time', 'event'], axis=1)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
         self.y_t = df['time']
@@ -543,50 +528,16 @@ class RotterdamDataLoader(BaseDataLoader):
         self.n_events = 2
         return self
         
-    def split_data(self,
-                   train_size: float,
-                   valid_size: float,
-                   random_state=0):
-        # Split multi event data
-        raw_data = self.X
-        event_time = self.y_t
-        labs = self.y_e
+    def split_data(self, train_size: float, valid_size: float,
+                   test_size: float, random_state=0):
+        df = pd.DataFrame(self.X)
+        df['event'] = self.y_e
+        df['time'] = self.y_t
         
-        traj_labs = labs
-        if labs.shape[1] > 1: 
-            traj_labs = get_trajectory_labels(labs)
-
-        #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
-                                          random_state=random_state)
-        train_i, test_i = next(splitter.split(raw_data, traj_labs))
-
-        train_data = raw_data.iloc[train_i, :]
-        train_labs = labs[train_i, :]
-        train_event_time = event_time[train_i, :]
-
-        pretest_data = raw_data.iloc[test_i, :]
-        pretest_labs = labs[test_i, :]
-        pretest_event_time = event_time[test_i, :]
-
-        #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size)
-        new_pretest_labs = get_trajectory_labels(pretest_labs)
-        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
-        test_data = pretest_data.iloc[test_i, :]
-        test_labs = pretest_labs[test_i, :]
-        test_event_time = pretest_event_time[test_i, :]
-
-        val_data = pretest_data.iloc[val_i, :]
-        val_labs = pretest_labs[val_i, :]
-        val_event_time = pretest_event_time[val_i, :]
-
-        #package for convenience
-        train_pkg = [train_data, train_event_time, train_labs]
-        valid_pkg = [val_data, val_event_time, val_labs]
-        test_pkg = [test_data, test_event_time, test_labs]
-
-        return (train_pkg, valid_pkg, test_pkg)
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            random_state=random_state)
+        return df_train, df_valid, df_test
     
 def get_data_loader(dataset_name:str) -> BaseDataLoader:
     if dataset_name == "seer":
