@@ -2,9 +2,10 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from pycop import simulation
-from Copula import Frank, Gumbel
+from Copula import Frank, Gumbel, Clayton
 from l1_eval import surv_diff
-from nested_copula import NestedClayton
+from nested_copula import NestedClayton, NestedFrank, ConvexCopula
+
 
 
 
@@ -12,7 +13,7 @@ from nested_copula import NestedClayton
 def LOG(x):
     return torch.log(x+1e-20*(x<1e-20))
 
-class Clayton:
+"""class Clayton:
     def __init__(self, theta, epsilon=1e-3, device='cpu'):
         self.theta = theta
         self.eps = torch.tensor([epsilon], device=device).type(torch.float32)
@@ -45,13 +46,14 @@ class Clayton:
         return (self.CDF(uv_eps) - self.CDF(uv))/self.eps
     
     def enable_grad(self):
-        self.theta.requires_grad = True
+        self.theta.requires_grad = True"""
 
     
 
 def generate_events(dgp1, dgp2, dgp3, x, device,theta=2.0, family='clayton'):
     if family is None:
-        uv = torch.randn((x.shape[0], 3))#sample idnependent 
+        uv = torch.rand((x.shape[0], 3))#sample idnependent
+        
     else:
         u,v,w = simulation.simu_archimedean(family, 3, x.shape[0], theta=theta)
         u = torch.from_numpy(u).type(torch.float32).reshape(-1,1)
@@ -262,24 +264,35 @@ if __name__ == "__main__":
 
 
     copula_dgp = 'clayton'
-    theta_dgp = 8.0
+    theta_dgp = 3.0
     eps = 1e-4
 
     train_dict, val_dict, test_dict = \
                 generate_data(x_dict, dgp1, dgp2, dgp3,DEVICE, copula_dgp, theta_dgp)
-    
+    #print(train_dict['E'])
+    #assert 0
+    #plt.hist(train_dict['t1'])
+    #plt.show()
+    #assert 0
     #remove the comment to check the percentage of each event 
     #plt.hist(train_dict['E'])
     #plt.show()
     #assert 0
 
     #copula for estimation
-    copula_start_point = 2.0
-    #copula = Clayton(torch.tensor([copula_start_point]),eps, DEVICE)
-    #copula = Frank(torch.tensor([copula_start_point]),eps, DEVICE)
+    copula_start_point = 3.0
     copula = Clayton(torch.tensor([copula_start_point]),eps, DEVICE)
-    copula = NestedClayton(torch.tensor([copula_start_point]),torch.tensor([copula_start_point]),eps,eps, DEVICE)
+    copula.flag = False
+    #copula = Frank(torch.tensor([copula_start_point]),eps, DEVICE)
+    #copula = Clayton(torch.tensor([copula_start_point]),eps, DEVICE)
+    #copula = NestedFrank(torch.tensor([copula_start_point]),torch.tensor([copula_start_point]),eps,eps, DEVICE)
     
+    #copula1 = NestedFrank(torch.tensor([copula_start_point]),torch.tensor([copula_start_point]),eps,eps, DEVICE)
+    
+    #copula2 = NestedClayton(torch.tensor([copula_start_point]),torch.tensor([copula_start_point]),eps,eps, DEVICE)
+    #copula = ConvexCopula(copula1, copula2, 1, 'cpu')
+    
+
     indep_model1 = Weibull_log_linear(nf, mu=2, sigma=2, device=DEVICE)
     indep_model2 = Weibull_log_linear(nf, mu=2, sigma=2, device=DEVICE)
     indep_model3 = Weibull_log_linear(nf, mu=2, sigma=2, device=DEVICE)
@@ -288,11 +301,11 @@ if __name__ == "__main__":
     indep_model2.enable_grad()
     indep_model3.enable_grad()
     copula.enable_grad()
-    optimizer = torch.optim.Adam(indep_model3.parameters(), lr=5e-3)
+    
 
-    optimizer = torch.optim.Adam([  {"params": indep_model1.parameters(), "lr": 1e-2},
-                                    {"params": indep_model2.parameters(), "lr": 1e-2},
-                                    {"params": indep_model3.parameters(), "lr": 1e-2},
+    optimizer = torch.optim.Adam([  {"params": indep_model1.parameters(), "lr": 1e-4},
+                                    {"params": indep_model2.parameters(), "lr": 1e-4},
+                                    {"params": indep_model3.parameters(), "lr": 1e-4},
                                 ])
     #add pretraining to make sure its possible to converge to the correct model
     pre_trainn_epochs = 20
@@ -321,26 +334,38 @@ if __name__ == "__main__":
 
     #training loop
 
-    optimizer = torch.optim.Adam([  {"params": indep_model1.parameters(), "lr": 1e-3},
-                                    {"params": indep_model2.parameters(), "lr": 1e-3},
-                                    {"params": indep_model3.parameters(), "lr": 1e-3},
-                                    {"params": copula.parameters(), "lr": 1e-3}
+    optimizer = torch.optim.Adam([  {"params": indep_model1.parameters(), "lr": 5e-3},
+                                    {"params": indep_model2.parameters(), "lr": 5e-3},
+                                    {"params": indep_model3.parameters(), "lr": 5e-3},
+                                    {"params": copula.parameters(), "lr": 0}
                                 ])
-    n_epochs = 10000
+    
+    n_epochs = 5000
     for i in range(n_epochs):
         optimizer.zero_grad()
         loss = loss_triple(indep_model1, indep_model2, indep_model3, train_dict, copula)
         loss.backward()
         for p in copula.parameters():
-            p.grad = p.grad * 1000
+            p.grad = p.grad * 100
             p.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
         
         #copula.theta.grad = copula.theta.grad*1000
         #play with the clip range to see if it makes any differences 
         #copula.theta.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
         optimizer.step()
+        
+        for p in copula.parameters():
+            if p <= 0.01:
+                with torch.no_grad():
+                    p[:] = torch.clamp(p,0.01, 100)
         if i%500 == 0:
-            print(loss, copula.parameters())
+            if True:
+            #with torch.no_grad():
+                val_loss = loss_triple(indep_model1, indep_model2, indep_model3, val_dict, copula)
+                d1 = surv_diff(dgp1, indep_model1, val_dict['X'], 200)
+                d2 = surv_diff(dgp2, indep_model2, val_dict['X'], 200)
+                d3 = surv_diff(dgp3, indep_model3, val_dict['X'], 200)
+            print(loss, val_loss,d1,d2,d3, copula.parameters())
 
     print("###############################################################")
     #NLL of all of the events together

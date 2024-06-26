@@ -1,4 +1,8 @@
 import torch
+from l1_eval import Survival, surv_diff, SurvivalNDE, surv_diff_NDE
+from test_script import LOG
+from Copula import Clayton
+import itertools
 # from torch.distributions import Weibull,LogNormal
 
 def linear(x):
@@ -179,7 +183,7 @@ class survival_net_basic(torch.nn.Module):
                  layers,
                  dropout=0.9,
                  bounding_op=torch.relu,
-                 transformation=torch.tanh,
+                 transformation=torch.relu,
                  direct_dif = True,
                  objective = 'hazard',
                  eps=1e-6
@@ -547,7 +551,7 @@ def log_objective_hazard_mean(cum_hazard,hazard):
 
 
 
-def generate_events(dgp1, dgp2, x, device,copula=None):
+"""def generate_events(dgp1, dgp2, x, device,copula=None):
     if copula is None:
         uv = torch.rand((x.shape[0],2), device=device)
     else:
@@ -556,7 +560,7 @@ def generate_events(dgp1, dgp2, x, device,copula=None):
     t2 = dgp2.rvs(x, uv[:,1])
     E = (t1 < t2).type(torch.float32)
     T = E * t1 + t2 *(1-E)
-    return {'X':x,'E':E, 'T':T, 't1':t1, 't2':t2}
+    return {'X':x,'E':E, 'T':T, 't1':t1, 't2':t2}"""
 
 
 def synthetic_x(n_train, n_val, n_test, nf, device):
@@ -565,62 +569,332 @@ def synthetic_x(n_train, n_val, n_test, nf, device):
     x_test = torch.rand((n_test, nf), device=device)
     return {"x_train":x_train, "x_val":x_val, "x_test":x_test}
 
-def generate_data(x_dict, dgp1, dgp2,device, copula=None):
+"""def generate_data(x_dict, dgp1, dgp2,device, copula=None):
     train_dict = generate_events(dgp1, dgp2, x_dict['x_train'],device, copula)
     val_dict = generate_events(dgp1, dgp2, x_dict['x_val'],device, copula)
     test_dict = generate_events(dgp1, dgp2, x_dict['x_test'],device, copula)
-    return train_dict, val_dict, test_dict
+    return train_dict, val_dict, test_dict"""
 
+
+def loss_triple(model1, model2, model3, X, T, E, copula=None):#estimates the joint loss
+    s1 = model1.survival(T, X)
+    s2 = model2.survival(T, X)
+    s3 = model3.survival(T, X)
+    f1 = model1.PDF(T, X)
+    f2 = model2.PDF(T, X)
+    f3 = model3.PDF(T, X)
+    w = torch.mean(E)
+    if copula is None:
+        p1 = LOG(f1) + LOG(s2) + LOG(s3)
+        p2 = LOG(f2) + LOG(s1) + LOG(s3)
+        p3 = LOG(f3) + LOG(s1) + LOG(s2)
+    else:
+        
+        S = torch.cat([s1.reshape(-1,1), s2.reshape(-1,1), s3.reshape(-1,1)], dim=1).clamp(0.001,0.999)
+        
+        p1 = LOG(f1) + LOG(copula.conditional_cdf("u", S))
+        p2 = LOG(f2) + LOG(copula.conditional_cdf("v", S))
+        p3 = LOG(f3) + LOG(copula.conditional_cdf("w", S))
+        
+    p1[torch.isnan(p1)] = 0
+    p2[torch.isnan(p2)] = 0
+    p3[torch.isnan(p3)] = 0
+    e1 = (E == 0)*1.0
+    e2 = (E == 1)*1.0
+    e3 = (E == 2)*1.0
+    loss = torch.sum(p1 * e1) + torch.sum(p2*e2) + torch.sum(p3*e3)
+    loss = -loss/E.shape[0]
+    return loss
+
+
+def loss_tripleNDE(model, X, T, E, copula=None):#estimates the joint loss
+    log_f = model.forward_f(X, T.reshape(-1,1))
+    log_s = model.forward_S(X, T.reshape(-1,1), mask=0)
+    f1 = log_f[:,0:1]
+    s1 = log_s[:,0:1]
+    f2 = log_f[:,1:2]
+    s2 = log_s[:,1:2]
+    f3 = log_f[:,2:3]
+    s3 = log_s[:,2:3]
+    w = torch.mean(E)
+    if copula is None:
+        p1 = f1 + s2 + s3
+        p2 = s1 + f2 + s3
+        p3 = s1 + s2 + f3
+    else:
+        S = torch.cat([torch.exp(s1).reshape(-1,1), torch.exp(s2).reshape(-1,1), torch.exp(s3).reshape(-1,1)], dim=1).clamp(0.001,0.999)
+        p1 = f1 + LOG(copula.conditional_cdf("u", S)).reshape(-1,1)
+        p2 = f2 + LOG(copula.conditional_cdf("v", S)).reshape(-1,1)
+        p3 = f3 + LOG(copula.conditional_cdf("w", S)).reshape(-1,1)
+    
+    p1[torch.isnan(p1)] = 0
+    p2[torch.isnan(p2)] = 0
+    p3[torch.isnan(p3)] = 0
+    e1 = (E == 0)*1.0
+    e2 = (E == 1)*1.0
+    e3 = (E == 2)*1.0
+    
+    loss = torch.sum(p1 * e1.reshape(-1,1)) + torch.sum(p2*e2.reshape(-1,1)) + torch.sum(p3*e3.reshape(-1,1))
+    loss = -loss/E.shape[0]
+    
+    return loss
 
 if __name__ == "__main__":
     from test_script import Weibull_linear
+    from test_script import generate_data
+    import numpy as np
     torch.manual_seed(0)
+    np.random.seed(0)
     DEVICE = 'cpu'
-    nf = 3
+    nf = 1
     n_train = 10000
     n_val = 5000
     n_test = 5000
 
     x_dict = synthetic_x(n_train, n_val, n_test, nf, DEVICE)
-    dgp1 = Weibull_linear(nf, alpha=17, gamma=3, device=DEVICE)
-    dgp2 = Weibull_linear(nf, alpha=16, gamma=3, device=DEVICE)
+    dgp1 = Weibull_linear(nf, alpha=14, gamma=3, device=DEVICE)
+    dgp2 = Weibull_linear(nf, alpha=14.5, gamma=3, device=DEVICE)
+    dgp3 = Weibull_linear(nf, alpha=13, gamma=3, device=DEVICE)
     
 
     
     dgp1.coeff = torch.rand((nf,),device=DEVICE)
     dgp2.coeff = torch.rand((nf,), device=DEVICE)
+    dgp3.coeff = torch.rand((nf,), device=DEVICE)
+    theta = 3.0
     
     train_dict, val_dict, tst_dict = \
-        generate_data(x_dict, dgp1, dgp2,DEVICE, copula=None)
+        generate_data(x_dict, dgp1, dgp2,dgp3,'device', copula='clayton', theta=theta)
     
+    import matplotlib.pyplot as plt
+    """plt.hist(train_dict['E'])
+    plt.show()
+    assert 0"""
+    
+    print(train_dict['E'].mean())
     sn1 = survival_net_basic(d_in_x=nf, 
                             cat_size_list=[],
                             d_in_y=1,
-                            d_out=1,
-                            layers_x=[32,32,32],
+                            d_out=3,
+                            layers_x=[32],
                             layers_t=[],
-                            layers=[32,32,32,32],
-                            dropout=0.4, eps=1e-3)
+                            layers=[32,32],
+                            transformation=torch.tanh,
+                            dropout=0.2, eps=1e-3)
     
     
 
     optimizer = torch.optim.Adam(sn1.parameters(), lr=1e-3)
-    log_f = torch.log(1e-10+dgp1.PDF(val_dict['T'], val_dict['X']))
-    log_s = torch.log(1e-10+dgp1.survival(val_dict['T'], val_dict['X']))
-    print(-(log_f * val_dict['E'] + log_s * (1-val_dict['E'])).mean())
-    for i in range(5000):
+    f1 = torch.log(dgp1.PDF(train_dict['t1'], train_dict['X'])+1e-20)
+    f2 = torch.log(dgp2.PDF(train_dict['t2'], train_dict['X'])+1e-20)
+    f3 = torch.log(dgp3.PDF(train_dict['t3'], train_dict['X'])+1e-20)
+    loss_train =-1 * (f1 + f2 + f3).mean()
+    f1 = torch.log(dgp1.PDF(val_dict['t1'], val_dict['X'])+1e-20)
+    f2 = torch.log(dgp2.PDF(val_dict['t2'], val_dict['X'])+1e-20)
+    f3 = torch.log(dgp3.PDF(val_dict['t3'], val_dict['X'])+1e-20)
+    loss_val =-1 * (f1 + f2 + f3).mean()
+    print(loss_train, loss_val)
+    
+    """for itr in range(2000):
+        sn1.train()
         optimizer.zero_grad()
-        log_f = sn1.forward_f(train_dict['X'], train_dict['T'].reshape(-1,1))
-        log_s = sn1.forward_S(train_dict['X'], train_dict['T'].reshape(-1,1), mask=0)
-        loss = -(log_f * train_dict['E'].reshape(-1,1) + log_s * (1-train_dict['E'].reshape(-1,1))).mean()
+        f1 = sn1.forward_f(train_dict['X'], train_dict['t1'].reshape(-1,1))[:,0]
+        f2 = sn1.forward_f(train_dict['X'], train_dict['t2'].reshape(-1,1))[:,1]
+        f3 = sn1.forward_f(train_dict['X'], train_dict['t3'].reshape(-1,1))[:,2]
+        loss = -1.0 * (f1+f2+f3).mean() 
         loss.backward()
         optimizer.step()
-        if i % 100 == 0:
+        if itr %100 == 0:
+            sn1.eval()
             with torch.no_grad():
-                log_f = sn1.forward_f(val_dict['X'], val_dict['T'].reshape(-1,1))
+                
+                f1 = sn1.forward_f(val_dict['X'], val_dict['t1'].reshape(-1,1))[:,0]
+                f2 = sn1.forward_f(val_dict['X'], val_dict['t2'].reshape(-1,1))[:,1]
+                f3 = sn1.forward_f(val_dict['X'], val_dict['t3'].reshape(-1,1))[:,2]
+                loss_val = -1.0 * (f1+f2+f3).mean() 
+                print(loss_val, loss,surv_diff_NDE(dgp1, sn1, val_dict['X'], 0, 500),\
+                       surv_diff_NDE(dgp2, sn1, val_dict['X'], 1, 500), surv_diff_NDE(dgp3, sn1, val_dict['X'], 2, 500))
+    
+    print(surv_diff_NDE(dgp1, sn1, val_dict['X'], 0, 500),\
+                       surv_diff_NDE(dgp2, sn1, val_dict['X'], 1, 500), surv_diff_NDE(dgp3, sn1, val_dict['X'], 2, 500))
+    torch.save(sn1.state_dict(), 'pre_trained.pt')
+    sn1.load_state_dict(torch.load('pre_trained.pt'))
+    print(surv_diff_NDE(dgp1, sn1, val_dict['X'], 0, 500),\
+                       surv_diff_NDE(dgp2, sn1, val_dict['X'], 1, 500), surv_diff_NDE(dgp3, sn1, val_dict['X'], 2, 500))
+    assert 0
+    """
+    sn1.load_state_dict(torch.load('pre_trained.pt'))
+    print(surv_diff_NDE(dgp1, sn1, val_dict['X'], 0, 500),\
+                       surv_diff_NDE(dgp2, sn1, val_dict['X'], 1, 500), surv_diff_NDE(dgp3, sn1, val_dict['X'], 2, 500))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    log_f_1 = torch.log(1e-20+dgp1.PDF(val_dict['T'], val_dict['X']))
+    log_s_1 = torch.log(1e-20+dgp1.survival(val_dict['T'], val_dict['X']))
+    log_f_2 = torch.log(1e-20+dgp2.PDF(val_dict['T'], val_dict['X']))
+    log_s_2 = torch.log(1e-20+dgp2.survival(val_dict['T'], val_dict['X']))
+    log_f_3 = torch.log(1e-20+dgp3.PDF(val_dict['T'], val_dict['X']))
+    log_s_3 = torch.log(1e-20+dgp3.survival(val_dict['T'], val_dict['X']))
+    
+    p1 = log_f_1 + log_s_2 + log_s_3
+    p2 = log_s_1 + log_f_2 + log_s_3
+    p3 = log_s_1 + log_s_2 + log_f_3
+    e1 = (val_dict['E'] == 0)*1.0
+    e2 = (val_dict['E'] == 1)*1.0
+    e3 = (val_dict['E'] == 2)*1.0
+    loss = torch.sum(p1 * e1) + torch.sum(p2*e2) + torch.sum(p3*e3)
+    loss_dgp = -loss/val_dict['E'].shape[0]
+    copula = Clayton(torch.tensor([theta]).type(torch.float32))
+    print(loss_triple(dgp1, dgp2, dgp3, val_dict['X'], val_dict['T'], val_dict['E'], copula))
+    
+    """loss = []
+    thetas = torch.linspace(0.01, 12, 100)
+    copula = Clayton(torch.tensor([theta]).type(torch.float32))
+    for theta in thetas:
+        copula = Clayton(torch.tensor([theta]).type(torch.float32))
+        loss.append(loss_triple(dgp1, dgp2, dgp3, val_dict, copula).detach().numpy())
+    plt.plot(thetas,loss)
+    print(min(loss))
+    plt.show()
+    assert 0"""
+    loss_dgp  = loss_triple(dgp1, dgp2, dgp3, val_dict['X'], val_dict['T'], val_dict['E'], copula)
+    #print(loss_triple(dgp1, dgp2, dgp3, train_dict['X'], train_dict['T'], train_dict['E'], copula))
+    #assert 0
+    #print(loss_triple(dgp1, dgp2, dgp3, val_dict, None))
+    copula = Clayton(torch.tensor([theta]).type(torch.float32))
+    copula.enable_grad()
+   
+    optimizer = torch.optim.Adam([  {"params": sn1.parameters(), "lr": 1e-4},
+                        {"params": copula.parameters(), "lr": 0e-3},
+                    ], weight_decay=0.000)
+    copula.flag = True
+    copula_grad = []
+    copula_grad_m = []
+    import matplotlib.pyplot as plt
+    idx = torch.randperm(train_dict['E'].shape[0])
+    for i in range(10000):
+        if i==0:
+            
+            sn1.eval()
+            loss_tr = loss_tripleNDE(sn1, train_dict['X'], train_dict['T'], train_dict['E'], copula)
+            loss_val = loss_tripleNDE(sn1, val_dict['X'], val_dict['T'], val_dict['E'], copula)
+            print(111111, copula.theta.detach().numpy(), loss_tr, loss_val, loss_dgp, surv_diff_NDE(dgp1, sn1, val_dict['X'], 0, 200),\
+                    surv_diff_NDE(dgp2, sn1, val_dict['X'], 1, 200), surv_diff_NDE(dgp3, sn1, val_dict['X'], 2, 200))
+        
+        sn1.train()
+        optimizer.zero_grad()
+        """log_f = sn1.forward_f(train_dict['X'], train_dict['T'].reshape(-1,1))
+        log_s = sn1.forward_S(train_dict['X'], train_dict['T'].reshape(-1,1), mask=0)
+        
+
+        log_f_1 = log_f[:,0:1]
+        log_s_1 = log_s[:,0:1]
+        log_f_2 = log_f[:,1:2]
+        log_s_2 = log_s[:,1:2]
+        log_f_3 = log_f[:,2:3]
+        log_s_3 = log_s[:,2:3]
+
+        p1 = log_f_1 + log_s_2 + log_s_3
+        p2 = log_s_1 + log_f_2 + log_s_3
+        p3 = log_s_1 + log_s_2 + log_f_3
+        e1 = (train_dict['E'] == 0)*1.0
+        e2 = (train_dict['E'] == 1)*1.0
+        e3 = (train_dict['E'] == 2)*1.0
+        loss = torch.sum(p1 * e1.reshape(-1,1)) + torch.sum(p2*e2.reshape(-1,1)) + torch.sum(p3*e3.reshape(-1,1))
+        loss = -loss/train_dict['E'].shape[0]
+        print(loss)"""
+        X = train_dict['X']
+        T = train_dict['T']
+        E = train_dict['E']
+        
+        for b in range(1+int(E.shape[0]/4096)):
+            e = E[b*128:min((b+1)*128, E.shape[0])]
+            t = T[b*128:min((b+1)*128, E.shape[0])]
+            x = X[b*128:min((b+1)*128, E.shape[0])]
+            
+            loss = loss_tripleNDE(sn1, x, t, e, copula)
+        
+            loss.backward()
+        
+            copula_grad.append(copula.theta.grad.clone().detach().numpy())
+            for p in copula.parameters():
+                p.grad = p.grad *1.0
+                p.grad.clamp_(torch.tensor([-1.0]), torch.tensor([1.0]))
+            copula_grad_m.append(copula.theta.grad.clone().detach().numpy())
+            
+            optimizer.step()
+        
+            for p in copula.parameters():
+                if p <= 0.01:
+                    with torch.no_grad():
+                        p[:] = torch.clamp(p,0.01, 100)
+        """if i%1000==0:
+            print('change theta')
+            min_loss = 10000
+            min_theta = 1.0
+            loss_theta = []
+            for theta in torch.linspace(0.01, 8, 100):
+                copula.theta = theta
+                loss = loss_tripleNDE(sn1, train_dict['X'], train_dict['T'], train_dict['E'], copula)
+                loss_theta.append(loss.detach().clone())
+                if loss < min_loss:
+                    min_loss = loss.detach().clone()
+                    
+                    min_theta = theta
+            
+            copula.theta = min_theta"""
+        if i%50 == 0:
+            
+            plt.plot(copula_grad)
+            plt.savefig('copula.png')
+            plt.cla()
+            plt.plot(copula_grad_m)
+            plt.savefig('copula_m.png')
+            plt.cla()
+        
+        
+        if i%100==0:
+            #with torch.no_grad():
+            if True:
+                sn1.eval()
+                """log_f = sn1.forward_f(val_dict['X'], val_dict['T'].reshape(-1,1))
                 log_s = sn1.forward_S(val_dict['X'], val_dict['T'].reshape(-1,1), mask=0)
-                loss_val = -(log_f * val_dict['E'].reshape(-1,1) + log_s * (1-val_dict['E'].reshape(-1,1))).mean()
-                print(loss, loss_val)
+
+                log_f_1 = log_f[:,0:1]
+                log_s_1 = log_s[:,0:1]
+                log_f_2 = log_f[:,1:2]
+                log_s_2 = log_s[:,1:2]
+                log_f_3 = log_f[:,2:3]
+                log_s_3 = log_s[:,2:3]
+
+                p1 = log_f_1 + log_s_2 + log_s_3
+                p2 = log_s_1 + log_f_2 + log_s_3
+                p3 = log_s_1 + log_s_2 + log_f_3
+
+                e1 = (val_dict['E'] == 0)*1.0
+                e2 = (val_dict['E'] == 1)*1.0
+                e3 = (val_dict['E'] == 2)*1.0
+                loss_val = torch.sum(p1 * e1.reshape(-1,1)) + torch.sum(p2*e2.reshape(-1,1)) + torch.sum(p3*e3.reshape(-1,1))
+                loss_val = -loss_val/val_dict['E'].shape[0]"""
+                loss_val = loss_tripleNDE(sn1, val_dict['X'], val_dict['T'], val_dict['E'], copula)
+                #scheduler.step(loss_val)
+                
+                print(copula.theta.detach().numpy(), loss.detach().numpy(), loss_val.detach().numpy(), loss_dgp, surv_diff_NDE(dgp1, sn1, val_dict['X'], 0, 200),\
+                       surv_diff_NDE(dgp2, sn1, val_dict['X'], 1, 200), surv_diff_NDE(dgp3, sn1, val_dict['X'], 2, 200))
+               
+    
+      
         
 
     """sn = survival_net_basic(d_in_x=10,
