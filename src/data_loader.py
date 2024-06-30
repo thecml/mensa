@@ -547,7 +547,27 @@ class RotterdamDataLoader(BaseDataLoader):
         test_pkg = [test_data, test_event_time, test_labs]
 
         return (train_pkg, valid_pkg, test_pkg)
-    
+
+class MIMIC_IV_DataLoader(BaseDataLoader):
+    """
+    Data loader for MIMIC IV dataset (ME) - ARF, Shock, Death
+    """
+    def load_data(self, n_samples:int = None):
+        file_paths = [cfg.DATA_DIR+'/mimic_static_feature_fold_'+str(i)+'.csv.gz' for i in range(5)]
+        df_list = [pd.read_csv(file) for file in file_paths]
+        df = pd.concat(df_list, ignore_index=True)
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
+        self.X = df.drop(['hadm_id', 'ARF_event', 'ARF_time', 'shock_event', 'shock_time', 'death_event', 'death_time'], axis=1)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+        times = [df['ARF_time'].values, df['shock_time'].values, df['death_time'].values]
+        events = [df['ARF_event'].values, df['shock_event'].values, df['death_event'].values]
+        self.y_t = np.stack((times[0], times[1], times[2]), axis=1)
+        self.y_e = np.stack((events[0], events[1], events[2]), axis=1)
+        self.n_events = 3
+        return self
+
 def get_data_loader(dataset_name:str) -> BaseDataLoader:
     if dataset_name == "seer":
         return SeerDataLoader()
