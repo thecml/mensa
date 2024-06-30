@@ -192,21 +192,20 @@ def theta_to_kendall_tau(copula_name, theta):
     else:
         raise ValueError('Copula not implemented')
     
-def format_data_as_dict_single(X, y, dtype):
-    data_dict = dict()
-    data_dict['X'] = torch.tensor(X.to_numpy(), dtype=dtype)
-    data_dict['T'] = torch.tensor(y['time'].copy(), dtype=dtype)
-    data_dict['E'] = torch.tensor(y['event'].copy(), dtype=dtype)
-    return data_dict
-
-def format_data_as_dict_multi(X, y_t, y_e, dtype):
+def format_data_as_dict_single(X, events, times, dtype):
     data_dict = dict()
     data_dict['X'] = torch.tensor(X, dtype=dtype)
-    data_dict['E'] = torch.tensor(np.argmin(y_t, axis=1), dtype=dtype)
-    data_dict['T'] = torch.tensor(np.min(y_t, axis=1), dtype=dtype)
-    data_dict['T1'] = torch.tensor(y_t[:,0], dtype=dtype)
-    data_dict['T2'] = torch.tensor(y_t[:,1], dtype=dtype)
-    data_dict['T3'] = torch.tensor(y_t[:,2], dtype=dtype)
+    data_dict['E'] = torch.tensor(events, dtype=dtype)
+    data_dict['T'] = torch.tensor(times, dtype=dtype)
+    return data_dict
+
+def format_data_as_dict_multi(X, y_e, y_t, dtype):
+    data_dict = dict()
+    data_dict['X'] = torch.tensor(X, dtype=dtype)
+    n_events = y_e.shape[1]
+    for i in range(n_events):
+        data_dict[f'E{i+1}'] = torch.tensor(y_e[:,i].astype(np.int64), dtype=torch.int64)
+        data_dict[f'T{i+1}'] = torch.tensor(y_t[:,i].astype(np.int64), dtype=torch.int64)
     return data_dict
 
 def format_data_deephit_single(train_dict, valid_dict, labtrans):
@@ -287,32 +286,17 @@ def format_hierarch_data_multi_event(train_dict, valid_dict, test_dict, num_bins
     test_data = [test_dict['X'], test_event_bins, test_events]
     return train_data, valid_data, test_data
 
-def calculate_layer_size_hierarch(n_time_bins):
-    def find_factors(target):
-        factors = []
-        for i in range(1, int(target**0.5) + 1):
-            if target % i == 0:
-                factors.append(i)
-                if i != target // i:
-                    factors.append(target // i)
-        return factors
-    factors_of_target = find_factors(n_time_bins)
-    if 7 in factors_of_target:
-        return [(32, 6), (32, 6)]
-    if 6 in factors_of_target:
-        return [(32, 6), (32, 6)]
-    elif 5 in factors_of_target:
-        return [(32, 5), (32, 5)]
-    elif 4 in factors_of_target:
-        return [(32, 4), (32, 4)]
-    elif 3 in factors_of_target:
-        return [(32, 3), (32, 3)]
-    elif 2 in factors_of_target:
-        return [(32, 2), (32, 2)]
-    elif 1 in factors_of_target:
-        return [(32, 1), (32, 1)]
-    else:
-        raise ValueError("Could not find a factor of layer size")
+def calculate_layer_size_hierarch(layer_size, n_time_bins):
+    def find_factors(n):
+        for i in range(2, int(n**0.5) + 1):
+            if n % i == 0:
+                factor1 = i
+                factor2 = n // i
+                if factor1 < factor2:
+                    return factor1, factor2
+        return None
+    result = find_factors(n_time_bins)
+    return [(layer_size, result[0]), (layer_size, result[1])]
     
 def format_survtrace_data(train_dict, valid_dict, time_bins, n_events):
     class LabTransform(LabTransDiscreteTime):

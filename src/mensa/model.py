@@ -19,6 +19,9 @@ from copula import Clayton2D, Frank2D
 
 from mensa.loss import calculate_loss_one_model, calculate_loss_two_models, calculate_loss_three_models
 
+def LOG(x):
+    return torch.log(x+1e-20*(x<1e-20))
+
 class PositiveLinear(nn.Module):
     def __init__(self, in_features, out_features, bias = False):
         super(PositiveLinear, self).__init__()
@@ -117,27 +120,40 @@ class MensaNDE(nn.Module):
         super(MensaNDE, self).__init__()
         self.tol = tol
         self.sumo = MultiNDE(inputdim=n_features, n_events=2,
-                             layers = [hidden_size, hidden_size, hidden_size],
-                             layers_surv = [hidden_surv, hidden_surv, hidden_surv],
+                             layers = [hidden_size],
+                             layers_surv = [hidden_surv],
                              dropout = dropout_rate)
 
-    def forward(self, x, t, c, max_iter=2000):
+    def forward(self, x, t, c, copula, max_iter=2000):
         #S_E, density_E = self.sumo_e(x, t, gradient = True) # S_E = St = Survival marginals
-        surv_probs, densities = self.sumo(x, t, gradient = True)
+        surv_marginals, densities = self.sumo(x, t, gradient = True)
+
+        s1 = surv_marginals[0]
+        s2 = surv_marginals[1]
+        f1 = densities[0]
+        f2 = densities[1]
         
+        """
         y, log_densities = list(), list()
-        for event_prob, density in zip(surv_probs, densities): # for each event
+        params = ['u', 'v']
+        for event_prob, density in zip(surv_marginals, densities): # for each event
             event_prob = event_prob.squeeze()
-            event_log_density = torch.log(density).squeeze()
+            S = event_prob.reshape(-1,1).clamp(0.001,0.999)
+            event_log_density = torch.log(density).squeeze() + LOG(copula.conditional_cdf(param, S))
             assert (event_prob >= 0.).all() and (
                 event_prob <= 1.+1e-10).all(), "t %s, output %s" % (t, event_prob, )
             y.append(event_prob)
             log_densities.append(event_log_density)
-                                     
+        """
+        S = torch.cat([s1.reshape(-1,1), s2.reshape(-1,1)], dim=1).clamp(0.001,0.999)
+        p1 = LOG(f1) + LOG(copula.conditional_cdf("u", S))
+        p2 = LOG(f2) + LOG(copula.conditional_cdf("v", S))
+        p1[torch.isnan(p1)] = 0
+        p2[torch.isnan(p2)] = 0
         #logL = log_densities[0] + c * torch.log(cur1) + log_densities[1] + (1-c) * torch.log(cur2)
-        logL = log_densities[0] * c + log_densities[1] * (1-c)
-        
-        return torch.sum(logL)
+        #logL = log_densities[0] * c + log_densities[1] * (1-c)
+        return -torch.mean(p1 * c + (1-c)*p2)
+        #return torch.sum(logL)
 
     def cond_cdf(self, y, mode='cond_cdf', others=None, tol=1e-8):
         if not y.requires_grad:
@@ -179,7 +195,7 @@ class MensaNDE(nn.Module):
     def survival(self, t, X):
         with torch.no_grad():
             result = self.sumo.survival(X, t)
-        return result[0].squeeze() # TODO: just return survival prob
+        return result[0].squeeze(), result[1].squeeze()
 
 def make_mensa_model_2_events(n_features, start_theta, eps, device, dtype):
     model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
@@ -225,6 +241,8 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
                 with torch.no_grad():
                     p[:] = torch.clamp(p, 0.01, 100)
         
+        print(copula.theta)
+        
         with torch.no_grad():
             val_loss = calculate_loss_two_models(model1, model2, valid_dict, copula)
             if not torch.isnan(val_loss) and val_loss < min_val_loss:
@@ -257,9 +275,9 @@ def train_mensa_model_3_events(train_dict, valid_dict, model1, model2, model3, c
     model3.enable_grad()
     copula.enable_grad()
     optimizer = torch.optim.Adam([{"params": model1.parameters(), "lr": lr},
-                                    {"params": model2.parameters(), "lr": lr},
-                                    {"params": model3.parameters(), "lr": lr},
-                                    {"params": copula.parameters(), "lr": lr}])
+                                  {"params": model2.parameters(), "lr": lr},
+                                  {"params": model3.parameters(), "lr": lr},
+                                  {"params": copula.parameters(), "lr": lr}])
     for i in range(n_epochs):
         optimizer.zero_grad()
         loss = triple_loss(model1, model2, model3, train_dict, copula)
