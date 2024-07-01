@@ -49,55 +49,22 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 DATASET_VERSIONS = ["linear"]
 COPULA_NAMES = ["clayton"] 
 #KENDALL_TAUS = np.arange(0, 0.9, 0.1)
-KENDALL_TAUS = [0.25]
+KENDALL_TAUS = [0.8]
 MODELS = ["weibull-nocop", "weibull-cop"]
 N_SAMPLES = 10000
 N_FEATURES = 10
-
-def generate_events(dgp1, dgp2, dgp3, x, device,theta=2.0, family='clayton'):
-    if family is None:
-        uv = torch.randn((x.shape[0], 3))#sample idnependent 
-    else:
-        u,v,w = simulation.simu_archimedean(family, 3, x.shape[0], theta=theta)
-        u = torch.from_numpy(u).type(torch.float32).reshape(-1,1)
-        v = torch.from_numpy(v).type(torch.float32).reshape(-1,1)
-        w = torch.from_numpy(w).type(torch.float32).reshape(-1,1)
-        uv = torch.cat([u,v,w], axis=1)
-    t1 = dgp1.rvs(x, uv[:,0])
-    t2 = dgp2.rvs(x, uv[:,1])
-    t3 = dgp3.rvs(x, uv[:,2])
-    T = np.concatenate([t1.reshape(-1,1),t2.reshape(-1,1),t3.reshape(-1,1)], axis=1)
-    E = np.argmin(T,axis=1)
-    obs_T = T[np.arange(T.shape[0]), E]
-    T = torch.from_numpy(T).type(torch.float32)
-    E = torch.from_numpy(E).type(torch.float32)
-    obs_T = torch.from_numpy(obs_T).type(torch.float32)
-
-    return {'X':x,'E':E, 'T':obs_T, 'T1':t1, 'T2':t2, 'T3':t3}
-
-def synthetic_x(n_train, n_val, n_test, nf, device):
-    x_train = torch.rand((n_train, nf), device=device)
-    x_val = torch.rand((n_val, nf), device=device)
-    x_test = torch.rand((n_test, nf), device=device)
-    return {"x_train":x_train, "x_val":x_val, "x_test":x_test}
-
-def generate_data(x_dict, dgp1, dgp2,dgp3,device, copula='clayton', theta=2.0):
-    train_dict = generate_events(dgp1, dgp2,dgp3, x_dict['x_train'],device, theta, copula)
-    val_dict = generate_events(dgp1, dgp2,dgp3, x_dict['x_val'],device, theta, copula)
-    test_dict = generate_events(dgp1, dgp2,dgp3, x_dict['x_test'],device, theta, copula)
-    return train_dict, val_dict, test_dict
 
 if __name__ == "__main__":
     # Load and split data
     data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic.yaml")
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config,
                                                     linear=True, copula_name="clayton",
-                                                    k_tau=0.3, device=device, dtype=dtype)
+                                                    k_tau=KENDALL_TAUS[0], device=device, dtype=dtype)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
     n_events = data_config['se_n_events']
     dgps = dl.dgps
     
-    print(f"Goal theta: {kendall_tau_to_theta('clayton', 0.3)}") # 0.8571
+    print(f"Goal theta: {kendall_tau_to_theta('clayton', KENDALL_TAUS[0])}") # 0.8571
     
     # Make time bins
     time_bins = make_time_bins(train_dict['T'], event=train_dict['E']) # Use first event for time bins
@@ -105,8 +72,8 @@ if __name__ == "__main__":
     # Make models
     eps = 1e-4
     n_features = 10
-    copula_start_point = 0.5
-    copula = Clayton2D(torch.tensor([copula_start_point], dtype=dtype), device, dtype)
+    copula_start_point = 2.0
+    copula = Clayton2D(torch.tensor([copula_start_point], device=device, dtype=dtype), device, dtype)
     #copula = NestedFrank(torch.tensor([copula_start_point]),
     #                     torch.tensor([copula_start_point]), eps, eps, device, dtype)
     #c1 = NestedFrank(torch.tensor([2.0]), torch.tensor([2.0]), 1e-4, 1e-4, device, dtype)
@@ -117,7 +84,7 @@ if __name__ == "__main__":
     model2 = Weibull_log_linear(n_features, 2, 1, device, dtype)
     #model3 = Weibull_log_linear(n_features, 2, 1, device, dtype)
     model1, model2, copula = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
-                                                        copula, n_epochs=5000, lr=0.005)
+                                                        copula, n_epochs=15000, lr=0.01)
 
     # Print NLL of all events together
     print(f"NLL all events: {double_loss(model1, model2, valid_dict, copula)}")

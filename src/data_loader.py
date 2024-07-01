@@ -565,6 +565,12 @@ def get_data_loader(dataset_name:str) -> BaseDataLoader:
         return MimicDataLoader() # 3 events
     elif dataset_name == "rotterdam":
         return RotterdamDataLoader() # 2 events
+    elif dataset_name == "synthetic_se":
+        return SingleEventSyntheticDataLoader()
+    elif dataset_name == "synthetic_cr":
+        return CompetingRiskSyntheticDataLoader()
+    elif dataset_name == "synthetic_me":
+        return MultiEventSyntheticDataLoader()
     else:
         raise ValueError("Dataset not found")
         

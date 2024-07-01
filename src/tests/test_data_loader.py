@@ -4,6 +4,13 @@ from data_loader import (SingleEventSyntheticDataLoader,
                          MimicDataLoader)
 from utility.config import load_config
 import config as cfg
+import random
+import torch
+import numpy as np
+
+np.random.seed(0)
+torch.manual_seed(0)
+random.seed(0)
 
 if __name__ == '__main__':
     data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic.yaml")
