@@ -410,14 +410,34 @@ class MimicDataLoader(BaseDataLoader):
         '''
         t and e order, followed by arf, shock, death
         '''
-        with open(str(Path(cfg.DATA_DIR)) + "/" + "mimic_dict.pkl", 'rb') as f:
-            mimic_dict = pickle.load(f)
-        column_names = [f'x_{i}' for i in range(mimic_dict['X'].shape[1])]
+        filenames = [f"mimic_static_feature_fold_{i}.csv.gz" for i in range(5)]
+    
+        df = pd.DataFrame()
+        for filename in filenames:
+            data = pd.read_csv(Path.joinpath(cfg.DATA_DIR, filename), compression='gzip', index_col=[0])
+            df = pd.concat([df, data], axis=0)
+            
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
+        columns_to_drop = [col for col in df.columns if
+                           any(substring in col for substring in ['_event', '_time'])]
+        events = ['ARF', 'shock', 'death']
+        self.X = df.drop(columns_to_drop, axis=1)
+        self.columns = list(self.X.columns)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+        
+        times = [df[f'{event_col}_time'].values for event_col in events]
+        events = [df[f'{event_col}_event'].values for event_col in events]
+        self.y_t = np.stack((times[0], times[1], times[2], times[3]), axis=1)
+        self.y_e = np.stack((events[0], events[1], events[2], events[3]), axis=1)
+        self.n_events = 3
+        
+        #column_names = [f'x_{i}' for i in range(df['X'].shape[1])]
         df = pd.DataFrame(mimic_dict['X'], columns=column_names)
         df['T'] = mimic_dict['T']
         df['E'] = mimic_dict['E']
-        if n_samples:
-            df = df.sample(n=n_samples, random_state=0)
+            
         self.X = df[column_names]
         self.y_t = df['T']
         self.y_e = df['E']

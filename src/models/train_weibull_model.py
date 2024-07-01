@@ -26,7 +26,7 @@ from trainer import independent_train_loop_linear, dependent_train_loop_linear, 
 from copula import NestedClayton, NestedFrank, ConvexCopula
 from SurvivalEVAL.Evaluations.util import predict_median_survival_time
 from SurvivalEVAL.Evaluations.MeanError import mean_error
-from utility.loss import single_loss, triple_loss
+from utility.loss import single_loss, double_loss, triple_loss
 from mensa.model import train_mensa_model_3_events, train_mensa_model_2_events
 from pycop import simulation
 from data_loader import *
@@ -92,10 +92,12 @@ if __name__ == "__main__":
     data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic.yaml")
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config,
                                                     linear=True, copula_name="clayton",
-                                                    k_tau=0.25, device=device, dtype=dtype)
+                                                    k_tau=0.3, device=device, dtype=dtype)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
     n_events = data_config['se_n_events']
     dgps = dl.dgps
+    
+    print(f"Goal theta: {kendall_tau_to_theta('clayton', 0.3)}") # 0.8571
     
     # Make time bins
     time_bins = make_time_bins(train_dict['T'], event=train_dict['E']) # Use first event for time bins
@@ -103,8 +105,8 @@ if __name__ == "__main__":
     # Make models
     eps = 1e-4
     n_features = 10
-    copula_start_point = 2.0
-    copula = Clayton2D(torch.tensor([2.0], dtype=dtype), device, dtype)
+    copula_start_point = 0.5
+    copula = Clayton2D(torch.tensor([copula_start_point], dtype=dtype), device, dtype)
     #copula = NestedFrank(torch.tensor([copula_start_point]),
     #                     torch.tensor([copula_start_point]), eps, eps, device, dtype)
     #c1 = NestedFrank(torch.tensor([2.0]), torch.tensor([2.0]), 1e-4, 1e-4, device, dtype)
@@ -114,20 +116,20 @@ if __name__ == "__main__":
     model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
     model2 = Weibull_log_linear(n_features, 2, 1, device, dtype)
     #model3 = Weibull_log_linear(n_features, 2, 1, device, dtype)
-    model1, model2, model3 = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
+    model1, model2, copula = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
                                                         copula, n_epochs=5000, lr=0.005)
 
     # Print NLL of all events together
-    print(f"NLL all events: {triple_loss(model1, model2, model3, valid_dict, copula)}")
+    print(f"NLL all events: {double_loss(model1, model2, valid_dict, copula)}")
     
     # Check the dgp performance
     #copula.theta = torch.tensor([5.0])
-    print(f"DGP loss: {triple_loss(dgps[0], dgps[1], dgps[2], valid_dict, copula)}")
+    print(f"DGP loss: {double_loss(dgps[0], dgps[1], valid_dict, copula)}")
 
     # Evaluate the L1
     preds_e1 = predict_survival_function(model1, test_dict['X'], time_bins).detach().numpy()
     preds_e2 = predict_survival_function(model2, test_dict['X'], time_bins).detach().numpy()
-    preds_c = predict_survival_function(model3, test_dict['X'], time_bins).detach().numpy()
+    #preds_c = predict_survival_function(model3, test_dict['X'], time_bins).detach().numpy()
     
     n_samples = test_dict['X'].shape[0]
     truth_preds_e1 = torch.zeros((n_samples, time_bins.shape[0]), device=device)
@@ -140,14 +142,14 @@ if __name__ == "__main__":
         truth_preds_e2[:,i] = dgps[1].survival(time_bins[i], test_dict['X'])
     l1_e2 = float(compute_l1_difference(truth_preds_e2, preds_e2, n_samples, steps=time_bins))
 
-    truth_preds_c = torch.zeros((n_samples, time_bins.shape[0]), device=device)
-    for i in range(time_bins.shape[0]):
-        truth_preds_c[:,i] = dgps[2].survival(time_bins[i], test_dict['X'])
-    l1_c = float(compute_l1_difference(truth_preds_c, preds_c, n_samples, steps=time_bins))
+    #truth_preds_c = torch.zeros((n_samples, time_bins.shape[0]), device=device)
+    #for i in range(time_bins.shape[0]):
+    #    truth_preds_c[:,i] = dgps[2].survival(time_bins[i], test_dict['X'])
+    #l1_c = float(compute_l1_difference(truth_preds_c, preds_c, n_samples, steps=time_bins))
     
     print(f"L1 E1: {l1_e1}")
     print(f"L1 E2: {l1_e2}")
-    print(f"L1 C: {l1_c}")
+    #print(f"L1 C: {l1_c}")
     
     for event_id, surv_preds in enumerate([preds_e1, preds_e2]):
         surv_preds = pd.DataFrame(surv_preds, columns=time_bins.numpy())
