@@ -72,13 +72,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['hierarch']
+MODELS = ['deepsurv']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='seer')
+    parser.add_argument('--dataset_name', type=str, default='rotterdam')
     
     args = parser.parse_args()
     seed = args.seed
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     
     # Load and split data
     dl = get_data_loader(dataset_name)
-    dl = dl.load_data(n_samples=1000, device=device, dtype=dtype)
+    dl = dl.load_data(n_samples=1000)
     df_train, df_valid, df_test = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                 random_state=seed)
     n_events = dl.n_events
@@ -230,8 +230,8 @@ if __name__ == "__main__":
             num_points = len(time_bins)
             preds_e1 = mtlr_survival(pred_prob[:,:num_time_bins]).detach().numpy()[:, 1:] # drop extra bin
             preds_e2 = mtlr_survival(pred_prob[:,num_time_bins:num_time_bins*2]).detach().numpy()[:, 1:]
-            preds_e1 = pd.Dataframe(preds_e1, columns=time_bins)
-            preds_e2 = pd.Dataframe(preds_e2, columns=time_bins)
+            preds_e1 = pd.DataFrame(preds_e1, columns=time_bins)
+            preds_e2 = pd.DataFrame(preds_e2, columns=time_bins)
             all_preds = [preds_e1, preds_e2]
         elif model_name == "dsm":
             X_test = pd.DataFrame(test_dict['X'], columns=[f'X{i}' for i in range(n_features)])

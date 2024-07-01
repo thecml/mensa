@@ -52,14 +52,14 @@ if __name__ == "__main__":
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
     
     # Define params
-    batch_size = 32
-    num_epochs = 5000
-    early_stop_epochs = 300
+    batch_size = 128
+    num_epochs = 10000
+    early_stop_epochs = 10000
     
     # Make model
     model = MensaNDE(hidden_size=32, hidden_surv=32, dropout_rate=0.25,
                      device=device, n_features=train_dict['X'].shape[1], tol=1e-14).to(device)
-    copula = Clayton2D(torch.tensor([5.0], dtype=dtype), device, dtype)
+    copula = Clayton2D(torch.tensor([2.0], dtype=dtype), device, dtype)
     optimizer = optim.Adam([{"params": model.sumo.parameters(), "lr": 0.005},
                             {"params": copula.parameters(), "lr": 0.005}])
 
@@ -93,6 +93,8 @@ if __name__ == "__main__":
                 if p <= 0.01:
                     with torch.no_grad():
                         p[:] = torch.clamp(p, 0.01, 100)
+                        
+        print(copula.theta)
         
         if epoch % 10 == 0:
             total_val_logloss = 0
@@ -100,8 +102,6 @@ if __name__ == "__main__":
                 val_logloss = model(xi, ti, ei, copula, max_iter=10000)
                 total_val_logloss += val_logloss
             total_val_logloss /= len(valid_loader)
-            
-            print(f"Valid NLL: {total_val_logloss} - {copula.theta}")
             
             if total_val_logloss > (best_valid_logloss + 1):
                 best_valid_logloss = total_val_logloss

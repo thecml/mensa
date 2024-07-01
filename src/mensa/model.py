@@ -195,7 +195,7 @@ class MensaNDE(nn.Module):
     def survival(self, t, X):
         with torch.no_grad():
             result = self.sumo.survival(X, t)
-        return result[0].squeeze(), result[1].squeeze()
+        return result[0].squeeze()#, result[1].squeeze()
 
 def make_mensa_model_2_events(n_features, start_theta, eps, device, dtype):
     model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
