@@ -52,10 +52,6 @@ torch.set_default_dtype(dtype)
 # Set up device
 device = torch.device("cpu")
 
-np.random.seed(0)
-torch.manual_seed(0)
-random.seed(0)
-
 # Define models
 MODELS = ["mensa"]
 
@@ -63,7 +59,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.25)
+    parser.add_argument('--k_tau', type=float, default=0.7)
     parser.add_argument('--copula_name', type=str, default="clayton")
     parser.add_argument('--linear', type=bool, default=True)
     
@@ -161,13 +157,13 @@ if __name__ == "__main__":
             model = train_dcsurvival_model(model, train_dict['X'], valid_dict['X'],
                                             train_dict['T'], train_dict['E'],
                                             valid_dict['T'], valid_dict['E'],
-                                            num_epochs=10, batch_size=32, device=device)
+                                            num_epochs=100, batch_size=32, device=device)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             model1, model2, copula = make_mensa_model_2_events(n_features, start_theta=2.0, eps=1e-4,
                                                                device=device, dtype=dtype)
-            model, _, _ = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
-                                                     copula, n_epochs=2000, lr=0.005)
+            model1, model2, copula = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
+                                                                copula, n_epochs=2000, lr=0.005)
         elif model_name == "dgp":
             continue
         else:
@@ -198,7 +194,7 @@ if __name__ == "__main__":
         elif model_name == "dcsurvival":
             model_preds = predict_survival_function(model, test_dict['X'], time_bins).numpy()
         elif model_name == "mensa":
-            model_preds = predict_survival_function(model, test_dict['X'], time_bins).numpy()
+            model_preds = predict_survival_function(model1, test_dict['X'], time_bins).numpy()
         elif model_name == "dgp":
             model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
