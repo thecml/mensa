@@ -206,6 +206,27 @@ def single_loss(model, data, event_name='T1'):#estimates loss assuming every thi
     f = model.PDF(data[event_name], data['X'])
     return -torch.mean(LOG(f))
 
+def double_loss(model1, model2, data, copula=None): #estimates the joint loss
+    s1 = model1.survival(data['T'], data['X'])
+    s2 = model2.survival(data['T'], data['X'])
+    f1 = model1.PDF(data['T'], data['X'])
+    f2 = model2.PDF(data['T'], data['X'])
+    w = torch.mean(data['E'])
+    if copula is None:
+        p1 = LOG(f1) + LOG(s2)
+        p2 = LOG(f2) + LOG(s1)
+    else:
+        S = torch.cat([s1.reshape(-1,1), s2.reshape(-1,1)], dim=1).clamp(0.001,0.999)
+        p1 = LOG(f1) + LOG(copula.conditional_cdf("u", S))
+        p2 = LOG(f2) + LOG(copula.conditional_cdf("v", S))
+    p1[torch.isnan(p1)] = 0
+    p2[torch.isnan(p2)] = 0
+    e1 = (data['E'] == 0)*1.0
+    e2 = (data['E'] == 1)*1.0
+    loss = torch.sum(p1 * e1) + torch.sum(p2*e2)
+    loss = -loss/data['E'].shape[0]
+    return loss
+
 def triple_loss(model1, model2, model3, data, copula=None):#estimates the joint loss
     s1 = model1.survival(data['T'], data['X'])
     s2 = model2.survival(data['T'], data['X'])
