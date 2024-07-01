@@ -425,7 +425,7 @@ class MimicDataLoader(BaseDataLoader):
         return self
 
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+                   test_size: float, random_state=0):
         '''
         Since MIMIC one patient has multiple events, we need to split by patients.
         '''
@@ -447,7 +447,7 @@ class SeerDataLoader(BaseDataLoader):
     """
     Data loader for SEER dataset (CR)
     """
-    def load_data(self, n_samples:int = None, device='cpu', dtype=torch.float64):
+    def load_data(self, n_samples:int = None):
         df = pd.read_csv(f'{cfg.DATA_DIR}/seer_processed.csv')
         
         if n_samples:
@@ -479,26 +479,11 @@ class SeerDataLoader(BaseDataLoader):
         
 class RotterdamDataLoader(BaseDataLoader):
     """
-    Data loader for Rotterdam dataset (ME)
+    Data loader for Rotterdam dataset (CR)
     """
     def load_data(self, n_samples:int = None):
-        df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
-        if n_samples:
-            df = df.sample(n=n_samples, random_state=0)
-        self.X = df.drop(['pid', 'rtime', 'recur', 'dtime', 'death'], axis=1)
-        self.num_features = self._get_num_features(self.X)
-        self.cat_features = self._get_cat_features(self.X)
-        times = [df['rtime'].values, df['dtime'].values]
-        events = [df['recur'].values, df['death'].values]
-        self.y_t = np.stack((times[0], times[1]), axis=1)
-        self.y_e = np.stack((events[0], events[1]), axis=1)
-        self.n_events = 2
-        return self
-
-    def load_CR_data(self, n_samples:int = None):
         '''
-        convert competing risk
-        event: 0 censor, 1 death, 2 recur
+        Events: 0 censor, 1 death, 2 recur
         '''
         df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
         if n_samples:
@@ -535,7 +520,7 @@ class RotterdamDataLoader(BaseDataLoader):
         
         df['event'] = df.apply(get_event, axis=1)
         df['time'] = df.apply(get_time, axis=1)
-        self.X = df.drop(['pid', 'size', 'rtime', 'recur', 'dtime', 'death'], axis=1)
+        self.X = df.drop(['pid', 'size', 'rtime', 'recur', 'dtime', 'death', 'time', 'event'], axis=1)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
         self.y_t = df['time']
@@ -543,15 +528,8 @@ class RotterdamDataLoader(BaseDataLoader):
         self.n_events = 2
         return self
         
-    def split_data(self,
-                   train_size: float,
-                   valid_size: float,
-                   random_state=0):
-        # Split multi event data
-        raw_data = self.X
-        event_time = self.y_t
-        labs = self.y_e
-        
+    def split_data(self, train_size: float, valid_size: float,
+                   test_size: float, random_state=0):
         traj_labs = labs
         if labs.shape[1] > 1: 
             traj_labs = get_trajectory_labels(labs)
