@@ -71,6 +71,34 @@ def create_representation(inputdim, layers, dropout = 0.5):
         prevdim = hidden
     return nn.Sequential(*modules)
 
+class NDE(nn.Module):
+    def __init__(self, inputdim, layers = [32, 32, 32], layers_surv = [100, 100, 100], 
+               dropout = 0., optimizer = "Adam"):
+        super(NDE, self).__init__()
+        self.input_dim = inputdim
+        self.dropout = dropout
+        self.optimizer = optimizer
+        self.embedding = create_representation(inputdim, layers, self.dropout) 
+        self.outcome = create_representation_positive(1 + layers[-1], layers_surv + [1], self.dropout) 
+
+    def forward(self, x, horizon, gradient = False):
+        # Go through neural network
+        x_embed = self.embedding(x) # Extract unconstrained NN
+        time_outcome = horizon.clone().detach().requires_grad_(gradient) # Copy with independent gradient
+        survival = self.outcome(torch.cat((x_embed, time_outcome.unsqueeze(1)), 1)) # Compute survival
+        survival = survival.sigmoid()
+        # Compute gradients
+        intensity = torch.autograd.grad(survival.sum(), time_outcome, create_graph = True)[0].unsqueeze(1) if gradient else None
+
+        # return 1 - survival, intensity
+        return 1 - survival, intensity
+
+    def survival(self, horizon, x):  
+        with torch.no_grad():
+            horizon = horizon.expand(x.shape[0])
+            temp = self.forward(x, horizon)[0]
+        return temp.squeeze()
+
 class MultiNDE(nn.Module):
     def __init__(self, inputdim, n_events, layers = [32, 32, 32],
                  layers_surv = [100, 100, 100], dropout = 0., optimizer = "Adam"):
@@ -119,20 +147,29 @@ class MensaNDE(nn.Module):
                  hidden_size=32, hidden_surv = 32, dropout_rate=0, max_iter = 2000):
         super(MensaNDE, self).__init__()
         self.tol = tol
-        self.sumo = MultiNDE(inputdim=n_features, n_events=2,
-                             layers = [hidden_size],
-                             layers_surv = [hidden_surv],
-                             dropout = dropout_rate)
+        self.sumo_e = NDE(n_features, layers = [hidden_size, hidden_size, hidden_size],
+                          layers_surv = [hidden_surv, hidden_surv, hidden_surv], dropout = dropout_rate)
+        self.sumo_c = NDE(n_features, layers = [hidden_size, hidden_size, hidden_size],
+                          layers_surv = [hidden_surv, hidden_surv, hidden_surv], dropout = dropout_rate)
 
     def forward(self, x, t, c, copula, max_iter=2000):
-        #S_E, density_E = self.sumo_e(x, t, gradient = True) # S_E = St = Survival marginals
-        surv_marginals, densities = self.sumo(x, t, gradient = True)
-
-        s1 = surv_marginals[0]
-        s2 = surv_marginals[1]
-        f1 = densities[0]
-        f2 = densities[1]
+        S_E, density_E = self.sumo_e(x, t, gradient = True)
+        S_E = S_E.squeeze()
+        event_log_density = torch.log(density_E).squeeze()
         
+        S_C, density_C = self.sumo_c(x, t, gradient = True)
+        S_C = S_C.squeeze()
+        censoring_log_density = torch.log(density_C).squeeze()
+        
+        # Check if Survival Function of Event and Censoring are in [0,1]
+        assert (S_E >= 0.).all() and (
+            S_E <= 1.+1e-10).all(), "t %s, output %s" % (t, S_E, )
+        assert (S_C >= 0.).all() and (
+            S_C <= 1.+1e-10).all(), "t %s, output %s" % (t, S_C, )
+        
+        logL = event_log_density * c + censoring_log_density * (1-c)
+        return -torch.sum(logL)
+     
         """
         y, log_densities = list(), list()
         params = ['u', 'v']
@@ -145,15 +182,21 @@ class MensaNDE(nn.Module):
             y.append(event_prob)
             log_densities.append(event_log_density)
         """
-        S = torch.cat([s1.reshape(-1,1), s2.reshape(-1,1)], dim=1).clamp(0.001,0.999)
-        p1 = LOG(f1) + LOG(copula.conditional_cdf("u", S))
-        p2 = LOG(f2) + LOG(copula.conditional_cdf("v", S))
+        """
+        if copula is None:
+            p1 = LOG(f1) + LOG(s2)
+            p2 = LOG(f2) + LOG(s1)
+        else:
+            S = torch.cat([s1.reshape(-1,1), s2.reshape(-1,1)], dim=1).clamp(0.001,0.999)
+            p1 = LOG(f1) + LOG(copula.conditional_cdf("u", S))
+            p2 = LOG(f2) + LOG(copula.conditional_cdf("v", S))
         p1[torch.isnan(p1)] = 0
         p2[torch.isnan(p2)] = 0
         #logL = log_densities[0] + c * torch.log(cur1) + log_densities[1] + (1-c) * torch.log(cur2)
         #logL = log_densities[0] * c + log_densities[1] * (1-c)
         return -torch.mean(p1 * c + (1-c)*p2)
         #return torch.sum(logL)
+        """
 
     def cond_cdf(self, y, mode='cond_cdf', others=None, tol=1e-8):
         if not y.requires_grad:
@@ -238,10 +281,12 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
         
         optimizer.step()
         
+        """
         for p in copula.parameters():
             if p <= 0.01:
                 with torch.no_grad():
                     p[:] = torch.clamp(p, 0.01, 100)
+        """
         
         with torch.no_grad():
             val_loss = calculate_loss_two_models(model1, model2, valid_dict, copula)
@@ -249,12 +294,20 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
                 print(f"{val_loss} - {copula.theta}")
             if not torch.isnan(val_loss) and val_loss < min_val_loss:
                 stop_itr = 0
+                
                 best_c1 = model1.coeff.detach().clone()
                 best_c2 = model2.coeff.detach().clone()
                 best_mu1 = model1.mu.detach().clone()
                 best_mu2 = model2.mu.detach().clone()
                 best_sig1 = model1.sigma.detach().clone()
                 best_sig2 = model2.sigma.detach().clone()
+                
+                """
+                best_bh1 = model1.bh.detach().clone()
+                best_coeff1 = model1.coeff.detach().clone()
+                best_bh2 = model2.bh.detach().clone()
+                best_coeff2 = model2.coeff.detach().clone()
+                """
                 min_val_loss = val_loss.detach().clone()
             else:
                 stop_itr += 1
@@ -267,6 +320,12 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
     model2.sigma = best_sig2
     model1.coeff = best_c1
     model2.coeff = best_c2
+    """
+    model1.bh = best_bh1
+    model1.coeff = best_coeff1
+    model2.bh = best_bh2
+    model2.coeff = best_coeff2
+    """
     
     return model1, model2, copula
 
@@ -286,12 +345,15 @@ def train_mensa_model_3_events(train_dict, valid_dict, model1, model2, model3, c
         loss.backward()
         
         for p in copula.parameters():
-            p.grad = p.grad * 1000
+            p.grad = p.grad * 100
             p.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
+            
         #copula.theta.grad = copula.theta.grad*1000
         #play with the clip range to see if it makes any differences 
         #copula.theta.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
+        
         optimizer.step()
+        
         if i % 500 == 0:
                 print(loss, copula.parameters())
     

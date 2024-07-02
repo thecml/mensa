@@ -165,7 +165,7 @@ DEEPHIT_PARAMS = {
     'eta_multiplier': 0.8,
     'epochs': 1000,
     'early_stop': True,
-    'patience': 10,
+    'patience': 100,
 }
 
 MTLRCR_PARAMS = {

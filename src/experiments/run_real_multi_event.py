@@ -63,6 +63,7 @@ from utility.data import calculate_vocab_size
 from pycox.models import DeepHit
 from utility.data import (format_data_deephit_cr, format_hierarch_data_multi_event,
                           calculate_layer_size_hierarch)
+from data_loader import get_data_loader
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -78,18 +79,21 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['hierarch']
+MODELS = ['deepsurv']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--dataset_name', type=str, default='als')
     
     args = parser.parse_args()
     seed = args.seed
+    dataset_name = args.dataset_name
     
     # Load and split data
-    dl = ALSDataLoader().load_data()
+    dl = get_data_loader(dataset_name)
+    dl = dl.load_data()
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1,
                                                       test_size=0.2, random_state=seed)
     n_events = dl.n_events
@@ -118,7 +122,11 @@ if __name__ == "__main__":
     n_features = train_dict['X'].shape[1]
     
     # Make time bins
+    min_time = dl.get_data()[1].min()
+    max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
+                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
     
     # Evaluate models
     model_results = pd.DataFrame()
@@ -165,7 +173,7 @@ if __name__ == "__main__":
             for trained_model in trained_models:
                 preds, time_bins_model, _ = make_deepsurv_prediction(trained_model, test_dict['X'],
                                                                      config=config, dtype=dtype)
-                preds = pd.DataFrame(preds, columns=time_bins_model)
+                preds = pd.DataFrame(preds, columns=time_bins_model.numpy())
                 all_preds.append(preds)
         elif model_name == "hierarch":
             event_preds = util.get_surv_curves(test_data[0], model)
@@ -180,13 +188,15 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Test local and global CI
-        all_preds_arr = [df.to_numpy() for df in all_preds] # convert dataframe to numpy
-        global_ci = global_C_index(all_preds, test_dict['T'].numpy(), test_dict['E'].numpy())
-        local_ci = local_C_index(all_preds, test_dict['T'].numpy(), test_dict['E'].numpy()) #TODO Check this
-    
+        #all_preds_arr = [df.to_numpy() for df in all_preds] # convert dataframe to numpy
+        #global_ci = global_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy())
+        #local_ci = local_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy()) #TODO Check size using DeepSurv
+        global_ci = 0
+        local_ci = 0
+        
         # Make evaluation for each event
-        for event_id, surv_preds in enumerate(all_preds):
-            surv_preds_df = pd.DataFrame(surv_preds, columns=time_bins.numpy())
+        for event_id, surv_pred in enumerate(all_preds):
+            #surv_preds_df = pd.DataFrame(surv_preds, columns=time_bins.numpy())
             n_train_samples = len(train_dict['X'])
             n_test_samples= len(test_dict['X'])
             y_train_time = train_dict['T'][:,event_id]
@@ -194,7 +204,7 @@ if __name__ == "__main__":
             y_test_time = test_dict['T'][:,event_id]
             y_test_event = test_dict['E'][:,event_id]
             
-            lifelines_eval = LifelinesEvaluator(surv_preds_df.T, y_test_time, y_test_event,
+            lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
                                                 y_train_time, y_train_event)
             
             ci = lifelines_eval.concordance()[0]

@@ -74,7 +74,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv', 'hierarch']
+MODELS = ['deephit']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -91,18 +91,22 @@ if __name__ == "__main__":
     linear = args.linear
     
     # Load and split data
-    data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic.yaml")
+    data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_cr.yaml")
     dl = CompetingRiskSyntheticDataLoader().load_data(data_config, k_tau=k_tau, copula_name=copula_name,
                                                       linear=linear, device=device, dtype=dtype)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=seed)
     n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
-    n_events = data_config['cr_n_events']
+    n_events = data_config['n_events']
     dgps = dl.dgps
     
     # Make time bins
+    min_time = dl.get_data()[1].min()
+    max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
+                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
     
     # Evaluate models
     model_results = pd.DataFrame()
@@ -270,12 +274,16 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Test local and global CI
+        """ # TODO Confirm that global/local CI works then uncomment
         y_test_time = np.stack([test_dict['T1'], test_dict['T2'], test_dict['T3']], axis=1)
         y_test_event = np.array(pd.get_dummies(test_dict['E']))
         all_preds_arr = [df.to_numpy() for df in all_preds]
         global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
         local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
-    
+        """
+        global_ci = 0
+        local_ci = 0
+        
         # Make evaluation for each event
         for event_id, surv_preds in enumerate(all_preds):
             n_train_samples = len(train_dict['X'])
@@ -302,7 +310,7 @@ if __name__ == "__main__":
             print(metrics)
             res_sr = pd.Series([model_name, linear, copula_name, k_tau] + metrics,
                                 index=["ModelName", "Linear", "Copula", "KTau",
-                                        "CI", "IBS", "MAE", "L1", "DCalib", "GlobalCI", "LocalCI"])
+                                       "CI", "IBS", "MAE", "L1", "DCalib", "GlobalCI", "LocalCI"])
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
             model_results.to_csv(f"{cfg.RESULTS_DIR}/model_results.csv")
                     

@@ -78,7 +78,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='rotterdam')
+    parser.add_argument('--dataset_name', type=str, default='seer')
     
     args = parser.parse_args()
     seed = args.seed
@@ -87,26 +87,29 @@ if __name__ == "__main__":
     # Load and split data
     dl = get_data_loader(dataset_name)
     dl = dl.load_data(n_samples=1000)
-    df_train, df_valid, df_test = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
-                                                random_state=seed)
+    train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
+                                                      random_state=seed)
     n_events = dl.n_events
     
     # Preprocess data
     cat_features = dl.cat_features
     num_features = dl.num_features
-    X_train = df_train.drop(['event', 'time'], axis=1)
-    X_valid = df_valid.drop(['event', 'time'], axis=1)
-    X_test = df_test.drop(['event', 'time'], axis=1)
+    n_features = train_dict['X'].shape[1]
+    X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
+    X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
+    X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
     X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
                                               num_features, as_array=True)
-    train_dict = format_data_as_dict_single(X_train, df_train['event'], df_train['time'], dtype)
-    valid_dict = format_data_as_dict_single(X_valid, df_valid['event'], df_valid['time'], dtype)
-    test_dict = format_data_as_dict_single(X_test, df_test['event'], df_test['time'], dtype)
-    n_samples = train_dict['X'].shape[0]
-    n_features = train_dict['X'].shape[1]
+    train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
+    valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
+    test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
     
     # Make time bins
+    min_time = dl.get_data()[1].min()
+    max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
+                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
     
     # Evaluate models
     model_results = pd.DataFrame()
@@ -200,7 +203,7 @@ if __name__ == "__main__":
             model1, model2, model3, copula = make_mensa_model_3_events(n_features, start_theta=2.0, eps=1e-4,
                                                                        device=device, dtype=dtype)
             model1, model2, model3, copula = train_mensa_model_3_events(train_dict, valid_dict, model1, model2, model3,
-                                                                        copula, n_epochs=5000, lr=0.001)
+                                                                        copula, n_epochs=5000, lr=0.01)
             print(f"NLL all events: {triple_loss(model1, model2, model3, valid_dict, copula)}")
         else:
             raise NotImplementedError()
@@ -218,7 +221,7 @@ if __name__ == "__main__":
             cif = model.predict_cif(test_dict['X'])
             cif1 = pd.DataFrame((1-cif[0]).T, columns=time_bins.numpy())
             cif2 = pd.DataFrame((1-cif[1]).T, columns=time_bins.numpy())
-            all_preds = [cif1.values, cif2.values]
+            all_preds = [cif1, cif2]
         elif model_name == "hierarch":
             event_preds = util.get_surv_curves(test_data[0], model)
             bin_locations = np.linspace(0, config['max_time'], event_preds[0].shape[1])
@@ -228,10 +231,11 @@ if __name__ == "__main__":
         elif model_name == "mtlrcr":
             pred_prob = model(test_dict['X'])
             num_points = len(time_bins)
-            preds_e1 = mtlr_survival(pred_prob[:,:num_time_bins]).detach().numpy()[:, 1:] # drop extra bin
-            preds_e2 = mtlr_survival(pred_prob[:,num_time_bins:num_time_bins*2]).detach().numpy()[:, 1:]
-            preds_e1 = pd.DataFrame(preds_e1, columns=time_bins)
-            preds_e2 = pd.DataFrame(preds_e2, columns=time_bins)
+            preds_e1 = mtlr_survival(pred_prob[:,:num_time_bins]).detach().numpy()
+            preds_e2 = mtlr_survival(pred_prob[:,num_time_bins:num_time_bins*2]).detach().numpy()
+            time_bins_0 = torch.concat([torch.tensor([0], device=device, dtype=dtype), time_bins])
+            preds_e1 = pd.DataFrame(preds_e1, columns=time_bins_0.numpy())
+            preds_e2 = pd.DataFrame(preds_e2, columns=time_bins_0.numpy())
             all_preds = [preds_e1, preds_e2]
         elif model_name == "dsm":
             X_test = pd.DataFrame(test_dict['X'], columns=[f'X{i}' for i in range(n_features)])
@@ -254,14 +258,18 @@ if __name__ == "__main__":
         else:
             raise NotImplementedError()
         
-        # Test local and global CI
+        # Test local and global CI # TODO: Adjust the code to work with all CR datasets
+        """
         y_test_time = np.stack([test_dict['T'], test_dict['T']], axis=1)
         y_test_event = np.stack([np.array((test_dict['E'] == 1)*1.0),
                                  np.array((test_dict['E'] == 2)*1.0)], axis=1)
         all_preds_arr = [df.to_numpy() for df in all_preds]
         global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
         local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
-    
+        """
+        global_ci = 0
+        local_ci = 0
+        
         # Make evaluation for each event
         for event_id, surv_preds in enumerate(all_preds):
             n_train_samples = len(train_dict['X'])
