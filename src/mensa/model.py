@@ -281,10 +281,12 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
         
         optimizer.step()
         
+        """
         for p in copula.parameters():
             if p <= 0.01:
                 with torch.no_grad():
                     p[:] = torch.clamp(p, 0.01, 100)
+        """
         
         with torch.no_grad():
             val_loss = calculate_loss_two_models(model1, model2, valid_dict, copula)
@@ -292,12 +294,20 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
                 print(f"{val_loss} - {copula.theta}")
             if not torch.isnan(val_loss) and val_loss < min_val_loss:
                 stop_itr = 0
+                
                 best_c1 = model1.coeff.detach().clone()
                 best_c2 = model2.coeff.detach().clone()
                 best_mu1 = model1.mu.detach().clone()
                 best_mu2 = model2.mu.detach().clone()
                 best_sig1 = model1.sigma.detach().clone()
                 best_sig2 = model2.sigma.detach().clone()
+                
+                """
+                best_bh1 = model1.bh.detach().clone()
+                best_coeff1 = model1.coeff.detach().clone()
+                best_bh2 = model2.bh.detach().clone()
+                best_coeff2 = model2.coeff.detach().clone()
+                """
                 min_val_loss = val_loss.detach().clone()
             else:
                 stop_itr += 1
@@ -310,6 +320,12 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
     model2.sigma = best_sig2
     model1.coeff = best_c1
     model2.coeff = best_c2
+    """
+    model1.bh = best_bh1
+    model1.coeff = best_coeff1
+    model2.bh = best_bh2
+    model2.coeff = best_coeff2
+    """
     
     return model1, model2, copula
 
@@ -329,12 +345,15 @@ def train_mensa_model_3_events(train_dict, valid_dict, model1, model2, model3, c
         loss.backward()
         
         for p in copula.parameters():
-            p.grad = p.grad * 1000
+            p.grad = p.grad * 100
             p.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
+            
         #copula.theta.grad = copula.theta.grad*1000
         #play with the clip range to see if it makes any differences 
         #copula.theta.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
+        
         optimizer.step()
+        
         if i % 500 == 0:
                 print(loss, copula.parameters())
     

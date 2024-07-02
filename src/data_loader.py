@@ -17,7 +17,7 @@ from scipy import stats
 from utility.data import relu
 from utility.data import kendall_tau_to_theta, theta_to_kendall_tau
 from utility.survival import make_stratified_split
-from dgp import Weibull_log_linear, Weibull_linear, Weibull_nonlinear
+from dgp import Weibull_log_linear, Weibull_linear, Weibull_nonlinear, Exp_linear, EXP_nonlinear
 import torch
 
 class BaseDataLoader(ABC):
@@ -73,21 +73,21 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         DGP1: Data generation process for event
         DGP2: Data generation process for censoring
         """
-        alpha_e1 = data_config['se_alpha_e1']
-        alpha_e2 = data_config['se_alpha_e2']
-        gamma_e1 = data_config['se_gamma_e1']
-        gamma_e2 = data_config['se_gamma_e2']
-        n_samples = data_config['se_n_samples']
-        n_features = data_config['se_n_features']
+        alpha_e1 = data_config['alpha_e1']
+        alpha_e2 = data_config['alpha_e2']
+        gamma_e1 = data_config['gamma_e1']
+        gamma_e2 = data_config['gamma_e2']
+        n_samples = data_config['n_samples']
+        n_features = data_config['n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
         beta = torch.rand((n_features,), device=device).type(dtype)
 
         if linear:
             dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                                beta=beta, device=device, dtype=dtype)
+                                  beta=beta, device=device, dtype=dtype)
             dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                                beta=beta, device=device, dtype=dtype)
+                                  beta=beta, device=device, dtype=dtype)
         else:
             dgp1 = Weibull_nonlinear(n_features, alpha=alpha_e1, gamma=gamma_e1,
                                      beta=beta, risk_function=relu, device=device, dtype=dtype)
@@ -153,14 +153,14 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         DGP2: Data generation process for event 2
         DGP3: Data generation process for censoring
         """
-        alpha_e1 = data_config['cr_alpha_e1']
-        alpha_e2 = data_config['cr_alpha_e2']
-        alpha_e3 = data_config['cr_alpha_e3']
-        gamma_e1 = data_config['cr_gamma_e1']
-        gamma_e2 = data_config['cr_gamma_e2']
-        gamma_e3 = data_config['cr_gamma_e3']
-        n_samples = data_config['cr_n_samples']
-        n_features = data_config['cr_n_features']
+        alpha_e1 = data_config['alpha_e1']
+        alpha_e2 = data_config['alpha_e2']
+        alpha_e3 = data_config['alpha_e3']
+        gamma_e1 = data_config['gamma_e1']
+        gamma_e2 = data_config['gamma_e2']
+        gamma_e3 = data_config['gamma_e3']
+        n_samples = data_config['n_samples']
+        n_features = data_config['n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
         beta = torch.rand((n_features,), device=device).type(dtype)
@@ -254,14 +254,14 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         DGP2: Data generation process for event 2
         DGP3: Data generation process for event 3
         """
-        alpha_e1 = data_config['me_alpha_e1']
-        alpha_e2 = data_config['me_alpha_e2']
-        alpha_e3 = data_config['me_alpha_e3']
-        gamma_e1 = data_config['me_gamma_e1']
-        gamma_e2 = data_config['me_gamma_e2']
-        gamma_e3 = data_config['me_gamma_e3']
-        n_samples = data_config['me_n_samples']
-        n_features = data_config['me_n_features']
+        alpha_e1 = data_config['alpha_e1']
+        alpha_e2 = data_config['alpha_e2']
+        alpha_e3 = data_config['alpha_e3']
+        gamma_e1 = data_config['gamma_e1']
+        gamma_e2 = data_config['gamma_e2']
+        gamma_e3 = data_config['gamma_e3']
+        n_samples = data_config['n_samples']
+        n_features = data_config['n_features']
         
         thetas = [kendall_tau_to_theta(copula_names[i], k_taus[i]) for i in range(3)]
         copula_parameters = [
@@ -403,9 +403,8 @@ class ALSDataLoader(BaseDataLoader):
 
 class MimicDataLoader(BaseDataLoader):
     """
-    Data loader for MIMIC dataset (CR)
+    Data loader for MIMIC dataset (ME)
     """
-    #TODO: Replace with MIMIC-IV (Weijie)
     def load_data(self, n_samples:int = None):
         '''
         t and e order, followed by arf, shock, death
@@ -415,7 +414,7 @@ class MimicDataLoader(BaseDataLoader):
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
         columns_to_drop = [col for col in df.columns if
-                           any(substring in col for substring in ['_event', '_time'])]
+                           any(substring in col for substring in ['_event', '_time', 'hadm_id'])]
         events = ['ARF', 'shock', 'death']
         self.X = df.drop(columns_to_drop, axis=1)
         self.columns = list(self.X.columns)
@@ -471,6 +470,7 @@ class SeerDataLoader(BaseDataLoader):
             df = df.sample(n=n_samples, random_state=0)
             
         self.X = df.drop(['duration', 'event_heart', 'event_breast'], axis=1)
+        self.columns = list(self.X.columns)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
 
@@ -483,8 +483,12 @@ class SeerDataLoader(BaseDataLoader):
         self.n_events = 2
         return self
     
-    def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+    def split_data(self,
+                train_size: float,
+                valid_size: float,
+                test_size: float,
+                dtype=torch.float64,
+                random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
         df['time'] = self.y_t
@@ -492,7 +496,17 @@ class SeerDataLoader(BaseDataLoader):
         df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
                                                             frac_valid=valid_size, frac_test=test_size,
                                                             random_state=random_state)
-        return df_train, df_valid, df_test
+        
+        dataframes = [df_train, df_valid, df_test]
+        dicts = []
+        for dataframe in dataframes:
+            data_dict = dict()
+            data_dict['X'] = torch.tensor(dataframe.drop(['event', 'time'], axis=1).to_numpy(), dtype=dtype)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=dtype)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=dtype)
+            dicts.append(data_dict)
+            
+        return dicts[0], dicts[1], dicts[2]
         
 class RotterdamDataLoader(BaseDataLoader):
     """
@@ -547,61 +561,14 @@ class RotterdamDataLoader(BaseDataLoader):
         
     def split_data(self, train_size: float, valid_size: float,
                    test_size: float, random_state=0):
-        traj_labs = labs
-        if labs.shape[1] > 1: 
-            traj_labs = get_trajectory_labels(labs)
-
-        #split into training/test
-        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
-                                          random_state=random_state)
-        train_i, test_i = next(splitter.split(raw_data, traj_labs))
-
-        train_data = raw_data.iloc[train_i, :]
-        train_labs = labs[train_i, :]
-        train_event_time = event_time[train_i, :]
-
-        pretest_data = raw_data.iloc[test_i, :]
-        pretest_labs = labs[test_i, :]
-        pretest_event_time = event_time[test_i, :]
-
-        #further split test set into test/validation
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size)
-        new_pretest_labs = get_trajectory_labels(pretest_labs)
-        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
-        test_data = pretest_data.iloc[test_i, :]
-        test_labs = pretest_labs[test_i, :]
-        test_event_time = pretest_event_time[test_i, :]
-
-        val_data = pretest_data.iloc[val_i, :]
-        val_labs = pretest_labs[val_i, :]
-        val_event_time = pretest_event_time[val_i, :]
-
-        #package for convenience
-        train_pkg = [train_data, train_event_time, train_labs]
-        valid_pkg = [val_data, val_event_time, val_labs]
-        test_pkg = [test_data, test_event_time, test_labs]
-
-        return (train_pkg, valid_pkg, test_pkg)
-
-class MIMIC_IV_DataLoader(BaseDataLoader):
-    """
-    Data loader for MIMIC IV dataset (ME) - ARF, Shock, Death
-    """
-    def load_data(self, n_samples:int = None):
-        file_paths = [cfg.DATA_DIR+'/mimic_static_feature_fold_'+str(i)+'.csv.gz' for i in range(5)]
-        df_list = [pd.read_csv(file) for file in file_paths]
-        df = pd.concat(df_list, ignore_index=True)
-        if n_samples:
-            df = df.sample(n=n_samples, random_state=0)
-        self.X = df.drop(['hadm_id', 'ARF_event', 'ARF_time', 'shock_event', 'shock_time', 'death_event', 'death_time'], axis=1)
-        self.num_features = self._get_num_features(self.X)
-        self.cat_features = self._get_cat_features(self.X)
-        times = [df['ARF_time'].values, df['shock_time'].values, df['death_time'].values]
-        events = [df['ARF_event'].values, df['shock_event'].values, df['death_event'].values]
-        self.y_t = np.stack((times[0], times[1], times[2]), axis=1)
-        self.y_e = np.stack((events[0], events[1], events[2]), axis=1)
-        self.n_events = 3
-        return self
+        df = pd.DataFrame(self.X)
+        df['event'] = self.y_e
+        df['time'] = self.y_t
+        
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            random_state=random_state)
+        return df_train, df_valid, df_test
 
 def get_data_loader(dataset_name:str) -> BaseDataLoader:
     if dataset_name == "seer":

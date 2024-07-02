@@ -71,19 +71,23 @@ if __name__ == "__main__":
     linear = args.linear
 
     # Load and split data
-    data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic.yaml")
+    data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_se.yaml")
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config, linear=linear,
                                                     copula_name=copula_name, k_tau=k_tau)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
     n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
-    n_events = data_config['se_n_events']
+    n_events = data_config['n_events']
     dgps = dl.dgps
     
     # Make time bins
+    min_time = dl.get_data()[1].min()
+    max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
+                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
 
-        # Evaluate each model
+    # Evaluate each model
     model_results = pd.DataFrame()
     for model_name in MODELS:
         if model_name == "mensa-nocop":
