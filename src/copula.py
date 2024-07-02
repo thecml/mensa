@@ -196,7 +196,7 @@ class Clayton3:
 
 class Clayton2D:
     def __init__(self, theta, device, dtype):
-        self.theta = theta
+        self.theta = theta.to(device)
         self.eps = torch.tensor([1e-4], device=device).type(dtype)
         self.device = device
 

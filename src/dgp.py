@@ -18,10 +18,10 @@ def LOG(x):
     return torch.log(x+1e-20*(x<1e-20))
 
 class Exp_linear:
-    def __init__(self, bh, nf) -> None:
+    def __init__(self, bh, nf, device) -> None:
         self.nf = nf
-        self.bh = torch.tensor([bh]).type(torch.float32)
-        self.coeff = torch.rand((nf,))
+        self.bh = torch.tensor([bh]).type(torch.float32).to(device)
+        self.coeff = torch.rand((nf,)).to(device)
     
     def hazard(self, t, x):
         return self.bh * torch.exp(torch.matmul(x, self.coeff))
@@ -37,6 +37,13 @@ class Exp_linear:
     
     def PDF(self, t, x):
         return self.survival(t,x)*self.hazard(t,x)
+        
+    def enable_grad(self):
+        self.bh.requires_grad = True
+        self.coeff.requires_grad = True    
+        
+    def parameters(self):
+        return [self.bh, self.coeff]
     
     def rvs(self, x, u):
         return -LOG(u)/self.hazard(t=None, x=x)
