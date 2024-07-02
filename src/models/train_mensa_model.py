@@ -60,8 +60,8 @@ if __name__ == "__main__":
     model = MensaNDE(hidden_size=32, hidden_surv=32, dropout_rate=0.25,
                      device=device, n_features=train_dict['X'].shape[1], tol=1e-14).to(device)
     copula = Clayton2D(torch.tensor([2.0], dtype=dtype), device, dtype)
-    optimizer = optim.Adam([{"params": model.sumo.parameters(), "lr": 0.005},
-                            {"params": copula.parameters(), "lr": 0.005}])
+    optimizer = optim.Adam([{"params": model.sumo.parameters(), "lr": 0.01},
+                            {"params": copula.parameters(), "lr": 0.01}])
 
     # Make data loaders
     train_loader = DataLoader(TensorDataset(train_dict['X'],
@@ -83,25 +83,26 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             loss = model(xi, ti, ei, copula, max_iter=10000)
             loss.backward()
+            
             for p in copula.parameters():
-                p.grad = p.grad * 1000.0
-                p.grad.clamp_(torch.tensor([-1.0]), torch.tensor([1.0]))
+                p.grad = p.grad * 100
+                p.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
             
             optimizer.step()
-        
+            
             for p in copula.parameters():
                 if p <= 0.01:
                     with torch.no_grad():
                         p[:] = torch.clamp(p, 0.01, 100)
-                        
-        print(copula.theta)
-        
+
         if epoch % 10 == 0:
             total_val_logloss = 0
             for xi, ti, ei in valid_loader:
                 val_logloss = model(xi, ti, ei, copula, max_iter=10000)
                 total_val_logloss += val_logloss
             total_val_logloss /= len(valid_loader)
+            
+            print(f"{total_val_logloss} - {copula.theta}")
             
             if total_val_logloss > (best_valid_logloss + 1):
                 best_valid_logloss = total_val_logloss

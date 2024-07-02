@@ -120,8 +120,8 @@ class MensaNDE(nn.Module):
         super(MensaNDE, self).__init__()
         self.tol = tol
         self.sumo = MultiNDE(inputdim=n_features, n_events=2,
-                             layers = [hidden_size],
-                             layers_surv = [hidden_surv],
+                             layers = [hidden_size, hidden_size, hidden_size],
+                             layers_surv = [hidden_surv, hidden_surv, hidden_surv],
                              dropout = dropout_rate)
 
     def forward(self, x, t, c, copula, max_iter=2000):
