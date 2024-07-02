@@ -15,7 +15,7 @@ from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 import copy
-from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear
+from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear, Exp_linear
 from torch.utils.data import DataLoader, TensorDataset
 import math
 from utility.data import format_data, format_data_as_dict_multi
@@ -80,8 +80,8 @@ if __name__ == "__main__":
     #copula = NestedClayton(torch.tensor([2.0]), torch.tensor([2.0]), 1e-4, 1e-4, device, dtype)
     #copula = ConvexCopula(c1, c2, beta=10000, device=device, dtype=dtype)
     
-    model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
-    model2 = Weibull_log_linear(n_features, 2, 1, device, dtype)
+    model1 = Exp_linear(n_features, 2, 1, device, dtype)
+    model2 = Exp_linear(n_features, 2, 1, device, dtype)
     #model3 = Weibull_log_linear(n_features, 2, 1, device, dtype)
     model1, model2, copula = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
                                                         copula, n_epochs=5000, lr=0.005)
