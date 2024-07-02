@@ -11,4 +11,5 @@ if __name__ == "__main__":
         data = pd.read_csv(Path.joinpath(cfg.DATA_DIR, filename), compression='gzip', index_col=[0])
         df = pd.concat([df, data], axis=0)
     
-    df.to_csv(f'{cfg.DATA_DIR}/mimic.csv')
+    df.to_csv(Path.joinpath(cfg.DATA_DIR, 'mimic.csv.gz'), compression='gzip')
+    

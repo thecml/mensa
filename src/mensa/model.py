@@ -15,7 +15,7 @@ import numpy as np
 from utility.loss import triple_loss
 from dgp import Weibull_linear, Weibull_log_linear, Weibull_nonlinear
 from copula import NestedClayton, NestedFrank, ConvexCopula
-from copula import Clayton2D, Frank2D
+from copula import Clayton2D, Frank2D, Clayton
 
 from mensa.loss import calculate_loss_one_model, calculate_loss_two_models, calculate_loss_three_models
 
@@ -221,6 +221,7 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
     model1.enable_grad()
     model2.enable_grad()
     copula.enable_grad()
+    
     optimizer = torch.optim.Adam([{"params": model1.parameters(), "lr": lr},
                                   {"params": model2.parameters(), "lr": lr},
                                   {"params": copula.parameters(), "lr": lr}])
@@ -230,6 +231,7 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
         optimizer.zero_grad()
         loss = calculate_loss_two_models(model1, model2, train_dict, copula)
         loss.backward()
+        
         for p in copula.parameters():
             p.grad = p.grad * 100
             p.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
@@ -241,12 +243,12 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
                 with torch.no_grad():
                     p[:] = torch.clamp(p, 0.01, 100)
         
-        print(copula.theta)
-        
         with torch.no_grad():
             val_loss = calculate_loss_two_models(model1, model2, valid_dict, copula)
+            if itr % 100 == 0:
+                print(f"{val_loss} - {copula.theta}")
             if not torch.isnan(val_loss) and val_loss < min_val_loss:
-                stop_itr =0
+                stop_itr = 0
                 best_c1 = model1.coeff.detach().clone()
                 best_c2 = model2.coeff.detach().clone()
                 best_mu1 = model1.mu.detach().clone()

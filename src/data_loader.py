@@ -410,12 +410,7 @@ class MimicDataLoader(BaseDataLoader):
         '''
         t and e order, followed by arf, shock, death
         '''
-        filenames = [f"mimic_static_feature_fold_{i}.csv.gz" for i in range(5)]
-    
-        df = pd.DataFrame()
-        for filename in filenames:
-            data = pd.read_csv(Path.joinpath(cfg.DATA_DIR, filename), compression='gzip', index_col=[0])
-            df = pd.concat([df, data], axis=0)
+        df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, 'mimic.csv.gz'), compression='gzip')
             
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
@@ -429,39 +424,41 @@ class MimicDataLoader(BaseDataLoader):
         
         times = [df[f'{event_col}_time'].values for event_col in events]
         events = [df[f'{event_col}_event'].values for event_col in events]
-        self.y_t = np.stack((times[0], times[1], times[2], times[3]), axis=1)
-        self.y_e = np.stack((events[0], events[1], events[2], events[3]), axis=1)
+        self.y_t = np.stack((times[0], times[1], times[2]), axis=1)
+        self.y_e = np.stack((events[0], events[1], events[2]), axis=1)
         self.n_events = 3
         
-        #column_names = [f'x_{i}' for i in range(df['X'].shape[1])]
-        df = pd.DataFrame(mimic_dict['X'], columns=column_names)
-        df['T'] = mimic_dict['T']
-        df['E'] = mimic_dict['E']
-            
-        self.X = df[column_names]
-        self.y_t = df['T']
-        self.y_e = df['E']
-        self.n_events = 2
         return self
 
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, random_state=0):
-        '''
-        Since MIMIC one patient has multiple events, we need to split by patients.
-        '''
-        with open(str(Path(cfg.DATA_DIR)) + "/" + '/mimic_dict.pkl', 'rb') as f:
-            mimic_dict = pickle.load(f)
-        raw_data = mimic_dict['X']
-        event_time = mimic_dict['T']
-        labs = mimic_dict['E']
-        not_early = mimic_dict['not_early']
+                   test_size: float, dtype=torch.float64, random_state=0):
+        df = pd.DataFrame(self.X)
+        df['e1'] = self.y_e[:,0]
+        df['e2'] = self.y_e[:,1]
+        df['e3'] = self.y_e[:,2]
+        df['t1'] = self.y_t[:,0]
+        df['t2'] = self.y_t[:,1]
+        df['t3'] = self.y_t[:,2]
+        df['time'] = self.y_t[:,0] # split on first time
         
-        pat_map = pd.read_csv(str(Path(cfg.DATA_DIR)) + "/" + 'pat_to_visit.csv').to_numpy() #
-        pat_map = pat_map[not_early, :]
-        print('num unique pats', np.unique(pat_map[:, 0]).shape)
-        traj_labs = get_trajectory_labels(labs)
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            random_state=random_state)
         
-        # TODO: Do the splitting using make_stratified_split() and return dicts
+        dataframes = [df_train, df_valid, df_test]
+        event_cols = ['e1', 'e2', 'e3']
+        time_cols = ['t1', 't2', 't3']
+        dicts = []
+        for dataframe in dataframes:
+            data_dict = dict()
+            data_dict['X'] = dataframe.drop(event_cols + time_cols + ['time'], axis=1).values
+            data_dict['E'] = np.stack([dataframe['e1'].values, dataframe['e2'].values,
+                                       dataframe['e3'].values], axis=1).astype(np.int64)
+            data_dict['T'] = np.stack([dataframe['t1'].values, dataframe['t2'].values,
+                                       dataframe['t3'].values], axis=1).astype(np.int64)
+            dicts.append(data_dict)
+            
+        return dicts[0], dicts[1], dicts[2]
 
 class SeerDataLoader(BaseDataLoader):
     """
@@ -608,13 +605,19 @@ class MIMIC_IV_DataLoader(BaseDataLoader):
 
 def get_data_loader(dataset_name:str) -> BaseDataLoader:
     if dataset_name == "seer":
-        return SeerDataLoader()
+        return SeerDataLoader() # 2 events
     elif dataset_name == "als":
-        return ALSDataLoader()
+        return ALSDataLoader() # 4 events
     elif dataset_name == "mimic":
-        return MimicDataLoader()
+        return MimicDataLoader() # 3 events
     elif dataset_name == "rotterdam":
-        return RotterdamDataLoader()
+        return RotterdamDataLoader() # 2 events
+    elif dataset_name == "synthetic_se":
+        return SingleEventSyntheticDataLoader()
+    elif dataset_name == "synthetic_cr":
+        return CompetingRiskSyntheticDataLoader()
+    elif dataset_name == "synthetic_me":
+        return MultiEventSyntheticDataLoader()
     else:
         raise ValueError("Dataset not found")
         
