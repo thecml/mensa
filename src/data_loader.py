@@ -547,15 +547,62 @@ class RotterdamDataLoader(BaseDataLoader):
         
     def split_data(self, train_size: float, valid_size: float,
                    test_size: float, random_state=0):
-        df = pd.DataFrame(self.X)
-        df['event'] = self.y_e
-        df['time'] = self.y_t
-        
-        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
-                                                            frac_valid=valid_size, frac_test=test_size,
-                                                            random_state=random_state)
-        return df_train, df_valid, df_test
-    
+        traj_labs = labs
+        if labs.shape[1] > 1: 
+            traj_labs = get_trajectory_labels(labs)
+
+        #split into training/test
+        splitter = StratifiedShuffleSplit(n_splits=1, train_size=train_size,
+                                          random_state=random_state)
+        train_i, test_i = next(splitter.split(raw_data, traj_labs))
+
+        train_data = raw_data.iloc[train_i, :]
+        train_labs = labs[train_i, :]
+        train_event_time = event_time[train_i, :]
+
+        pretest_data = raw_data.iloc[test_i, :]
+        pretest_labs = labs[test_i, :]
+        pretest_event_time = event_time[test_i, :]
+
+        #further split test set into test/validation
+        splitter = StratifiedShuffleSplit(n_splits=1, test_size=valid_size)
+        new_pretest_labs = get_trajectory_labels(pretest_labs)
+        test_i, val_i = next(splitter.split(pretest_data, new_pretest_labs))
+        test_data = pretest_data.iloc[test_i, :]
+        test_labs = pretest_labs[test_i, :]
+        test_event_time = pretest_event_time[test_i, :]
+
+        val_data = pretest_data.iloc[val_i, :]
+        val_labs = pretest_labs[val_i, :]
+        val_event_time = pretest_event_time[val_i, :]
+
+        #package for convenience
+        train_pkg = [train_data, train_event_time, train_labs]
+        valid_pkg = [val_data, val_event_time, val_labs]
+        test_pkg = [test_data, test_event_time, test_labs]
+
+        return (train_pkg, valid_pkg, test_pkg)
+
+class MIMIC_IV_DataLoader(BaseDataLoader):
+    """
+    Data loader for MIMIC IV dataset (ME) - ARF, Shock, Death
+    """
+    def load_data(self, n_samples:int = None):
+        file_paths = [cfg.DATA_DIR+'/mimic_static_feature_fold_'+str(i)+'.csv.gz' for i in range(5)]
+        df_list = [pd.read_csv(file) for file in file_paths]
+        df = pd.concat(df_list, ignore_index=True)
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
+        self.X = df.drop(['hadm_id', 'ARF_event', 'ARF_time', 'shock_event', 'shock_time', 'death_event', 'death_time'], axis=1)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+        times = [df['ARF_time'].values, df['shock_time'].values, df['death_time'].values]
+        events = [df['ARF_event'].values, df['shock_event'].values, df['death_event'].values]
+        self.y_t = np.stack((times[0], times[1], times[2]), axis=1)
+        self.y_e = np.stack((events[0], events[1], events[2]), axis=1)
+        self.n_events = 3
+        return self
+
 def get_data_loader(dataset_name:str) -> BaseDataLoader:
     if dataset_name == "seer":
         return SeerDataLoader() # 2 events
