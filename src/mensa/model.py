@@ -16,7 +16,7 @@ from utility.loss import triple_loss
 from dgp import Weibull_linear, Weibull_log_linear, Weibull_nonlinear
 from copula import NestedClayton, NestedFrank, ConvexCopula
 from copula import Clayton2D, Frank2D, Clayton
-
+from dcsurvival.nde import NDE
 from mensa.loss import calculate_loss_one_model, calculate_loss_two_models, calculate_loss_three_models
 
 def LOG(x):
@@ -119,19 +119,29 @@ class MensaNDE(nn.Module):
                  hidden_size=32, hidden_surv = 32, dropout_rate=0, max_iter = 2000):
         super(MensaNDE, self).__init__()
         self.tol = tol
-        self.sumo = MultiNDE(inputdim=n_features, n_events=2,
+        # self.sumo = MultiNDE(inputdim=n_features, n_events=2,
+        #                      layers = [hidden_size],
+        #                      layers_surv = [hidden_surv],
+        #                      dropout = dropout_rate)
+        self.sumo_1 = NDE(inputdim=n_features, 
                              layers = [hidden_size],
                              layers_surv = [hidden_surv],
                              dropout = dropout_rate)
+        self.sumo_2 = NDE(inputdim=n_features, 
+                             layers = [hidden_size],
+                             layers_surv = [hidden_surv],
+                             dropout = dropout_rate)        
 
     def forward(self, x, t, c, copula, max_iter=2000):
         #S_E, density_E = self.sumo_e(x, t, gradient = True) # S_E = St = Survival marginals
-        surv_marginals, densities = self.sumo(x, t, gradient = True)
-
-        s1 = surv_marginals[0]
-        s2 = surv_marginals[1]
-        f1 = densities[0]
-        f2 = densities[1]
+        # surv_marginals, densities = self.sumo(x, t, gradient = True)
+        # s1 = surv_marginals[0]
+        # s2 = surv_marginals[1]
+        # f1 = densities[0]
+        # f2 = densities[1]
+        s1, f1 = self.sumo_1(x, t, gradient = True)
+        s2, f2 = self.sumo_2(x, t, gradient = True)
+        
         
         """
         y, log_densities = list(), list()
@@ -194,7 +204,7 @@ class MensaNDE(nn.Module):
 
     def survival(self, t, X):
         with torch.no_grad():
-            result = self.sumo.survival(X, t)
+            result = self.sumo_1.survival(X, t)
         return result[0].squeeze()#, result[1].squeeze()
 
 def make_mensa_model_2_events(n_features, start_theta, eps, device, dtype):
