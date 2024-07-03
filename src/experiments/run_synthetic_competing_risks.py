@@ -25,7 +25,7 @@ from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
 from data_loader import CompetingRiskSyntheticDataLoader
-from copula import Clayton2D, Frank2D
+from copula import Clayton2D, Frank2D, NestedClayton
 from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear
 from utility.survival import (make_time_bins, preprocess_data, convert_to_structured,
                               risk_fn, compute_l1_difference, predict_survival_function,
@@ -36,6 +36,7 @@ from utility.loss import triple_loss
 from mensa.model import train_mensa_model_3_events, make_mensa_model_3_events
 from utility.data import format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch, format_survtrace_data
 from utility.evaluation import global_C_index, local_C_index
+from mensa.model import CompetingMENSA
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
@@ -75,7 +76,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deephit']
+MODELS = ['mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -177,12 +178,12 @@ if __name__ == "__main__":
             model.fit(X_train, pd.DataFrame(y_train), val_data=(X_valid, pd.DataFrame(y_valid)))
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
-            model1, model2, model3, copula = make_mensa_model_3_events(n_features, start_theta=2.0, eps=1e-4,
-                                                                       device=device, dtype=dtype)
-            model1, model2, model3, copula = train_mensa_model_3_events(train_dict, valid_dict, model1, model2, model3,
-                                                                        copula, n_epochs=5000, lr=0.001)
-            print(f"NLL all events: {triple_loss(model1, model2, model3, valid_dict, copula)}")
-            print(f"DGP loss: {triple_loss(dgps[0], dgps[1], dgps[2], valid_dict, copula)}")
+            copula = NestedClayton(torch.tensor([2.0]), torch.tensor([2.0]),
+                                   1e-4, 1e-4, device, dtype)
+            n_epochs = config['n_epochs']
+            lr = config['lr']
+            model = CompetingMENSA(n_features, n_events, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr)
         elif model_name == "dgp":
             pass
         else:
@@ -231,12 +232,12 @@ if __name__ == "__main__":
             model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
             all_preds = [model_preds for _ in range(n_events)]
         elif model_name == "mensa":
+            models = model.get_models()
             all_preds = []
-            models = [model1, model2, model3]
-            for model in models:
-                preds = predict_survival_function(model, test_dict['X'], time_bins).detach().numpy()
-                preds = pd.DataFrame(preds, columns=time_bins.numpy())
-                all_preds.append(preds)
+            for i in range(n_events):
+                model_preds = predict_survival_function(models[i], test_dict['X'], time_bins).detach().numpy()
+                model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
+                all_preds.append(model_preds)
         elif model_name == "dgp":
             all_preds = []
             for model in dgps:

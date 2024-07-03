@@ -25,7 +25,7 @@ from scipy.interpolate import interp1d
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
-from copula import Clayton2D, Frank2D
+from copula import Clayton2D, Frank2D, NestedClayton
 from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear
 from utility.survival import (make_time_bins, preprocess_data, convert_to_structured,
                               risk_fn, compute_l1_difference, predict_survival_function,
@@ -38,6 +38,7 @@ from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, c
                           format_survtrace_data, format_data_as_dict_multi)
 from utility.evaluation import global_C_index, local_C_index
 from data_loader import ALSDataLoader
+from mensa.model import MultiMENSA
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
@@ -80,13 +81,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv']
+MODELS = ['mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='als')
+    parser.add_argument('--dataset_name', type=str, default='mimic')
     
     args = parser.parse_args()
     seed = args.seed
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     
     # Load and split data
     dl = get_data_loader(dataset_name)
-    dl = dl.load_data()
+    dl = dl.load_data(n_samples=1000)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1,
                                                       test_size=0.2, random_state=seed)
     n_events = dl.n_events
@@ -142,7 +143,7 @@ if __name__ == "__main__":
                                              random_state=0, reset_model=True, device=device, dtype=dtype)
                 trained_models.append(model)
         elif model_name == "hierarch":
-            config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"als.yaml")
+            config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"{dataset_name}.yaml")
             n_time_bins = len(time_bins)
             train_data, valid_data, test_data = format_hierarchical_data_me(train_dict, valid_dict, test_dict, n_time_bins)
             config['min_time'] = int(train_data[1].min())
@@ -157,12 +158,18 @@ if __name__ == "__main__":
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose)
         elif model_name == "mensa":
-            raise NotImplementedError()
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
+            copula = NestedClayton(torch.tensor([2.0]), torch.tensor([2.0]),
+                                   1e-4, 1e-4, device, dtype)
+            n_epochs = config['n_epochs']
+            lr = config['lr']
+            model = MultiMENSA(n_features, n_events, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr)
         else:
             raise NotImplementedError()
         
         # Compute survival function
-        n_samples = test_dict['X'].shape[0]                    
+        n_samples = test_dict['X'].shape[0]
         if model_name == "deepsurv":
             all_preds = []
             for trained_model in trained_models:
@@ -179,7 +186,12 @@ if __name__ == "__main__":
                 preds = pd.DataFrame(event_preds[i], columns=bin_locations)
                 all_preds.append(preds)
         elif model_name == "mensa":
-            raise NotImplementedError()
+            models = model.get_models()
+            all_preds = []
+            for i in range(n_events):
+                model_preds = predict_survival_function(models[i], test_dict['X'], time_bins).detach().numpy()
+                model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
+                all_preds.append(model_preds)
         else:
             raise NotImplementedError()
         

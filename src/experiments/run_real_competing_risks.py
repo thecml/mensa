@@ -25,7 +25,7 @@ from scipy.interpolate import interp1d
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
-from copula import Clayton2D, Frank2D
+from copula import Clayton2D, Frank2D, NestedClayton
 from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear
 from utility.survival import (make_time_bins, preprocess_data, convert_to_structured,
                               risk_fn, compute_l1_difference, predict_survival_function,
@@ -38,6 +38,7 @@ from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, c
                           format_survtrace_data, format_data_as_dict_single)
 from utility.evaluation import global_C_index, local_C_index
 from data_loader import get_data_loader
+from mensa.model import CompetingMENSA
 
 # SOTA
 from sota_models import (make_deephit_cr, make_dsm_model, train_deepsurv_model,
@@ -73,7 +74,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deephit']
+MODELS = ['mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -177,12 +178,13 @@ if __name__ == "__main__":
             y_valid = pd.DataFrame({'event': valid_dict['E'], 'time': valid_dict['T']})
             model.fit(X_train, pd.DataFrame(y_train), val_data=(X_valid, pd.DataFrame(y_valid)))
         elif model_name == "mensa":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
-            model1, model2, model3, copula = make_mensa_model_3_events(n_features, start_theta=2.0, eps=1e-4,
-                                                                       device=device, dtype=dtype)
-            model1, model2, model3, copula = train_mensa_model_3_events(train_dict, valid_dict, model1, model2, model3,
-                                                                        copula, n_epochs=5000, lr=0.01)
-            print(f"NLL all events: {triple_loss(model1, model2, model3, valid_dict, copula)}")
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
+            copula = NestedClayton(torch.tensor([2.0]), torch.tensor([2.0]),
+                                   1e-4, 1e-4, device, dtype)
+            n_epochs = config['n_epochs']
+            lr = config['lr']
+            model = CompetingMENSA(n_features, n_events+1, copula=copula, device=device) # add censoring model
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr)
         else:
             raise NotImplementedError()
         
@@ -225,12 +227,13 @@ if __name__ == "__main__":
             model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
             all_preds = [model_preds for _ in range(n_events)]
         elif model_name == "mensa":
-            preds_e1 = predict_survival_function(model1, test_dict['X'], time_bins).detach().numpy() # censoring
-            preds_e2 = predict_survival_function(model2, test_dict['X'], time_bins).detach().numpy()
-            preds_e3 = predict_survival_function(model3, test_dict['X'], time_bins).detach().numpy()
-            preds_e2 = pd.DataFrame(preds_e2, columns=time_bins.numpy())
-            preds_e3 = pd.DataFrame(preds_e3, columns=time_bins.numpy())
-            all_preds = [preds_e2, preds_e3]
+            models = model.get_models()
+            all_preds = []
+            for i in range(n_events):
+                model_preds = predict_survival_function(models[i], test_dict['X'], time_bins).detach().numpy()
+                model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
+                all_preds.append(model_preds)
+            all_preds.pop(0) # remove censoring model
         else:
             raise NotImplementedError()
         

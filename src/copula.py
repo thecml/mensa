@@ -367,3 +367,4 @@ class Frank2D:
         u_ = delta_ * u[:,0] + u_hat * (1.0-delta_)
         v_ = delta_ * v_hat + u[:,1] * (1.0-delta_)
         return torch.cat([u_.reshape(-1,1), v_.reshape(-1,1)],dim=1)
+    

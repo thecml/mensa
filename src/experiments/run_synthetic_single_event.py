@@ -27,8 +27,9 @@ from utility.survival import (make_time_bins, preprocess_data, convert_to_struct
                               risk_fn, compute_l1_difference, predict_survival_function)
 from utility.data import (dotdict, format_data, format_data_as_dict_single)
 from utility.config import load_config
-from mensa.model import train_mensa_model_2_events, make_mensa_model_2_events
+from mensa.model import SingleMENSA
 from utility.data import format_data_deephit_single
+from copula import Clayton2D
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
@@ -54,7 +55,7 @@ torch.set_default_dtype(dtype)
 device = torch.device("cpu")
 
 # Define models
-MODELS = ["cox"]
+MODELS = ["mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -164,10 +165,11 @@ if __name__ == "__main__":
                                             num_epochs=100, batch_size=32, device=device)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
-            model1, model2, copula = make_mensa_model_2_events(n_features, start_theta=2.0, eps=1e-4,
-                                                               device=device, dtype=dtype)
-            model1, model2, copula = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
-                                                                copula, n_epochs=2000, lr=0.01)
+            n_epochs = config['n_epochs']
+            lr = config['lr']
+            copula = Clayton2D(torch.tensor([2.0], dtype=dtype), device, dtype)
+            model = SingleMENSA(n_features=n_features, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr)
         elif model_name == "dgp":
             pass
         else:
@@ -198,7 +200,8 @@ if __name__ == "__main__":
         elif model_name == "dcsurvival":
             model_preds = predict_survival_function(model, test_dict['X'], time_bins).numpy()
         elif model_name == "mensa":
-            model_preds = predict_survival_function(model1, test_dict['X'], time_bins).numpy()
+            model_c, model_e = model.get_models()[0], model.get_models()[1]
+            model_preds = predict_survival_function(model_e, test_dict['X'], time_bins).detach().numpy()
         elif model_name == "dgp":
             model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
