@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Add the current directory to sys.path
+sys.path.append(os.path.abspath('../'))
+
 import pandas as pd
 import numpy as np
 import config as cfg
@@ -33,7 +39,9 @@ dtype = torch.float64
 torch.set_default_dtype(dtype)
 
 # Setup device
-device = "cpu" # use CPU
+# device = "cpu" # use CPU
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
 device = torch.device(device)
 
 if __name__ == "__main__":
@@ -42,7 +50,7 @@ if __name__ == "__main__":
     data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic.yaml")
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config,
                                                     linear=True, copula_name="clayton",
-                                                    k_tau=k_tau, device=device, dtype=dtype)
+                                                    k_tau=k_tau, device='cpu', dtype=dtype)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
     n_events = data_config['se_n_events']
     dgps = dl.dgps
@@ -61,8 +69,11 @@ if __name__ == "__main__":
     model = MensaNDE(hidden_size=32, hidden_surv=32, dropout_rate=0.25,
                      device=device, n_features=train_dict['X'].shape[1], tol=1e-14).to(device)
     copula = Clayton2D(torch.tensor([2.0], dtype=dtype), device, dtype)
-    optimizer = optim.Adam([{"params": model.sumo_e.parameters(), "lr": 0.001},
-                            {"params": model.sumo_c.parameters(), "lr": 0.001}])
+    # optimizer = optim.Adam([{"params": model.sumo.parameters(), "lr": 0.005},
+    #                         {"params": copula.parameters(), "lr": 0.005}])
+    optimizer = optim.Adam([{"params": model.sumo_e.parameters(), "lr": 0.005},
+                            {"params": model.sumo_c.parameters(), "lr": 0.005},
+                            {"params": copula.parameters(), "lr": 0.005}])
 
     # Make data loaders
     train_loader = DataLoader(TensorDataset(train_dict['X'],
@@ -82,23 +93,26 @@ if __name__ == "__main__":
     for epoch in tqdm(range(num_epochs), disable=True):
         for xi, ti, ei in train_loader:
             optimizer.zero_grad()
+            xi, ti, ei = xi.to(device), ti.to(device), ei.to(device)
             loss = model(xi, ti, ei, None, max_iter=10000)
             loss.backward()
-            
-            #for p in copula.parameters():
-            #    p.grad = p.grad * 100
-            #    p.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
+            # for p in copula.parameters():
+            #     p.grad = p.grad * 1000.0
+            #     p.grad.clamp_(torch.tensor([-1.0]).to(device), torch.tensor([1.0]).to(device))
             
             optimizer.step()
-            
-            #for p in copula.parameters():
-            #    if p <= 0.01:
-            #        with torch.no_grad():
-            #            p[:] = torch.clamp(p, 0.01, 100)
-
+        
+            # for p in copula.parameters():
+            #     if p <= 0.01:
+            #         with torch.no_grad():
+            #             p[:] = torch.clamp(p, 0.01, 100)
+                        
+        print('loss:', loss.item(), '\t copula:', copula.theta.item())
+        
         if epoch % 10 == 0:
             total_val_logloss = 0
             for xi, ti, ei in valid_loader:
+                xi, ti, ei = xi.to(device), ti.to(device), ei.to(device)
                 val_logloss = model(xi, ti, ei, None, max_iter=10000)
                 total_val_logloss += val_logloss
             total_val_logloss /= len(valid_loader)

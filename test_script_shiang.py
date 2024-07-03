@@ -57,7 +57,6 @@ def generate_events(dgp1, dgp2, dgp3, x, device, theta=2.0, family='clayton'):
 
         uv = torch.cat([u, v, w], axis=1)
 
-
     t1 = dgp1.rvs(x, uv[:, 0])
     t2 = dgp2.rvs(x, uv[:, 1])
     t3 = dgp3.rvs(x, uv[:, 2])
@@ -120,6 +119,53 @@ def single_loss(model, data,
     return -torch.mean(LOG(f))
 
 
+class LogNormal_linear:
+    def __init__(self, nf, device) -> None:
+        self.nf = nf
+        self.mu_coeff = torch.rand((nf,)).to(device)
+        self.sigma_coeff = torch.rand((nf,)).to(device)
+        self.device = device
+
+    def hazard(self, t, x):
+        return self.PDF(t, x) / self.survival(t, x)
+    def cum_hazard(self, t, x):
+        # No closed form solution for the cumulative hazard function of the lognormal distribution
+        # we have to approximate it using numerical integration
+        n_steps = 1000
+        t_grids = torch.linspace(1e-5, t, n_steps).to(self.device)  # avoid zero to prevent division by zero
+        delta_u = t / n_steps
+        h_values = self.hazard(t_grids, x)
+        H_t = torch.sum(h_values * delta_u)
+        return H_t
+
+    def survival(self, t, x):
+        return 1 - self.CDF(t, x)
+
+    def CDF(self, t, x):
+        mu = torch.matmul(x, self.mu_coeff)
+        sigma = torch.matmul(x, self.sigma_coeff)
+        return 0.5 + 0.5 * torch.erf((LOG(t) - mu) / (sigma * torch.sqrt(torch.tensor(2)).to(self.device)))
+
+    def PDF(self, t, x):
+        mu = torch.matmul(x, self.mu_coeff)
+        sigma = torch.matmul(x, self.sigma_coeff)
+        return (1 / (t * sigma * torch.sqrt(torch.tensor(2 * torch.pi)).to(self.device))) * torch.exp(
+            -((LOG(t) - mu) ** 2) / (2 * sigma ** 2))
+
+    def enable_grad(self):
+        # TODO: why do we need to set requires_grad to True for DGP?
+        self.mu_coeff.requires_grad = True
+        self.sigma_coeff.requires_grad = True
+
+    def parameters(self):
+        return [self.mu_coeff, self.sigma_coeff]
+
+    def rvs(self, x, u):
+        mu = torch.matmul(x, self.mu_coeff)
+        sigma = torch.matmul(x, self.sigma_coeff)
+        return torch.exp(mu + sigma * torch.erfinv(2 * u - 1) * torch.sqrt(torch.tensor(2)).to(self.device))
+
+
 class Weibull_linear:
     def __init__(self, nf, alpha, gamma, device):
         # torch.manual_seed(0)
@@ -140,7 +186,7 @@ class Weibull_linear:
 
     def hazard(self, t, x):
         return ((self.gamma / self.alpha) * ((t / self.alpha) ** (self.gamma - 1))) * torch.exp(
-            torch.matmul(x, self.coeff))    # how this is derived
+            torch.matmul(x, self.coeff))
 
     def cum_hazard(self, t, x):
         return ((t / self.alpha) ** self.gamma) * torch.exp(torch.matmul(x, self.coeff))
@@ -250,20 +296,22 @@ if __name__ == "__main__":
     n_val = 5000
     n_test = 5000
     x_dict = synthetic_x(n_train, n_val, n_test, nf, DEVICE)
-    # data generating process
-    dgp1 = Weibull_linear(nf, alpha=17, gamma=3, device=DEVICE)
-    dgp2 = Weibull_linear(nf, alpha=16, gamma=3, device=DEVICE)
-    dgp3 = Weibull_linear(nf, alpha=17, gamma=4, device=DEVICE)
+    # dgp1 = Weibull_linear(nf, alpha=17, gamma=3, device=DEVICE)
+    # dgp2 = Weibull_linear(nf, alpha=16, gamma=3, device=DEVICE)
+    # dgp3 = Weibull_linear(nf, alpha=17, gamma=4, device=DEVICE)
 
     """dgp1 = Exp_linear(0.1, nf)
     dgp2 = Exp_linear(0.09, nf)
     dgp3 = Exp_linear(0.06, nf)"""
-    dgp1.coeff = torch.rand((nf,), device=DEVICE)
-    dgp2.coeff = torch.rand((nf,), device=DEVICE)
-    dgp3.coeff = torch.rand((nf,), device=DEVICE)
+    # dgp1.coeff = torch.rand((nf,), device=DEVICE)
+    # dgp2.coeff = torch.rand((nf,), device=DEVICE)
+    # dgp3.coeff = torch.rand((nf,), device=DEVICE)
+    dgp1 = LogNormal_linear(nf, DEVICE)
+    dgp2 = LogNormal_linear(nf, DEVICE)
+    dgp3 = LogNormal_linear(nf, DEVICE)
 
     copula_dgp = 'clayton'
-    theta_dgp = 8.0 # true theta
+    theta_dgp = 8.0
     eps = 1e-4
 
     train_dict, val_dict, test_dict = \
@@ -289,7 +337,6 @@ if __name__ == "__main__":
     indep_model2.enable_grad()
     indep_model3.enable_grad()
     copula.enable_grad()
-    # why do you need this?
     optimizer = torch.optim.Adam(indep_model3.parameters(), lr=5e-3)
 
     optimizer = torch.optim.Adam([{"params": indep_model1.parameters(), "lr": 1e-2},
@@ -311,16 +358,16 @@ if __name__ == "__main__":
         loss = single_loss(indep_model2, train_dict, 't2')
         loss.backward()
         optimizer.step()
-    print("Event 2--> trained model: ", single_loss(indep_model2, val_dict, 't2').item(), "\tDGP:",
-          single_loss(dgp2, val_dict, 't2').item())
+    print("Event 2--> trained model: ", single_loss(indep_model2, val_dict, 't2'), "\tDGP:",
+          single_loss(dgp2, val_dict, 't2'))
 
     for i in range(pre_trainn_epochs):
         optimizer.zero_grad()
         loss = single_loss(indep_model3, train_dict, 't3')
         loss.backward()
         optimizer.step()
-    print("Event 3--> trained model: ", single_loss(indep_model3, val_dict, 't3').item(), "\tDGP:",
-          single_loss(dgp3, val_dict, 't3').item())
+    print("Event 3--> trained model: ", single_loss(indep_model3, val_dict, 't3'), "\tDGP:",
+          single_loss(dgp3, val_dict, 't3'))
 
     # training loop
 
@@ -345,21 +392,21 @@ if __name__ == "__main__":
         if i % 500 == 0:
             print(loss, copula.parameters())
 
-    print("####################Evaluate on validation set####################")
+    print("###############################################################")
     # NLL of all of the events together
-    print(loss_triple(indep_model1, indep_model2, indep_model3, val_dict, copula).item())
+    print(loss_triple(indep_model1, indep_model2, indep_model3, val_dict, copula))
     # check the dgp performance
     copula.theta = torch.tensor([theta_dgp])
-    print(loss_triple(dgp1, dgp2, dgp3, val_dict, copula).item())
+    print(loss_triple(dgp1, dgp2, dgp3, val_dict, copula))
 
     # NLL assuming every thing is observed, here NLL works correctly
-    print("Event 1--> trained model: ", single_loss(indep_model1, val_dict, 't1').item(), "\tDGP:",
-          single_loss(dgp1, val_dict, 't1').item())
-    print("Event 2--> trained model: ", single_loss(indep_model2, val_dict, 't2').item(), "\tDGP:",
-          single_loss(dgp2, val_dict, 't2').item())
-    print("Event 3--> trained model: ", single_loss(indep_model3, val_dict, 't3').item(), "\tDGP:",
-          single_loss(dgp3, val_dict, 't3').item())
+    print("Event 1--> trained model: ", single_loss(indep_model1, val_dict, 't1'), "\tDGP:",
+          single_loss(dgp1, val_dict, 't1'))
+    print("Event 2--> trained model: ", single_loss(indep_model2, val_dict, 't2'), "\tDGP:",
+          single_loss(dgp2, val_dict, 't2'))
+    print("Event 3--> trained model: ", single_loss(indep_model3, val_dict, 't3'), "\tDGP:",
+          single_loss(dgp3, val_dict, 't3'))
 
-    print("Event 1 curve difference:", surv_diff(dgp1, indep_model1, val_dict['X'], 200).item())
-    print("Event 2 curve difference:", surv_diff(dgp2, indep_model2, val_dict['X'], 200).item())
-    print("Event 3 curve difference:", surv_diff(dgp3, indep_model3, val_dict['X'], 200).item())
+    print(surv_diff(dgp1, indep_model1, val_dict['X'], 200))
+    print(surv_diff(dgp2, indep_model2, val_dict['X'], 200))
+    print(surv_diff(dgp3, indep_model3, val_dict['X'], 200))
