@@ -294,7 +294,7 @@ def calculate_layer_size_hierarch(layer_size, n_time_bins):
                 factor2 = n // i
                 if factor1 < factor2:
                     return factor1, factor2
-        return None
+        return (1, n_time_bins)
     result = find_factors(n_time_bins)
     return [(layer_size, result[0]), (layer_size, result[1])]
     

@@ -20,6 +20,7 @@ import copy
 import tqdm
 import math
 import argparse
+import os
 from scipy.interpolate import interp1d
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
@@ -105,14 +106,9 @@ if __name__ == "__main__":
     test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
     
     # Make time bins
-    min_time = dl.get_data()[1].min()
-    max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
-    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
-                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
     
     # Evaluate models
-    model_results = pd.DataFrame()
     for model_name in MODELS:
         if model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
@@ -174,30 +170,6 @@ if __name__ == "__main__":
             y_train = pd.DataFrame({'event': train_dict['E'], 'time': train_dict['T']})
             y_valid = pd.DataFrame({'event': valid_dict['E'], 'time': valid_dict['T']})
             model.fit(X_train, pd.DataFrame(y_train), val_data=(X_valid, pd.DataFrame(y_valid)))
-        elif model_name == "survtrace":
-            config = dotdict(cfg.SURVTRACE_PARAMS)
-            X_train = pd.DataFrame(train_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-            X_valid = pd.DataFrame(valid_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-            cat_features = []
-            num_features = [f'X{i}' for i in range(n_features)]
-            y_train, y_valid, duration_index, out_features = format_survtrace_data(train_dict, valid_dict,
-                                                                                    time_bins, n_events)
-            config['vocab_size'] = calculate_vocab_size(X_train, cat_features)
-            config['duration_index'] = duration_index
-            config['out_feature'] = out_features
-            config['num_numerical_feature'] = int(len(num_features))
-            config['num_categorical_feature'] = int(len(cat_features))
-            config['num_feature'] = n_features
-            config['num_event'] = n_events
-            config['in_features'] = n_features
-            model = SurvTraceMulti(dotdict(config))
-            trainer = Trainer(model)
-            trainer.fit((X_train, y_train), (X_valid, y_valid),
-                        batch_size=config['batch_size'],
-                        epochs=config['epochs'],
-                        learning_rate=config['learning_rate'],
-                        weight_decay=config['weight_decay'],
-                        val_batch_size=config['batch_size'])
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             model1, model2, model3, copula = make_mensa_model_3_events(n_features, start_theta=2.0, eps=1e-4,
@@ -220,35 +192,32 @@ if __name__ == "__main__":
                 all_preds.append(preds)
         elif model_name == "deephit":
             cif = model.predict_cif(test_dict['X'])
-            cif1 = pd.DataFrame((1-cif[0]).T, columns=time_bins.numpy())
-            cif2 = pd.DataFrame((1-cif[1]).T, columns=time_bins.numpy())
-            all_preds = [cif1, cif2]
+            all_preds = []
+            for i in range(n_events):
+                preds = pd.DataFrame((1-cif[i]).T, columns=time_bins.numpy())
+                all_preds.append(preds)
         elif model_name == "hierarch":
             event_preds = util.get_surv_curves(test_data[0], model)
             bin_locations = np.linspace(0, config['max_time'], event_preds[0].shape[1])
-            preds_e1 = pd.DataFrame(event_preds[0], columns=bin_locations)
-            preds_e2 = pd.DataFrame(event_preds[1], columns=bin_locations)
-            all_preds = [preds_e1, preds_e2]
+            all_preds = []
+            for i in range(n_events):
+                preds = pd.DataFrame(event_preds[i], columns=bin_locations)
+                all_preds.append(preds)
         elif model_name == "mtlrcr":
             pred_prob = model(test_dict['X'])
             num_points = len(time_bins)
-            preds_e1 = mtlr_survival(pred_prob[:,:num_time_bins]).detach().numpy()
-            preds_e2 = mtlr_survival(pred_prob[:,num_time_bins:num_time_bins*2]).detach().numpy()
-            time_bins_0 = torch.concat([torch.tensor([0], device=device, dtype=dtype), time_bins])
-            preds_e1 = pd.DataFrame(preds_e1, columns=time_bins_0.numpy())
-            preds_e2 = pd.DataFrame(preds_e2, columns=time_bins_0.numpy())
-            all_preds = [preds_e1, preds_e2]
+            all_preds = []
+            for i in range(n_events):
+                start = i * num_time_bins
+                end = start + num_time_bins
+                preds = mtlr_survival(pred_prob[:, start:end]).detach().numpy()[:, 1:]
+                preds = pd.DataFrame(preds, columns=time_bins.numpy())
+                all_preds.append(preds)
         elif model_name == "dsm":
             X_test = pd.DataFrame(test_dict['X'], columns=[f'X{i}' for i in range(n_features)])
             model_preds = model.predict_survival(X_test, times=list(time_bins.numpy()))
             model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
-            all_preds = [model_preds, model_preds]
-        elif model_name == "survtrace":
-            preds_e1 = model.predict_surv(test_dict['X'], batch_size=config['batch_size'], event=0)[:, 1:] # drop extra bin
-            preds_e2 = model.predict_surv(test_dict['X'], batch_size=config['batch_size'], event=1)[:, 1:]
-            preds_e1 = pd.DataFrame(preds_e1, columns=time_bins.numpy())
-            preds_e2 = pd.DataFrame(preds_e2, columns=time_bins.numpy())
-            all_preds = [preds_e1, preds_e2]
+            all_preds = [model_preds for _ in range(n_events)]
         elif model_name == "mensa":
             preds_e1 = predict_survival_function(model1, test_dict['X'], time_bins).detach().numpy() # censoring
             preds_e2 = predict_survival_function(model2, test_dict['X'], time_bins).detach().numpy()
@@ -267,6 +236,7 @@ if __name__ == "__main__":
         local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
         
         # Make evaluation for each event
+        model_results = pd.DataFrame()
         for event_id, surv_preds in enumerate(all_preds):
             n_train_samples = len(train_dict['X'])
             n_test_samples= len(test_dict['X'])
@@ -286,9 +256,17 @@ if __name__ == "__main__":
             
             metrics = [ci, ibs, mae_hinge, mae_margin, mae_pseudo, d_calib, global_ci, local_ci]
             print(metrics)
-            res_sr = pd.Series([model_name] + metrics,
-                                index=["ModelName", "CI", "IBS", "MAE-H", "MAE-M",
-                                       "MAE-P", "DCalib", "GlobalCI", "LocalCI"])
+            res_sr = pd.Series([model_name, seed, event_id+1] + metrics,
+                                index=["ModelName", "Seed", "EventId", "CI", "IBS",
+                                       "MAEH", "MAEM", "MAEPO", "DCalib", "GlobalCI", "LocalCI"])
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
-            model_results.to_csv(f"{cfg.RESULTS_DIR}/model_results.csv")
+            
+        # Save results
+        filename = f"{cfg.RESULTS_DIR}/real_cr.csv"
+        if os.path.exists(filename):
+            results = pd.read_csv(filename)
+        else:
+            results = pd.DataFrame(columns=model_results.columns)
+        results = results.append(model_results, ignore_index=True)
+        results.to_csv(filename, index=False)
                     
