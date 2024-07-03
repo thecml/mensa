@@ -42,7 +42,6 @@ if __name__ == "__main__":
         event_df = alsfrs_df.groupby('subject_id').apply(annotate_event, f'Event_{event_name}').reset_index()
         event_df = event_df.rename({'DeltaSum_Observed':f'{event_name}_Observed',
                                     'Event': f'{event_name}_Event'}, axis=1)
-        #event_df = event_df.loc[event_df[f'{event_name}_Observed']]
         df = pd.merge(df, event_df, on="subject_id", how='left').dropna()
     
     # Record site of onset
