@@ -16,7 +16,7 @@ from utility.loss import triple_loss
 from dgp import Weibull_linear, Weibull_log_linear, Weibull_nonlinear
 from copula import NestedClayton, NestedFrank, ConvexCopula
 from copula import Clayton2D, Frank2D, Clayton
-
+from dcsurvival.nde import NDE
 from mensa.loss import (calculate_loss_one_model, calculate_loss_two_models, calculate_loss_three_models,
                         calculate_loss_three_models_me)
 
@@ -148,12 +148,35 @@ class MensaNDE(nn.Module):
                  hidden_size=32, hidden_surv = 32, dropout_rate=0, max_iter = 2000):
         super(MensaNDE, self).__init__()
         self.tol = tol
+        # self.sumo = MultiNDE(inputdim=n_features, n_events=2,
+        #                      layers = [hidden_size],
+        #                      layers_surv = [hidden_surv],
+        #                      dropout = dropout_rate)
+        # self.sumo_1 = NDE(inputdim=n_features, 
+        #                      layers = [hidden_size],
+        #                      layers_surv = [hidden_surv],
+        #                      dropout = dropout_rate)
+        # self.sumo_2 = NDE(inputdim=n_features, 
+        #                      layers = [hidden_size],
+        #                      layers_surv = [hidden_surv],
+        #                      dropout = dropout_rate)        
+
+        
         self.sumo_e = NDE(n_features, layers = [hidden_size, hidden_size, hidden_size],
                           layers_surv = [hidden_surv, hidden_surv, hidden_surv], dropout = dropout_rate)
         self.sumo_c = NDE(n_features, layers = [hidden_size, hidden_size, hidden_size],
                           layers_surv = [hidden_surv, hidden_surv, hidden_surv], dropout = dropout_rate)
 
     def forward(self, x, t, c, copula, max_iter=2000):
+        #S_E, density_E = self.sumo_e(x, t, gradient = True) # S_E = St = Survival marginals
+        # surv_marginals, densities = self.sumo(x, t, gradient = True)
+        # s1 = surv_marginals[0]
+        # s2 = surv_marginals[1]
+        # f1 = densities[0]
+        # f2 = densities[1]
+        # s1, f1 = self.sumo_1(x, t, gradient = True)
+        # s2, f2 = self.sumo_2(x, t, gradient = True)
+        
         S_E, density_E = self.sumo_e(x, t, gradient = True)
         S_E = S_E.squeeze()
         event_log_density = torch.log(density_E).squeeze()
@@ -238,7 +261,7 @@ class MensaNDE(nn.Module):
 
     def survival(self, t, X):
         with torch.no_grad():
-            result = self.sumo.survival(X, t)
+            result = self.sumo_e.survival(X, t)
         return result[0].squeeze()#, result[1].squeeze()
 
 def make_mensa_model_2_events(n_features, start_theta, eps, device, dtype):
@@ -261,7 +284,7 @@ def make_mensa_model_3_events(n_features, start_theta, eps, device, dtype):
     copula = NestedClayton(torch.tensor([start_theta]), torch.tensor([start_theta]), eps, eps, device, dtype)
     return model1, model2, model3, copula
 
-def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n_epochs=1000, lr=5e-3):
+def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n_epochs=1000, lr=5e-3, model_type='Weibull_log_linear'):
     model1.enable_grad()
     model2.enable_grad()
     copula.enable_grad()
@@ -295,38 +318,59 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
                 print(f"{val_loss} - {copula.theta}")
             if not torch.isnan(val_loss) and val_loss < min_val_loss:
                 stop_itr = 0
-                
-                best_c1 = model1.coeff.detach().clone()
-                best_c2 = model2.coeff.detach().clone()
-                best_mu1 = model1.mu.detach().clone()
-                best_mu2 = model2.mu.detach().clone()
-                best_sig1 = model1.sigma.detach().clone()
-                best_sig2 = model2.sigma.detach().clone()
-                
-                """
-                best_bh1 = model1.bh.detach().clone()
-                best_coeff1 = model1.coeff.detach().clone()
-                best_bh2 = model2.bh.detach().clone()
-                best_coeff2 = model2.coeff.detach().clone()
-                """
+                if model_type == 'Weibull_log_linear':
+                    best_c1 = model1.coeff.detach().clone()
+                    best_c2 = model2.coeff.detach().clone()
+                    best_mu1 = model1.mu.detach().clone()
+                    best_mu2 = model2.mu.detach().clone()
+                    best_sig1 = model1.sigma.detach().clone()
+                    best_sig2 = model2.sigma.detach().clone()
+                elif model_type == 'LogNormal_linear':
+                    best_mu_coeff1 = model1.mu_coeff.detach().clone()
+                    best_mu_coeff2 = model2.mu_coeff.detach().clone()
+                    best_sigma_coeff1 = model1.sigma_coeff.detach().clone()
+                    best_sigma_coeff2 = model2.sigma_coeff.detach().clone()
+                elif model_type == 'LogNormalCox_linear':
+                    best_mu1 = model1.mu.detach().clone()
+                    best_mu2 = model2.mu.detach().clone()
+                    best_sigma1 = model1.sigma.detach().clone()
+                    best_sigma2 = model2.sigma.detach().clone()
+                    best_coeff1 = model1.coeff.detach().clone()
+                    best_coeff2 = model2.coeff.detach().clone()
+                elif model_type == 'Exp_linear':
+                    best_bh1 = model1.bh.detach().clone()
+                    best_coeff1 = model1.coeff.detach().clone()
+                    best_bh2 = model2.bh.detach().clone()
+                    best_coeff2 = model2.coeff.detach().clone()
                 min_val_loss = val_loss.detach().clone()
             else:
                 stop_itr += 1
                 if stop_itr == 2000:
                     break
-                
-    model1.mu = best_mu1
-    model2.mu = best_mu2
-    model1.sigma = best_sig1
-    model2.sigma = best_sig2
-    model1.coeff = best_c1
-    model2.coeff = best_c2
-    """
-    model1.bh = best_bh1
-    model1.coeff = best_coeff1
-    model2.bh = best_bh2
-    model2.coeff = best_coeff2
-    """
+    if model_type == 'Weibull_log_linear':
+        model1.mu = best_mu1
+        model2.mu = best_mu2
+        model1.sigma = best_sig1
+        model2.sigma = best_sig2
+        model1.coeff = best_c1
+        model2.coeff = best_c2
+    elif model_type == 'LogNormal_linear':
+        model1.mu_coeff = best_mu_coeff1
+        model2.mu_coeff = best_mu_coeff2
+        model1.sigma_coeff = best_sigma_coeff1
+        model2.sigma_coeff = best_sigma_coeff2
+    elif model_type == 'LogNormalCox_linear':
+        model1.mu = best_mu1
+        model2.mu = best_mu2
+        model1.sigma = best_sigma1
+        model2.sigma = best_sigma2
+        model1.coeff = best_coeff1
+        model2.coeff = best_coeff2
+    elif model_type == 'Exp_linear':
+        model1.bh = best_bh1
+        model1.coeff = best_coeff1
+        model2.bh = best_bh2
+        model2.coeff = best_coeff2
     
     return model1, model2, copula
 

@@ -17,6 +17,104 @@ from torchmtlr.model import pack_sequence
 def LOG(x):
     return torch.log(x+1e-20*(x<1e-20))
 
+
+class LogNormal_linear:
+    # Note this is the LogNormal model, not the LogNormal CoxPH model
+    def __init__(self, nf, device) -> None:
+        self.nf = nf
+        self.mu_coeff = torch.rand((nf,)).to(device)
+        self.sigma_coeff = torch.rand((nf,)).to(device)
+        self.device = device
+
+    def hazard(self, t, x):
+        return self.PDF(t, x) / self.survival(t, x)
+    def cum_hazard(self, t, x):
+        # No closed form solution for the cumulative hazard function of the lognormal distribution
+        # we have to approximate it using numerical integration
+        n_steps = 1000
+        t_grids = torch.linspace(1e-5, t, n_steps).to(self.device)  # avoid zero to prevent division by zero
+        delta_u = t / n_steps
+        h_values = self.hazard(t_grids, x)
+        H_t = torch.sum(h_values * delta_u)
+        return H_t
+
+    def survival(self, t, x):
+        return 1 - self.CDF(t, x)
+
+    def CDF(self, t, x):
+        mu = torch.matmul(x, self.mu_coeff)
+        sigma = torch.matmul(x, self.sigma_coeff)
+        return 0.5 + 0.5 * torch.erf((LOG(t) - mu) / (sigma * torch.sqrt(torch.tensor(2)).to(self.device)))
+
+    def PDF(self, t, x):
+        mu = torch.matmul(x, self.mu_coeff)
+        sigma = torch.matmul(x, self.sigma_coeff)
+        return (1 / (t * sigma * torch.sqrt(torch.tensor(2 * torch.pi)).to(self.device))) * torch.exp(
+            -((LOG(t) - mu) ** 2) / (2 * sigma ** 2))
+
+    def enable_grad(self):
+        # TODO: why do we need to set requires_grad to True for DGP?
+        self.mu_coeff.requires_grad = True
+        self.sigma_coeff.requires_grad = True
+
+    def parameters(self):
+        return [self.mu_coeff, self.sigma_coeff]
+
+    def rvs(self, x, u):
+        mu = torch.matmul(x, self.mu_coeff)
+        sigma = torch.matmul(x, self.sigma_coeff)
+        return torch.exp(mu + sigma * torch.erfinv(2 * u - 1) * torch.sqrt(torch.tensor(2)).to(self.device))
+
+
+class LogNormalCox_linear:
+    def __init__(self, nf, mu, sigma, device) -> None:
+        self.nf = nf
+        self.mu = torch.tensor([mu]).type(torch.float32).to(device)
+        self.sigma = torch.tensor([sigma]).type(torch.float32).to(device)
+        self.coeff = torch.rand((nf,)).to(device)
+
+    def bl_hazard(self, t):
+        # the baseline hazard function of the lognormal CoxPH model, here we use the hazard function of the lognormal
+        # distribution as the baseline hazard function
+        pdf = (1 / (t * self.sigma * torch.sqrt(torch.tensor(2 * torch.pi)))) * torch.exp(
+            -((LOG(t) - self.mu) ** 2) / (2 * self.sigma ** 2))
+        survival = 0.5 - 0.5 * torch.erf((LOG(t) - self.mu) / (self.sigma * torch.sqrt(torch.tensor(2))))
+        return pdf / survival
+
+    def hazard(self, t, x):
+        return self.bl_hazard(t) * torch.exp(torch.matmul(x, self.coeff))
+
+    def cum_hazard(self, t, x):
+        # No closed form solution for the cumulative hazard function of the lognormal distribution
+        # we have to approximate it using numerical integration
+        n_steps = 1000
+        t_grids = torch.linspace(1e-5, t, n_steps)  # avoid zero to prevent division by zero
+        delta_u = t / n_steps
+        h_values = self.hazard(t_grids, x)
+        H_t = torch.sum(h_values * delta_u)
+        return H_t
+
+    def survival(self, t, x):
+        return torch.exp(-self.cum_hazard(t, x))
+
+    def CDF(self, t, x):
+        return 1.0 - self.survival(t, x)
+
+    def PDF(self, t, x):
+        return self.survival(t,x)*self.hazard(t,x)
+
+    def enable_grad(self):
+        self.mu.requires_grad = True
+        self.sigma.requires_grad = True
+        self.coeff.requires_grad = True
+
+    def parameters(self):
+        return [self.mu, self.sigma, self.coeff]
+
+    def rvs(self, x, u):
+        # TODO: no closed form solution for the lognormal CoxPH model
+        raise NotImplementedError
+
 class Exp_linear:
     def __init__(self, bh, nf, device) -> None:
         self.nf = nf
