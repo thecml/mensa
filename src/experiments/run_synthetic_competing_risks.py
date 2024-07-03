@@ -74,7 +74,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deephit']
+MODELS = ['deepsurv']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -273,16 +273,12 @@ if __name__ == "__main__":
         else:
             raise NotImplementedError()
         
-        # Test local and global CI
-        """ # TODO Confirm that global/local CI works then uncomment
-        y_test_time = np.stack([test_dict['T1'], test_dict['T2'], test_dict['T3']], axis=1)
-        y_test_event = np.array(pd.get_dummies(test_dict['E']))
+        # Calculate local and global CI
+        y_test_time = np.stack([test_dict['T'] for _ in range(n_events)], axis=1)
+        y_test_event = np.stack([np.array((test_dict['E'] == i)*1.0) for i in range(n_events)], axis=1)
         all_preds_arr = [df.to_numpy() for df in all_preds]
         global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
         local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
-        """
-        global_ci = 0
-        local_ci = 0
         
         # Make evaluation for each event
         for event_id, surv_preds in enumerate(all_preds):

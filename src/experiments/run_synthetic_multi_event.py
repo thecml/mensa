@@ -174,13 +174,9 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Test local and global CI
-        """ # TODO Confirm that global/local CI works then uncomment
-        all_preds_arr = [df.to_numpy().T for df in all_preds] # convert to array
+        all_preds_arr = [df.to_numpy() for df in all_preds]
         global_ci = global_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy())
         local_ci = local_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy())
-        """
-        global_ci = 0
-        local_ci = 0
         
         # Make evaluation for each event
         for event_id, surv_preds in enumerate(all_preds):
