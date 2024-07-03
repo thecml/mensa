@@ -215,7 +215,8 @@ if __name__ == "__main__":
             for trained_model in trained_models:
                 preds, time_bins_model, _ = make_deepsurv_prediction(trained_model, test_dict['X'],
                                                                      config=config, dtype=dtype)
-                preds = pd.DataFrame(preds, columns=time_bins_model.numpy())
+                spline = interp1d(time_bins_model, preds, kind='linear', fill_value='extrapolate')
+                preds = pd.DataFrame(spline(time_bins), columns=time_bins.numpy())
                 all_preds.append(preds)
         elif model_name == "deephit":
             cif = model.predict_cif(test_dict['X'])
@@ -258,17 +259,12 @@ if __name__ == "__main__":
         else:
             raise NotImplementedError()
         
-        # Test local and global CI # TODO: Adjust the code to work with all CR datasets
-        """
-        y_test_time = np.stack([test_dict['T'], test_dict['T']], axis=1)
-        y_test_event = np.stack([np.array((test_dict['E'] == 1)*1.0),
-                                 np.array((test_dict['E'] == 2)*1.0)], axis=1)
+        # Calculate local and global CI
+        y_test_time = np.stack([test_dict['T'] for _ in range(n_events)], axis=1)
+        y_test_event = np.stack([np.array((test_dict['E'] == i+1)*1.0) for i in range(n_events)], axis=1)
         all_preds_arr = [df.to_numpy() for df in all_preds]
         global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
         local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
-        """
-        global_ci = 0
-        local_ci = 0
         
         # Make evaluation for each event
         for event_id, surv_preds in enumerate(all_preds):

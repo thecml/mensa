@@ -173,7 +173,8 @@ if __name__ == "__main__":
             for trained_model in trained_models:
                 preds, time_bins_model, _ = make_deepsurv_prediction(trained_model, test_dict['X'],
                                                                      config=config, dtype=dtype)
-                preds = pd.DataFrame(preds, columns=time_bins_model.numpy())
+                spline = interp1d(time_bins_model, preds, kind='linear', fill_value='extrapolate')
+                preds = pd.DataFrame(spline(time_bins), columns=time_bins.numpy())
                 all_preds.append(preds)
         elif model_name == "hierarch":
             event_preds = util.get_surv_curves(test_data[0], model)
@@ -188,12 +189,10 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Test local and global CI
-        #all_preds_arr = [df.to_numpy() for df in all_preds] # convert dataframe to numpy
-        #global_ci = global_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy())
-        #local_ci = local_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy()) #TODO Check size using DeepSurv
-        global_ci = 0
-        local_ci = 0
-        
+        all_preds_arr = [df.to_numpy() for df in all_preds]
+        global_ci = global_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy())
+        local_ci = local_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy())
+                
         # Make evaluation for each event
         for event_id, surv_pred in enumerate(all_preds):
             #surv_preds_df = pd.DataFrame(surv_preds, columns=time_bins.numpy())
