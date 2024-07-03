@@ -87,9 +87,7 @@ class SingleMENSA:
                     stop_itr += 1
                     if stop_itr == 2000:
                         break
-                    
-        return self
-
+                
 class CompetingMENSA:
     """
     Implements MENSA model for competing risks scenario.
@@ -170,8 +168,6 @@ class CompetingMENSA:
                     if stop_itr == 2000:
                         break
                     
-        return self
-
 class MultiMENSA:
     """
     Implements MENSA model for multi event scenario.
@@ -252,4 +248,3 @@ class MultiMENSA:
                     if stop_itr == 2000:
                         break
                     
-        return self
