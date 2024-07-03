@@ -51,12 +51,6 @@ from hierarchical.helper import format_hierarchical_hyperparams
 from torchmtlr.utils import encode_mtlr_format, reset_parameters, encode_mtlr_format_no_censoring
 from torchmtlr.model import MTLRCR, mtlr_neg_log_likelihood, mtlr_risk, mtlr_survival
 from utility.data import calculate_vocab_size
-from survtrace.dataset import load_data
-from survtrace.evaluate_utils import Evaluator
-from survtrace.utils import set_random_seed
-from survtrace.model import SurvTraceMulti
-from survtrace.train_utils import Trainer
-from survtrace.config import STConfig
 from utility.data import calculate_vocab_size
 from pycox.models import DeepHit
 
