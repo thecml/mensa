@@ -3,8 +3,8 @@ run_synthetic_competing_risks.py
 ====================================
 Experiment 2.1
 
-Datasets: SEER, Rotterdam, MIMIC-IV
-Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'survtrace', 'mensa', 'dgp']
+Datasets: SEER, Rotterdam
+Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
 """
 
 # 3rd party

@@ -3,7 +3,7 @@ run_synthetic_competing_risks.py
 ====================================
 Experiment 2.1
 
-Datasets: ALS
+Datasets: MIMIC-IV, ALS
 Models: ["deepsurv", 'hierarch', 'mensa']
 """
 
