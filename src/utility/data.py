@@ -10,7 +10,6 @@ from sklearn.preprocessing import LabelEncoder
 from scipy import stats
 from scipy.special import lambertw
 from pycox.preprocessing.label_transforms import LabTransDiscreteTime
-from survtrace.utils import LabelTransform
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
