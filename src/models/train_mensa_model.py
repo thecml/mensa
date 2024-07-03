@@ -23,7 +23,7 @@ from tqdm import tqdm
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 import copy
 from torch.utils.data import DataLoader, TensorDataset
-from mensa.model import MensaNDE
+from mensa.nde import MensaNDE
 from utility.config import load_config
 from utility.survival import predict_survival_function, compute_l1_difference
 from copula import Clayton2D, Frank2D
