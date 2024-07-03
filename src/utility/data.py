@@ -259,10 +259,10 @@ def make_times_hierarchical(event_times, num_bins):
     binned_event_time[binned_event_time == num_bins] = num_bins - 1
     return binned_event_time
 
-def format_hierarchical_data(train_dict, valid_dict, test_dict, num_bins):
-    train_times = np.stack([train_dict['T1'], train_dict['T2'], train_dict['T3']], axis=1)
-    valid_times = np.stack([valid_dict['T1'], valid_dict['T2'], valid_dict['T3']], axis=1)
-    test_times = np.stack([test_dict['T1'], test_dict['T2'], test_dict['T3']], axis=1)
+def format_hierarchical_data_cr(train_dict, valid_dict, test_dict, num_bins, n_events):
+    train_times = np.stack([train_dict['T'] for _ in range(n_events)], axis=1)
+    valid_times = np.stack([valid_dict['T'] for _ in range(n_events)], axis=1)
+    test_times = np.stack([test_dict['T'] for _ in range(n_events)], axis=1)
     train_event_bins = make_times_hierarchical(train_times, num_bins=num_bins)
     valid_event_bins = make_times_hierarchical(valid_times, num_bins=num_bins)
     test_event_bins = make_times_hierarchical(test_times, num_bins=num_bins)
@@ -274,7 +274,7 @@ def format_hierarchical_data(train_dict, valid_dict, test_dict, num_bins):
     test_data = [test_dict['X'], test_event_bins, test_events]
     return train_data, valid_data, test_data
 
-def format_hierarch_data_multi_event(train_dict, valid_dict, test_dict, num_bins):
+def format_hierarchical_data_me(train_dict, valid_dict, test_dict, num_bins):
     train_event_bins = make_times_hierarchical(train_dict['T'].numpy(), num_bins=num_bins)
     valid_event_bins = make_times_hierarchical(valid_dict['T'].numpy(), num_bins=num_bins)
     test_event_bins = make_times_hierarchical(test_dict['T'].numpy(), num_bins=num_bins)

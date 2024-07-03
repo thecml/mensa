@@ -138,7 +138,7 @@ class Exp_linear:
         
     def enable_grad(self):
         self.bh.requires_grad = True
-        self.coeff.requires_grad = True    
+        self.coeff.requires_grad = True
         
     def parameters(self):
         return [self.bh, self.coeff]

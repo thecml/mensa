@@ -30,7 +30,7 @@ from utility.survival import (make_time_bins, preprocess_data, convert_to_struct
                               risk_fn, compute_l1_difference, predict_survival_function)
 from utility.data import (dotdict, format_data, format_data_as_dict_single)
 from utility.config import load_config
-from mensa.model import train_mensa_model_2_events, make_mensa_model_2_events
+from mensa.model import SingleMENSA
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
@@ -55,7 +55,7 @@ torch.manual_seed(0)
 random.seed(0)
 
 # Define models
-MODELS = ["dgp"]
+MODELS = ["mensa-nocop", "mensa-cop", "dgp"]
 
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
@@ -91,16 +91,18 @@ if __name__ == "__main__":
     # Evaluate each model
     for model_name in MODELS:
         if model_name == "mensa-nocop":
-            model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
-            model2 = Weibull_log_linear(n_features, 2, 1, device, dtype)
-            model1, model2 = independent_train_loop_linear(model1, model2, train_dict,
-                                                           valid_dict, 1000)
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
+            n_epochs = config['n_epochs']
+            lr = config['lr']
+            model = SingleMENSA(n_features=n_features, copula=None, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr)
         elif model_name == "mensa-cop":
-            model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
-            model2 = Weibull_log_linear(n_features, 2, 1, device, dtype)
-            copula = Clayton2D(torch.tensor([1], dtype=dtype), device, dtype)
-            model1, model2, copula = dependent_train_loop_linear(model1, model2, train_dict,
-                                                                 valid_dict, 1000, copula=copula)
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
+            n_epochs = config['n_epochs']
+            lr = config['lr']
+            copula = Clayton2D(torch.tensor([2.0], dtype=dtype), device, dtype)
+            model = SingleMENSA(n_features=n_features, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr)
         elif model_name == "dgp":
             pass
         else:
@@ -108,9 +110,10 @@ if __name__ == "__main__":
         
         # Compute survival function
         n_samples = test_dict['X'].shape[0]
-        if model_name in ["mensa-nocop", "mensa-cop"]:
-            event_preds = predict_survival_function(model1, test_dict['X'], time_bins).numpy()
-            cens_preds = predict_survival_function(model2, test_dict['X'], time_bins).numpy()
+        if model_name in ['mensa-nocop', 'mensa-cop']:
+            model_c, model_e = model.get_models()[0], model.get_models()[1]
+            cens_preds = predict_survival_function(model_c, test_dict['X'], time_bins).detach().numpy()
+            event_preds = predict_survival_function(model_e, test_dict['X'], time_bins).detach().numpy()
         elif model_name == "dgp":
             event_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
@@ -126,13 +129,13 @@ if __name__ == "__main__":
         for i in range(time_bins.shape[0]):
             truth_preds_e[:,i] = dgps[0].survival(time_bins[i], test_dict['X'])
         l1_e = float(compute_l1_difference(truth_preds_e, event_preds,
-                                            n_samples, steps=time_bins))
+                                           n_samples, steps=time_bins))
         
         truth_preds_c = torch.zeros((n_samples, time_bins.shape[0]), device=device)
         for i in range(time_bins.shape[0]):
             truth_preds_c[:,i] = dgps[1].survival(time_bins[i], test_dict['X'])
         l1_c = float(compute_l1_difference(truth_preds_c, cens_preds,
-                                            n_samples, steps=time_bins))
+                                           n_samples, steps=time_bins))
         
         print(f"Evaluated {model_name} - {linear} - {round(k_tau, 3)} " +
                 f"- {round(l1_e, 3)} - {round(l1_c, 3)}")
