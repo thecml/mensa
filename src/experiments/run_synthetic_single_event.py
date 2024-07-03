@@ -3,7 +3,7 @@ run_synthetic_se_event.py
 ====================================
 Experiment 1.1
 
-Models: ["cox", "coxnet", "coxboost", "rsf", "dsm", "deepsurv", "mtlr", "dcsurvival", "dgp"]
+Models: ["cox", "coxnet", "coxboost", "rsf", "dsm", "deepsurv", "deephit", "mtlr", "dcsurvival", "dgp"]
 """
 
 # 3rd party
@@ -16,6 +16,7 @@ import torch.nn as nn
 import random
 import warnings
 import argparse
+import os
 from scipy.interpolate import interp1d
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
@@ -53,13 +54,13 @@ torch.set_default_dtype(dtype)
 device = torch.device("cpu")
 
 # Define models
-MODELS = ["mensa"]
+MODELS = ["cox"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.7)
+    parser.add_argument('--k_tau', type=float, default=0.25)
     parser.add_argument('--copula_name', type=str, default="clayton")
     parser.add_argument('--linear', type=bool, default=True)
     
@@ -70,19 +71,23 @@ if __name__ == "__main__":
     linear = args.linear
     
     # Load and split data
-    data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic.yaml")
+    data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_se.yaml")
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config,
                                                     linear=linear, copula_name=copula_name,
                                                     k_tau=k_tau, device=device, dtype=dtype)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
     n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
-    n_events = data_config['se_n_events']
+    n_events = data_config['n_events']
     dgps = dl.dgps
     
     # Make time bins
+    min_time = dl.get_data()[1].min()
+    max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
-    
+    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
+                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
+
     # Format data to work easier with sksurv API
     X_train = pd.DataFrame(train_dict['X'], columns=[f'X{i}' for i in range(n_features)])
     X_valid = pd.DataFrame(valid_dict['X'], columns=[f'X{i}' for i in range(n_features)])
@@ -91,8 +96,7 @@ if __name__ == "__main__":
     y_valid = convert_to_structured(valid_dict['T'], valid_dict['E']) 
     y_test = convert_to_structured(test_dict['T'], test_dict['E'])
     
-        # Evaluate each model
-    model_results = pd.DataFrame()
+    # Evaluate each model
     for model_name in MODELS:
         if model_name == "cox":
             config = dotdict(cfg.COX_PARAMS)
@@ -163,9 +167,9 @@ if __name__ == "__main__":
             model1, model2, copula = make_mensa_model_2_events(n_features, start_theta=2.0, eps=1e-4,
                                                                device=device, dtype=dtype)
             model1, model2, copula = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
-                                                                copula, n_epochs=2000, lr=0.005)
+                                                                copula, n_epochs=2000, lr=0.01)
         elif model_name == "dgp":
-            continue
+            pass
         else:
             raise NotImplementedError()
         
@@ -210,8 +214,15 @@ if __name__ == "__main__":
                                            n_samples, steps=time_bins))
         
         print(f"Evaluated {model_name} - {linear} - {round(k_tau, 3)} - {round(l1_e, 3)}")
-        res_sr = pd.Series([model_name, linear, copula_name, k_tau, l1_e],
-                            index=["ModelName", "DatasetVersion", "Copula", "KTau", "L1"])
-        model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
-        model_results.to_csv(f"{cfg.RESULTS_DIR}/synthetic_se_event.csv")
+        result_row = pd.Series([model_name, seed, linear, copula_name, k_tau, l1_e],
+                               index=["ModelName", "Seed", "Linear", "Copula", "KTau", "L1"])
+        
+        # Save results
+        filename = f"{cfg.RESULTS_DIR}/synthetic_se.csv"
+        if os.path.exists(filename):
+            results = pd.read_csv(filename)
+        else:
+            results = pd.DataFrame(columns=result_row.keys())
+        results = results.append(result_row, ignore_index=True)
+        results.to_csv(filename, index=False)
         

@@ -19,6 +19,7 @@ import copy
 import tqdm
 import math
 import argparse
+import os
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
@@ -54,7 +55,7 @@ torch.manual_seed(0)
 random.seed(0)
 
 # Define models
-MODELS = ["mensa-nocop", "mensa-cop", "dgp"]
+MODELS = ["dgp"]
 
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
@@ -71,20 +72,23 @@ if __name__ == "__main__":
     linear = args.linear
 
     # Load and split data
-    data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic.yaml")
+    data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_se.yaml")
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config, linear=linear,
                                                     copula_name=copula_name, k_tau=k_tau)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
     n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
-    n_events = data_config['se_n_events']
+    n_events = data_config['n_events']
     dgps = dl.dgps
     
     # Make time bins
+    min_time = dl.get_data()[1].min()
+    max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
+                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
 
-        # Evaluate each model
-    model_results = pd.DataFrame()
+    # Evaluate each model
     for model_name in MODELS:
         if model_name == "mensa-nocop":
             model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
@@ -98,7 +102,7 @@ if __name__ == "__main__":
             model1, model2, copula = dependent_train_loop_linear(model1, model2, train_dict,
                                                                  valid_dict, 1000, copula=copula)
         elif model_name == "dgp":
-            continue
+            pass
         else:
             raise NotImplementedError()
         
@@ -132,8 +136,15 @@ if __name__ == "__main__":
         
         print(f"Evaluated {model_name} - {linear} - {round(k_tau, 3)} " +
                 f"- {round(l1_e, 3)} - {round(l1_c, 3)}")
-        res_sr = pd.Series([model_name, linear, copula_name, k_tau, l1_e, l1_c],
-                            index=["ModelName", "DatasetVersion", "Copula", "KTau", "L1-E", "L1-C"])
-        model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
-        model_results.to_csv(f"{cfg.RESULTS_DIR}/model_results2.csv")
+        result_row = pd.Series([model_name, seed, linear, copula_name, k_tau, l1_e, l1_c],
+                               index=["ModelName", "Seed", "DatasetVersion",
+                                      "Copula", "KTau", "L1-E", "L1-C"])
         
+        # Save results
+        filename = f"{cfg.RESULTS_DIR}/synthetic_se_cop.csv"
+        if os.path.exists(filename):
+            results = pd.read_csv(filename)
+        else:
+            results = pd.DataFrame(columns=result_row.keys())
+        results = results.append(result_row, ignore_index=True)
+        results.to_csv(filename, index=False)
