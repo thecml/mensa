@@ -260,7 +260,7 @@ class MensaNDE(nn.Module):
 
     def survival(self, t, X):
         with torch.no_grad():
-            result = self.sumo_1.survival(X, t)
+            result = self.sumo_e.survival(X, t)
         return result[0].squeeze()#, result[1].squeeze()
 
 def make_mensa_model_2_events(n_features, start_theta, eps, device, dtype):
@@ -325,24 +325,22 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
                     best_sig1 = model1.sigma.detach().clone()
                     best_sig2 = model2.sigma.detach().clone()
                 elif model_type == 'LogNormal_linear':
-                    best_mu_coeff1 = model1.mu_coeff
-                    best_mu_coeff2 = model2.mu_coeff
-                    best_sigma_coeff1 = model1.sigma_coeff
-                    best_sigma_coeff2 = model2.sigma_coeff
+                    best_mu_coeff1 = model1.mu_coeff.detach().clone()
+                    best_mu_coeff2 = model2.mu_coeff.detach().clone()
+                    best_sigma_coeff1 = model1.sigma_coeff.detach().clone()
+                    best_sigma_coeff2 = model2.sigma_coeff.detach().clone()
                 elif model_type == 'LogNormalCox_linear':
-                    best_mu1 = model1.mu
-                    best_mu2 = model2.mu
-                    best_sigma1 = model1.sigma
-                    best_sigma2 = model2.sigma
-                    best_coeff1 = model1.coeff
-                    best_coeff2 = model2.coeff
-                    
-                """
-                best_bh1 = model1.bh.detach().clone()
-                best_coeff1 = model1.coeff.detach().clone()
-                best_bh2 = model2.bh.detach().clone()
-                best_coeff2 = model2.coeff.detach().clone()
-                """
+                    best_mu1 = model1.mu.detach().clone()
+                    best_mu2 = model2.mu.detach().clone()
+                    best_sigma1 = model1.sigma.detach().clone()
+                    best_sigma2 = model2.sigma.detach().clone()
+                    best_coeff1 = model1.coeff.detach().clone()
+                    best_coeff2 = model2.coeff.detach().clone()
+                elif model_type == 'Exp_linear':
+                    best_bh1 = model1.bh.detach().clone()
+                    best_coeff1 = model1.coeff.detach().clone()
+                    best_bh2 = model2.bh.detach().clone()
+                    best_coeff2 = model2.coeff.detach().clone()
                 min_val_loss = val_loss.detach().clone()
             else:
                 stop_itr += 1
@@ -367,12 +365,11 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
         model2.sigma = best_sigma2
         model1.coeff = best_coeff1
         model2.coeff = best_coeff2
-    """
-    model1.bh = best_bh1
-    model1.coeff = best_coeff1
-    model2.bh = best_bh2
-    model2.coeff = best_coeff2
-    """
+    elif model_type == 'Exp_linear':
+        model1.bh = best_bh1
+        model1.coeff = best_coeff1
+        model2.bh = best_bh2
+        model2.coeff = best_coeff2
     
     return model1, model2, copula
 
