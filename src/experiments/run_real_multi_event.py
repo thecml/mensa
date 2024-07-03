@@ -20,6 +20,7 @@ import copy
 import tqdm
 import math
 import argparse
+import os
 from scipy.interpolate import interp1d
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
@@ -125,7 +126,6 @@ if __name__ == "__main__":
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
     
     # Evaluate models
-    model_results = pd.DataFrame()
     for model_name in MODELS:
         if model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
@@ -190,6 +190,7 @@ if __name__ == "__main__":
         local_ci = local_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy())
                 
         # Make evaluation for each event
+        model_results = pd.DataFrame()
         for event_id, surv_pred in enumerate(all_preds):
             #surv_preds_df = pd.DataFrame(surv_preds, columns=time_bins.numpy())
             n_train_samples = len(train_dict['X'])
@@ -211,9 +212,16 @@ if __name__ == "__main__":
             
             metrics = [ci, ibs, mae_hinge, mae_margin, mae_pseudo, d_calib, global_ci, local_ci]
             print(metrics)
-            res_sr = pd.Series([model_name] + metrics,
-                                index=["ModelName", "CI", "IBS", "MAEH", "MAEM",
-                                       "MAEPO", "DCalib", "GlobalCI", "LocalCI"])
+            res_sr = pd.Series([model_name, seed, event_id+1] + metrics,
+                                index=["ModelName", "Seed", "EvenId", "CI", "IBS",
+                                       "MAEH", "MAEM", "MAEPO", "DCalib", "GlobalCI", "LocalCI"])
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
-            model_results.to_csv(f"{cfg.RESULTS_DIR}/model_results.csv")
             
+        # Save results
+        filename = f"{cfg.RESULTS_DIR}/real_me.csv"
+        if os.path.exists(filename):
+            results = pd.read_csv(filename)
+        else:
+            results = pd.DataFrame(columns=model_results.columns)
+        results = results.append(model_results, ignore_index=True)
+        results.to_csv(filename, index=False)

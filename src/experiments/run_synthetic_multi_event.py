@@ -19,6 +19,7 @@ import copy
 import tqdm
 import math
 import argparse
+import os
 from scipy.interpolate import interp1d
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
@@ -88,7 +89,6 @@ if __name__ == "__main__":
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
     
     # Evaluate models
-    model_results = pd.DataFrame()
     for model_name in MODELS:
         if model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
@@ -130,7 +130,7 @@ if __name__ == "__main__":
             print(f"NLL all events: {triple_loss(model1, model2, model3, valid_dict, copula)}")
             print(f"DGP loss: {triple_loss(dgps[0], dgps[1], dgps[2], valid_dict, copula)}")
         elif model_name == "dgp":
-            continue
+            pass
         else:
             raise NotImplementedError()
         
@@ -175,6 +175,7 @@ if __name__ == "__main__":
         local_ci = local_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy())
         
         # Make evaluation for each event
+        model_results = pd.DataFrame()
         for event_id, surv_preds in enumerate(all_preds):
             n_train_samples = len(train_dict['X'])
             n_test_samples= len(test_dict['X'])
@@ -198,9 +199,17 @@ if __name__ == "__main__":
             
             metrics = [ci, ibs, mae, survival_l1, d_calib, global_ci, local_ci]
             print(metrics)
-            res_sr = pd.Series([model_name, linear, copula_name, k_tau] + metrics,
-                                index=["ModelName", "Linear", "Copula", "KTau",
+            res_sr = pd.Series([model_name, seed, linear, copula_name, k_tau, event_id+1] + metrics,
+                                index=["ModelName", "Seed", "Linear", "Copula", "KTau", "EventId",
                                         "CI", "IBS", "MAE", "L1", "DCalib", "GlobalCI", "LocalCI"])
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
-            model_results.to_csv(f"{cfg.RESULTS_DIR}/model_results.csv")
-            
+
+        # Save results
+        filename = f"{cfg.RESULTS_DIR}/synthetic_me.csv"
+        if os.path.exists(filename):
+            results = pd.read_csv(filename)
+        else:
+            results = pd.DataFrame(columns=model_results.columns)
+        results = results.append(model_results, ignore_index=True)
+        results.to_csv(filename, index=False)
+                
