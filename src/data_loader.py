@@ -552,6 +552,7 @@ class RotterdamDataLoader(BaseDataLoader):
         df['event'] = df.apply(get_event, axis=1)
         df['time'] = df.apply(get_time, axis=1)
         self.X = df.drop(['pid', 'size', 'rtime', 'recur', 'dtime', 'death', 'time', 'event'], axis=1)
+        self.columns = list(self.X.columns)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
         self.y_t = df['time']
@@ -560,7 +561,7 @@ class RotterdamDataLoader(BaseDataLoader):
         return self
         
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, random_state=0):
+                   test_size: float, dtype=torch.float64, random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
         df['time'] = self.y_t
@@ -568,7 +569,17 @@ class RotterdamDataLoader(BaseDataLoader):
         df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
                                                             frac_valid=valid_size, frac_test=test_size,
                                                             random_state=random_state)
-        return df_train, df_valid, df_test
+        
+        dataframes = [df_train, df_valid, df_test]
+        dicts = []
+        for dataframe in dataframes:
+            data_dict = dict()
+            data_dict['X'] = torch.tensor(dataframe.drop(['event', 'time'], axis=1).to_numpy(), dtype=dtype)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=dtype)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=dtype)
+            dicts.append(data_dict)
+            
+        return dicts[0], dicts[1], dicts[2]
 
 def get_data_loader(dataset_name:str) -> BaseDataLoader:
     if dataset_name == "seer":

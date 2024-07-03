@@ -34,7 +34,7 @@ from utility.data import (dotdict, format_data, format_data_as_dict_single)
 from utility.config import load_config
 from utility.loss import triple_loss
 from mensa.model import train_mensa_model_3_events, make_mensa_model_3_events
-from utility.data import (format_data_deephit_cr, format_hierarchical_data, calculate_layer_size_hierarch,
+from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch,
                           format_survtrace_data, format_data_as_dict_single)
 from utility.evaluation import global_C_index, local_C_index
 from data_loader import get_data_loader
@@ -73,13 +73,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv']
+MODELS = ['deephit']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='seer')
+    parser.add_argument('--dataset_name', type=str, default='rotterdam')
     
     args = parser.parse_args()
     seed = args.seed
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     
     # Load and split data
     dl = get_data_loader(dataset_name)
-    dl = dl.load_data(n_samples=1000)
+    dl = dl.load_data()
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=seed)
     n_events = dl.n_events
@@ -126,16 +126,22 @@ if __name__ == "__main__":
                 trained_models.append(model)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
-            model = make_deephit_cr(in_features=n_features, out_features=len(time_bins),
-                                    num_risks=n_events, duration_index=time_bins, config=config)
-            train_data, valid_data, out_features, duration_index = format_data_deephit_cr(train_dict, valid_dict, time_bins)
+            min_time = torch.tensor([dl.get_data()[1].min()], dtype=dtype)
+            max_time = torch.tensor([dl.get_data()[1].max()], dtype=dtype)
+            time_bins_dh = time_bins
+            if min_time not in time_bins_dh:
+                time_bins_dh = torch.concat([min_time, time_bins_dh], dim=0)
+            if max_time not in time_bins_dh:
+                time_bins_dh = torch.concat([time_bins_dh, max_time], dim=0)
+            model = make_deephit_cr(in_features=n_features, out_features=len(time_bins_dh),
+                                    num_risks=n_events, duration_index=time_bins_dh, config=config)
+            train_data, valid_data, out_features, duration_index = format_data_deephit_cr(train_dict, valid_dict, time_bins_dh)
             model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
                                         (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
         elif model_name == "hierarch":
             config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"seer.yaml")
             n_time_bins = len(time_bins)
-            train_data, valid_data, test_data = format_hierarchical_data(train_dict, valid_dict,
-                                                                         test_dict, n_time_bins)
+            train_data, valid_data, test_data = format_hierarchical_data_cr(train_dict, valid_dict, test_dict, n_time_bins)
             config['min_time'] = int(train_data[1].min())
             config['max_time'] = int(train_data[1].max())
             config['num_bins'] = len(time_bins)
@@ -194,7 +200,7 @@ if __name__ == "__main__":
             cif = model.predict_cif(test_dict['X'])
             all_preds = []
             for i in range(n_events):
-                preds = pd.DataFrame((1-cif[i]).T, columns=time_bins.numpy())
+                preds = pd.DataFrame((1-cif[i]).T, columns=time_bins_dh.numpy())
                 all_preds.append(preds)
         elif model_name == "hierarch":
             event_preds = util.get_surv_curves(test_data[0], model)

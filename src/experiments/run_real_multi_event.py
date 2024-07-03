@@ -34,7 +34,7 @@ from utility.data import (dotdict, format_data)
 from utility.config import load_config
 from utility.loss import triple_loss
 from mensa.model import train_mensa_model_3_events, make_mensa_model_3_events
-from utility.data import (format_data_deephit_cr, format_hierarchical_data, calculate_layer_size_hierarch,
+from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch,
                           format_survtrace_data, format_data_as_dict_multi)
 from utility.evaluation import global_C_index, local_C_index
 from data_loader import ALSDataLoader
@@ -62,7 +62,7 @@ from survtrace.train_utils import Trainer
 from survtrace.config import STConfig
 from utility.data import calculate_vocab_size
 from pycox.models import DeepHit
-from utility.data import (format_data_deephit_cr, format_hierarch_data_multi_event,
+from utility.data import (format_data_deephit_cr, format_hierarchical_data_me,
                           calculate_layer_size_hierarch)
 from data_loader import get_data_loader
 
@@ -144,8 +144,7 @@ if __name__ == "__main__":
         elif model_name == "hierarch":
             config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"als.yaml")
             n_time_bins = len(time_bins)
-            train_data, valid_data, test_data = format_hierarch_data_multi_event(train_dict, valid_dict,
-                                                                                 test_dict, n_time_bins)
+            train_data, valid_data, test_data = format_hierarchical_data_me(train_dict, valid_dict, test_dict, n_time_bins)
             config['min_time'] = int(train_data[1].min())
             config['max_time'] = int(train_data[1].max())
             config['num_bins'] = n_time_bins

@@ -34,7 +34,7 @@ from utility.data import dotdict
 from utility.config import load_config
 from utility.loss import triple_loss
 from mensa.model import train_mensa_model_3_events, make_mensa_model_3_events
-from utility.data import format_data_deephit_cr, format_hierarch_data_multi_event, calculate_layer_size_hierarch
+from utility.data import format_data_deephit_cr, format_hierarchical_data_me, calculate_layer_size_hierarch
 from utility.evaluation import global_C_index, local_C_index
 
 # SOTA
@@ -58,7 +58,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv']
+MODELS = ['hierarch']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -107,8 +107,7 @@ if __name__ == "__main__":
         elif model_name == "hierarch":
             config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"synthetic_me.yaml")
             n_time_bins = len(time_bins)
-            train_data, valid_data, test_data = format_hierarch_data_multi_event(train_dict, valid_dict,
-                                                                                 test_dict, n_time_bins)
+            train_data, valid_data, test_data = format_hierarchical_data_me(train_dict, valid_dict, test_dict, n_time_bins)
             config['min_time'] = int(train_data[1].min())
             config['max_time'] = int(train_data[1].max())
             config['num_bins'] = n_time_bins
