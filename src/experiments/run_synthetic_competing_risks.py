@@ -3,7 +3,7 @@ run_synthetic_competing_risks.py
 ====================================
 Experiment 2.1
 
-Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'survtrace', 'mensa', 'dgp']
+Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'dgp']
 """
 
 # 3rd party
@@ -74,7 +74,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv']
+MODELS = ['mtlrcr']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -102,11 +102,7 @@ if __name__ == "__main__":
     dgps = dl.dgps
     
     # Make time bins
-    min_time = dl.get_data()[1].min()
-    max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
-    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
-                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
     
     # Evaluate models
     model_results = pd.DataFrame()
@@ -172,30 +168,6 @@ if __name__ == "__main__":
             y_train = pd.DataFrame({'event': train_dict['E'], 'time': train_dict['T']})
             y_valid = pd.DataFrame({'event': valid_dict['E'], 'time': valid_dict['T']})
             model.fit(X_train, pd.DataFrame(y_train), val_data=(X_valid, pd.DataFrame(y_valid)))
-        elif model_name == "survtrace":
-            config = dotdict(cfg.SURVTRACE_PARAMS)
-            X_train = pd.DataFrame(train_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-            X_valid = pd.DataFrame(valid_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-            cat_features = []
-            num_features = [f'X{i}' for i in range(n_features)]
-            y_train, y_valid, duration_index, out_features = format_survtrace_data(train_dict, valid_dict,
-                                                                                    time_bins, n_events)
-            config['vocab_size'] = calculate_vocab_size(X_train, cat_features)
-            config['duration_index'] = duration_index
-            config['out_feature'] = out_features
-            config['num_numerical_feature'] = int(len(num_features))
-            config['num_categorical_feature'] = int(len(cat_features))
-            config['num_feature'] = n_features
-            config['num_event'] = n_events
-            config['in_features'] = n_features
-            model = SurvTraceMulti(dotdict(config))
-            trainer = Trainer(model)
-            trainer.fit((X_train, y_train), (X_valid, y_valid),
-                        batch_size=config['batch_size'],
-                        epochs=config['epochs'],
-                        learning_rate=config['learning_rate'],
-                        weight_decay=config['weight_decay'],
-                        val_batch_size=config['batch_size'])
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             model1, model2, model3, copula = make_mensa_model_3_events(n_features, start_theta=2.0, eps=1e-4,
@@ -237,24 +209,18 @@ if __name__ == "__main__":
         elif model_name == "mtlrcr":
             pred_prob = model(test_dict['X'])
             num_points = len(time_bins)
-            preds_e1 = mtlr_survival(pred_prob[:,:num_time_bins]).detach().numpy()[:, 1:] # drop extra bin
-            preds_e2 = mtlr_survival(pred_prob[:,num_time_bins:num_time_bins*2]).detach().numpy()[:, 1:]
-            preds_e3 = mtlr_survival(pred_prob[:,num_time_bins*2:]).detach().numpy()[:, 1:]
-            preds_e1 = pd.DataFrame(preds_e1, columns=time_bins.numpy())
-            preds_e2 = pd.DataFrame(preds_e2, columns=time_bins.numpy())
-            preds_e3 = pd.DataFrame(preds_e3, columns=time_bins.numpy())
-            all_preds = [preds_e1, preds_e2, preds_e3]
+            all_preds = []
+            for i in range(n_events):
+                start = i * num_time_bins
+                end = start + num_time_bins
+                preds = mtlr_survival(pred_prob[:, start:end]).detach().numpy()[:, 1:]
+                preds = pd.DataFrame(preds, columns=time_bins.numpy())
+                all_preds.append(preds)
         elif model_name == "dsm":
             X_test = pd.DataFrame(test_dict['X'], columns=[f'X{i}' for i in range(n_features)])
             model_preds = model.predict_survival(X_test, times=list(time_bins.numpy()))
             model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
-            all_preds = [model_preds, model_preds]
-        elif model_name == "survtrace":
-            all_preds = []
-            for i in range(n_events):
-                preds = model.predict_surv(test_dict['X'], batch_size=32, event=i)[:, 1:] # drop extra bin
-                preds = pd.DataFrame(preds, columns=time_bins.numpy())
-                all_preds.append(preds)
+            all_preds = [model_preds for _ in range(n_events)]
         elif model_name == "mensa":
             all_preds = []
             models = [model1, model2, model3]

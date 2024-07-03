@@ -101,8 +101,8 @@ if __name__ == "__main__":
     # Preprocess data
     cat_features = dl.cat_features
     num_features = dl.num_features
-    event_cols = ['e1', 'e2', 'e3', 'e4']
-    time_cols = ['t1', 't2', 't3', 't4']
+    event_cols = [f'e{i+1}' for i in range(n_events)]
+    time_cols = [f't{i+1}' for i in range(n_events)]
     X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
     X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
     X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
@@ -122,11 +122,7 @@ if __name__ == "__main__":
     n_features = train_dict['X'].shape[1]
     
     # Make time bins
-    min_time = dl.get_data()[1].min()
-    max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
-    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
-                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
     
     # Evaluate models
     model_results = pd.DataFrame()

@@ -85,11 +85,7 @@ if __name__ == "__main__":
     dgps = dl.dgps
 
     # Make time bins
-    min_time = dl.get_data()[1].min()
-    max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
-    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
-                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
     
     # Evaluate models
     model_results = pd.DataFrame()
