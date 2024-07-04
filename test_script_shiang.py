@@ -5,6 +5,8 @@ from pycop import simulation
 from Copula import Frank3, Gumbel3
 from l1_eval import surv_diff
 from nested_copula import NestedClayton
+from dgp import (LogNormal_nonlinear, LogNormal_linear, Weibull_log_linear, Weibull_linear, Weibull_nonlinear,
+    Exp_linear, EXP_nonlinear)
 
 
 def LOG(x):
@@ -119,144 +121,6 @@ def single_loss(model, data,
     return -torch.mean(LOG(f))
 
 
-class LogNormal_linear:
-    def __init__(self, nf, device) -> None:
-        self.nf = nf
-        self.mu_coeff = torch.rand((nf,)).to(device)
-        self.sigma_coeff = torch.rand((nf,)).to(device)
-        self.device = device
-
-    def hazard(self, t, x):
-        return self.PDF(t, x) / self.survival(t, x)
-    def cum_hazard(self, t, x):
-        # No closed form solution for the cumulative hazard function of the lognormal distribution
-        # we have to approximate it using numerical integration
-        n_steps = 1000
-        t_grids = torch.linspace(1e-5, t, n_steps).to(self.device)  # avoid zero to prevent division by zero
-        delta_u = t / n_steps
-        h_values = self.hazard(t_grids, x)
-        H_t = torch.sum(h_values * delta_u)
-        return H_t
-
-    def survival(self, t, x):
-        return 1 - self.CDF(t, x)
-
-    def CDF(self, t, x):
-        mu = torch.matmul(x, self.mu_coeff)
-        sigma = torch.matmul(x, self.sigma_coeff)
-        return 0.5 + 0.5 * torch.erf((LOG(t) - mu) / (sigma * torch.sqrt(torch.tensor(2)).to(self.device)))
-
-    def PDF(self, t, x):
-        mu = torch.matmul(x, self.mu_coeff)
-        sigma = torch.matmul(x, self.sigma_coeff)
-        return (1 / (t * sigma * torch.sqrt(torch.tensor(2 * torch.pi)).to(self.device))) * torch.exp(
-            -((LOG(t) - mu) ** 2) / (2 * sigma ** 2))
-
-    def enable_grad(self):
-        # TODO: why do we need to set requires_grad to True for DGP?
-        self.mu_coeff.requires_grad = True
-        self.sigma_coeff.requires_grad = True
-
-    def parameters(self):
-        return [self.mu_coeff, self.sigma_coeff]
-
-    def rvs(self, x, u):
-        mu = torch.matmul(x, self.mu_coeff)
-        sigma = torch.matmul(x, self.sigma_coeff)
-        return torch.exp(mu + sigma * torch.erfinv(2 * u - 1) * torch.sqrt(torch.tensor(2)).to(self.device))
-
-
-class Weibull_linear:
-    def __init__(self, nf, alpha, gamma, device):
-        # torch.manual_seed(0)
-        self.nf = nf
-        self.alpha = torch.tensor([alpha], device=device).type(torch.float32)
-        self.gamma = torch.tensor([gamma], device=device).type(torch.float32)
-
-        self.coeff = torch.rand((nf,), device=device).type(torch.float32)  # .clamp(0.1,1.0)
-
-    def PDF(self, t, x):
-        return self.hazard(t, x) * self.survival(t, x)
-
-    def CDF(self, t, x):
-        return 1 - self.survival(t, x)
-
-    def survival(self, t, x):
-        return torch.exp(-self.cum_hazard(t, x))
-
-    def hazard(self, t, x):
-        return ((self.gamma / self.alpha) * ((t / self.alpha) ** (self.gamma - 1))) * torch.exp(
-            torch.matmul(x, self.coeff))
-
-    def cum_hazard(self, t, x):
-        return ((t / self.alpha) ** self.gamma) * torch.exp(torch.matmul(x, self.coeff))
-
-    def rvs(self, x, u):
-        return ((-LOG(u) / torch.exp(torch.matmul(x, self.coeff))) ** (1 / self.gamma)) * self.alpha
-
-
-class Weibull_log_linear:
-    def __init__(self, nf, mu, sigma, device) -> None:
-        # torch.manual_seed(0)
-        self.nf = nf
-        self.mu = torch.tensor([mu], device=device).type(torch.float32)
-        self.sigma = torch.tensor([sigma], device=device).type(torch.float32)
-        self.coeff = torch.rand((nf,), device=device)
-
-    def survival(self, t, x):
-        return torch.exp(-1 * torch.exp((LOG(t) - self.mu - torch.matmul(x, self.coeff)) / torch.exp(self.sigma)))
-
-    def cum_hazard(self, t, x):
-        return torch.exp((LOG(t) - self.mu - torch.matmul(x, self.coeff)) / torch.exp(self.sigma))
-
-    def hazard(self, t, x):
-        return self.cum_hazard(t, x) / (t * torch.exp(self.sigma))
-
-    def PDF(self, t, x):
-        return self.survival(t, x) * self.hazard(t, x)
-
-    def CDF(self, t, x):
-        return 1 - self.survival(t, x)
-
-    def enable_grad(self):
-        self.sigma.requires_grad = True
-        self.mu.requires_grad = True
-        self.coeff.requires_grad = True
-
-    def parameters(self):
-        return [self.sigma, self.mu, self.coeff]
-
-    def rvs(self, x, u):
-        tmp = LOG(-1 * LOG(u)) * torch.exp(self.sigma)
-        tmp1 = torch.matmul(x, self.coeff) + self.mu
-        return torch.exp(tmp + tmp1)
-
-
-class Exp_linear:
-    def __init__(self, bh, nf) -> None:
-        self.nf = nf
-        self.bh = torch.tensor([bh]).type(torch.float32)
-        self.coeff = torch.rand((nf,))
-
-    def hazard(self, t, x):
-        return self.bh * torch.exp(torch.matmul(x, self.coeff))
-
-    def cum_hazard(self, t, x):
-        return self.hazard(t, x) * t
-
-    def survival(self, t, x):
-        return torch.exp(-self.cum_hazard(t, x))
-
-    def CDF(self, t, x):
-        return 1.0 - self.survival(t, x)
-
-    def PDF(self, t, x):
-        return self.survival(t, x) * self.hazard(t, x)
-
-    def rvs(self, x, u):
-        return -LOG(u) / self.hazard(t=None, x=x)
-
-
 class Exp_linear_model:
     def __init__(self, bh, nf) -> None:
         self.nf = nf
@@ -306,9 +170,12 @@ if __name__ == "__main__":
     # dgp1.coeff = torch.rand((nf,), device=DEVICE)
     # dgp2.coeff = torch.rand((nf,), device=DEVICE)
     # dgp3.coeff = torch.rand((nf,), device=DEVICE)
-    dgp1 = LogNormal_linear(nf, DEVICE)
-    dgp2 = LogNormal_linear(nf, DEVICE)
-    dgp3 = LogNormal_linear(nf, DEVICE)
+    # dgp1 = LogNormal_linear(nf, DEVICE)
+    # dgp2 = LogNormal_linear(nf, DEVICE)
+    # dgp3 = LogNormal_linear(nf, DEVICE)
+    dgp1 = LogNormal_nonlinear(nf, 5, torch.nn.ReLU(), DEVICE, dtype=torch.float32)
+    dgp2 = LogNormal_nonlinear(nf, 3, torch.nn.ReLU(), DEVICE, dtype=torch.float32)
+    dgp3 = LogNormal_nonlinear(nf, 2, torch.nn.ReLU(), DEVICE, dtype=torch.float32)
 
     copula_dgp = 'clayton'
     theta_dgp = 8.0
