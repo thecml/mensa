@@ -20,10 +20,10 @@ def LOG(x):
 
 class LogNormal_linear:
     # Note this is the LogNormal model, not the LogNormal CoxPH model
-    def __init__(self, nf, device) -> None:
+    def __init__(self, nf, device='cuda', dtype=torch.float64) -> None:
         self.nf = nf
-        self.mu_coeff = torch.rand((nf,)).to(device)
-        self.sigma_coeff = torch.rand((nf,)).to(device)
+        self.mu_coeff = torch.rand((nf,), device=device).type(dtype)
+        self.sigma_coeff = torch.rand((nf,), device=device).type(dtype)
         self.device = device
 
     def hazard(self, t, x):
@@ -42,13 +42,11 @@ class LogNormal_linear:
         return 1 - self.CDF(t, x)
 
     def CDF(self, t, x):
-        mu = torch.matmul(x, self.mu_coeff)
-        sigma = torch.matmul(x, self.sigma_coeff)
+        mu, sigma = self.pred_params(x)
         return 0.5 + 0.5 * torch.erf((LOG(t) - mu) / (sigma * torch.sqrt(torch.tensor(2)).to(self.device)))
 
     def PDF(self, t, x):
-        mu = torch.matmul(x, self.mu_coeff)
-        sigma = torch.matmul(x, self.sigma_coeff)
+        mu, sigma = self.pred_params(x)
         return (1 / (t * sigma * torch.sqrt(torch.tensor(2 * torch.pi)).to(self.device))) * torch.exp(
             -((LOG(t) - mu) ** 2) / (2 * sigma ** 2))
 
@@ -60,10 +58,41 @@ class LogNormal_linear:
     def parameters(self):
         return [self.mu_coeff, self.sigma_coeff]
 
-    def rvs(self, x, u):
+    def pred_params(self, x):
         mu = torch.matmul(x, self.mu_coeff)
         sigma = torch.matmul(x, self.sigma_coeff)
+        return mu, sigma
+
+    def rvs(self, x, u):
+        mu, sigma = self.pred_params(x)
         return torch.exp(mu + sigma * torch.erfinv(2 * u - 1) * torch.sqrt(torch.tensor(2)).to(self.device))
+
+
+class LogNormal_nonlinear(LogNormal_linear):
+    # Note this is the LogNormal nonlinear model
+    def __init__(self, nf, hd, risk_function=torch.nn.ReLU(), device='cuda', dtype=torch.float64) -> None:
+        self.nf = nf  # number of features
+        self.hd = hd  # number of hidden units
+        self.beta = torch.rand((nf, hd), device=device).type(dtype)
+        self.mu_coeff = torch.rand((hd,), device=device).type(dtype)
+        self.sigma_coeff = torch.rand((hd,), device=device).type(dtype)
+        self.hidden_layer = risk_function
+        self.device = device
+
+    def enable_grad(self):
+        # TODO: why do we need to set requires_grad to True for DGP?
+        self.beta.requires_grad = True
+        self.mu_coeff.requires_grad = True
+        self.sigma_coeff.requires_grad = True
+
+    def parameters(self):
+        return [self.beta, self.mu_coeff, self.sigma_coeff]
+
+    def pred_params(self, x):
+        hidden = self.hidden_layer(torch.matmul(x, self.beta))
+        mu = torch.matmul(hidden, self.mu_coeff)
+        sigma = torch.matmul(hidden, self.sigma_coeff)
+        return mu, sigma
 
 
 class LogNormalCox_linear:
@@ -146,30 +175,19 @@ class Exp_linear:
     def rvs(self, x, u):
         return -LOG(u)/self.hazard(t=None, x=x)
     
-class EXP_nonlinear:
-    def __init__(self, bh, nf, risk_function) -> None:
+class EXP_nonlinear(Exp_linear):
+    # This is the exponential CoxPH model with a nonlinear risk function
+    def __init__(self, bh, nf, hd, risk_function=torch.nn.ReLU(), device='cuda', dtype=torch.float64) -> None:
         self.nf = nf
+        self.hd = hd
         self.bh = torch.tensor([bh]).type(torch.float32)
-        self.coeff = torch.rand((nf,))
-        self.risk_function = risk_function
+        self.beta = torch.rand((nf, hd), device=device).type(dtype)
+        self.coeff = torch.rand((hd,), device=device).type(dtype)
+        self.hidden_layer = risk_function
     
     def hazard(self, t, x):
-        return self.bh * torch.exp(self.risk_function(x, self.coeff ))
-    
-    def cum_hazard(self, t, x):
-        return self.hazard(t, x) * t
-    
-    def survival(self, t, x):
-        return torch.exp(-self.cum_hazard(t, x))
-    
-    def CDF(self, t, x):
-        return 1.0 - self.survival(t, x)
-
-    def PDF(self, t, x):
-        return self.survival(t,x)*self.hazard(t,x)
-    
-    def rvs(self, x, u):
-        return -LOG(u)/self.hazard(t=None, x=x)
+        risks = torch.matmul(self.hidden_layer(torch.matmul(x, self.beta)), self.coeff)
+        return self.bh * torch.exp(risks)
 
 
 class Weibull_linear:
