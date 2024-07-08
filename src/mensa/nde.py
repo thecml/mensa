@@ -199,5 +199,5 @@ class MensaNDE(nn.Module):
 
     def survival(self, t, X):
         with torch.no_grad():
-            result = self.sumo.survival(X, t)
+            result = self.sumo_e.survival(X, t)
         return result[0].squeeze()#, result[1].squeeze()
