@@ -2,7 +2,7 @@
 
 initial_thetas=(2)
 kendall_taus=(0.25 0.3)
-survival_models=('Weibull_log_linear' 'Exp_linear' 'EXP_nonlinear' 'LogNormal_linear' 'LogNormal_nonlinear')
+survival_models=('Weibull_log_linear' 'Exp_linear' 'EXP_nonlinear' 'LogNormal_linear' 'LogNormal_nonlinear' 'Weibull_nonlinear', 'Weibull_linear')
 
 for kendall_tau in "${kendall_taus[@]}"; do
     for initial_theta in "${initial_thetas[@]}"; do

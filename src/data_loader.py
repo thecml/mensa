@@ -81,14 +81,12 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         n_features = data_config['n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
-        beta = torch.rand((n_features,), device=device).type(dtype)
+        # beta = torch.rand((n_features,), device=device).type(dtype)
 
         if linear:
-            dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                                  beta=beta, device=device, dtype=dtype)
-            dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                                  beta=beta, device=device, dtype=dtype)
-        else:
+            dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+        else: #need to update with Ali for nonlinear
             dgp1 = Weibull_nonlinear(n_features, alpha=alpha_e1, gamma=gamma_e1,
                                      beta=beta, risk_function=relu, device=device, dtype=dtype)
             dgp2 = Weibull_nonlinear(n_features, alpha=alpha_e2, gamma=gamma_e2,

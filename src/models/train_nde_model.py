@@ -51,8 +51,8 @@ if __name__ == "__main__":
 
     # Make true models
     beta_e, shape_e, scale_e, beta_c, shape_c, scale_c, u_e = dl.params
-    dgp1 = Weibull_linear(n_features=10, alpha=scale_e, gamma=shape_e, beta=beta_e, device=device, dtype=dtype)
-    dgp2 = Weibull_linear(n_features=10, alpha=scale_c, gamma=shape_c, beta=beta_c, device=device, dtype=dtype)
+    dgp1 = Weibull_linear(nf=10, alpha=scale_e, gamma=shape_e, beta=beta_e, device=device, dtype=dtype)
+    dgp2 = Weibull_linear(nf=10, alpha=scale_c, gamma=shape_c, beta=beta_c, device=device, dtype=dtype)
     
     # Format data
     train_dict = format_data_as_dict_single(X_train, y_train, dtype)
