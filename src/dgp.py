@@ -144,6 +144,7 @@ class LogNormalCox_linear:
         # TODO: no closed form solution for the lognormal CoxPH model
         raise NotImplementedError
 
+
 class Exp_linear:
     def __init__(self, bh, nf, device) -> None:
         self.nf = nf
@@ -174,7 +175,8 @@ class Exp_linear:
     
     def rvs(self, x, u):
         return -LOG(u)/self.hazard(t=None, x=x)
-    
+
+
 class EXP_nonlinear(Exp_linear):
     # This is the exponential CoxPH model with a nonlinear risk function
     def __init__(self, bh, nf, hd, risk_function=torch.nn.ReLU(), device='cuda', dtype=torch.float64) -> None:
@@ -191,11 +193,11 @@ class EXP_nonlinear(Exp_linear):
 
 
 class Weibull_linear:
-    def __init__(self, n_features, alpha, gamma, beta, device, dtype):
-        self.n_features = n_features
+    def __init__(self, nf, alpha, gamma, device, dtype):
+        self.n_features = nf
         self.alpha = torch.tensor([alpha], device=device).type(dtype)
         self.gamma = torch.tensor([gamma], device=device).type(dtype)
-        self.beta = torch.tensor(beta, device=device).type(dtype)
+        self.coeff = torch.rand((nf,), device=device).type(dtype)
 
     def PDF(self ,t ,x):
         return self.hazard(t, x) * self.survival(t,x)
@@ -207,20 +209,24 @@ class Weibull_linear:
         return torch.exp(-self.cum_hazard(t,x))
     
     def hazard(self, t, x):
-        return ((self.gamma/self.alpha)*((t/self.alpha)**(self.gamma-1))) * torch.exp(torch.matmul(x, self.beta))
+        return ((self.gamma/self.alpha)*((t/self.alpha)**(self.gamma-1))) * torch.exp(torch.matmul(x, self.coeff))
         
     def cum_hazard(self, t, x):
-        return ((t/self.alpha)**self.gamma) * torch.exp(torch.matmul(x, self.beta))
+        return ((t/self.alpha)**self.gamma) * torch.exp(torch.matmul(x, self.coeff))
+
+    def parameters(self):
+        return [self.alpha, self.gamma, self.coeff]
     
     def rvs(self, x, u):
-        return ((-LOG(u)/torch.exp(torch.matmul(x, self.beta)))**(1/self.gamma))*self.alpha
+        return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
 
 class Weibull_nonlinear:
-    def __init__(self, n_features, alpha, gamma, beta, risk_function, device, dtype):
-        self.n_features = n_features
-        self.alpha = torch.tensor(alpha, device=device).type(dtype)
-        self.gamma = torch.tensor(gamma, device=device).type(dtype)
-        self.beta = torch.tensor(beta, device=device).type(dtype)
+    def __init__(self, nf, hd, risk_function=torch.nn.ReLU(), device='cuda', dtype=torch.float64):
+        self.nf = nf
+        self.hd = hd  # number of hidden units
+        self.alpha = torch.rand((hd,), device=device).type(dtype)
+        self.gamma = torch.rand((hd,), device=device).type(dtype)
+        self.beta = torch.rand((nf, hd), device=device).type(dtype)
         self.hidden_layer = risk_function
         
     def PDF(self ,t ,x):
@@ -241,9 +247,13 @@ class Weibull_nonlinear:
         shape, scale = self.pred_params(x)
         return (t/scale)**shape
 
+    def parameters(self):
+        return [self.alpha, self.gamma, self.beta]
+
     def pred_params(self, x):
-        shape = torch.matmul(self.hidden_layer(x, self.beta), self.alpha)
-        scale = torch.matmul(self.hidden_layer(x, self.beta), self.gamma)
+        hidden = self.hidden_layer(torch.matmul(x, self.beta))
+        shape = torch.matmul(hidden, self.alpha)
+        scale = torch.matmul(hidden, self.gamma)
         return shape, scale
     
     def rvs(self, x, u):
