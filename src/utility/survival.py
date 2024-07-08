@@ -657,12 +657,11 @@ def compute_l1_difference(truth_preds, model_preds, n_samples, steps):
     surv2 = model_preds
     #surv1, surv2, time_steps, t_m = predict_survival_curve_truth_pred(truth_model, pred_model, x, steps)
     integ = torch.sum(torch.diff(torch.cat([torch.zeros(1), steps])) * torch.abs(surv1-surv2))
-    return (integ/t_m/n_samples).detach().numpy() # t_max and N are the same for all patients
+    return (integ/t_m/n_samples).detach().cpu().numpy() # t_max and N are the same for all patients
 
-def predict_survival_function(model, x_test, time_bins, truth=False):
-    device = torch.device("cpu")
+def predict_survival_function(model, x_test, time_bins, truth=False, device = 'cpu'):
     surv_estimate = torch.zeros((x_test.shape[0], time_bins.shape[0]), device=device)
-    time_bins = torch.tensor(time_bins)
+    time_bins = torch.tensor(time_bins, device=device)
     for i in range(time_bins.shape[0]):
         #surv_estimate[:,i] = model.sumo_e.survival(time_bins[i], x_test)
         surv_estimate[:,i] = model.survival(time_bins[i], x_test)

@@ -145,7 +145,7 @@ class LogNormalCox_linear:
         raise NotImplementedError
 
 class Exp_linear:
-    def __init__(self, bh, nf, device) -> None:
+    def __init__(self, bh, nf, device, dtype=torch.float64) -> None:
         self.nf = nf
         self.bh = torch.tensor([bh]).type(torch.float32).to(device)
         self.coeff = torch.rand((nf,)).to(device)
@@ -180,7 +180,7 @@ class EXP_nonlinear(Exp_linear):
     def __init__(self, bh, nf, hd, risk_function=torch.nn.ReLU(), device='cuda', dtype=torch.float64) -> None:
         self.nf = nf
         self.hd = hd
-        self.bh = torch.tensor([bh]).type(torch.float32)
+        self.bh = torch.tensor([bh], device=device).type(torch.float32)
         self.beta = torch.rand((nf, hd), device=device).type(dtype)
         self.coeff = torch.rand((hd,), device=device).type(dtype)
         self.hidden_layer = risk_function
@@ -195,7 +195,8 @@ class Weibull_linear:
         self.n_features = n_features
         self.alpha = torch.tensor([alpha], device=device).type(dtype)
         self.gamma = torch.tensor([gamma], device=device).type(dtype)
-        self.beta = torch.tensor(beta, device=device).type(dtype)
+        # self.beta = torch.tensor(beta, device=device).type(dtype)
+        self.beta = torch.rand((n_features,), device=device).type(dtype) #should I remove input beta?
 
     def PDF(self ,t ,x):
         return self.hazard(t, x) * self.survival(t,x)
@@ -212,11 +213,20 @@ class Weibull_linear:
     def cum_hazard(self, t, x):
         return ((t/self.alpha)**self.gamma) * torch.exp(torch.matmul(x, self.beta))
     
+    def enable_grad(self):
+        self.alpha.requires_grad = True
+        self.gamma.requires_grad = True
+        self.beta.requires_grad = True
+
+    def parameters(self):
+        return [self.alpha, self.gamma, self.beta]
+    
     def rvs(self, x, u):
+        print (x.shape, self.beta.shape)
         return ((-LOG(u)/torch.exp(torch.matmul(x, self.beta)))**(1/self.gamma))*self.alpha
 
 class Weibull_nonlinear:
-    def __init__(self, n_features, alpha, gamma, beta, risk_function, device, dtype):
+    def __init__(self, n_features, alpha, gamma, beta, risk_function=torch.nn.ReLU(), device='cpu', dtype=torch.float64):
         self.n_features = n_features
         self.alpha = torch.tensor(alpha, device=device).type(dtype)
         self.gamma = torch.tensor(gamma, device=device).type(dtype)
@@ -245,6 +255,14 @@ class Weibull_nonlinear:
         shape = torch.matmul(self.hidden_layer(x, self.beta), self.alpha)
         scale = torch.matmul(self.hidden_layer(x, self.beta), self.gamma)
         return shape, scale
+    
+    def enable_grad(self):
+        self.alpha.requires_grad = True
+        self.gamma.requires_grad = True
+        self.beta.requires_grad = True
+
+    def parameters(self):
+        return [self.alpha, self.gamma, self.beta] 
     
     def rvs(self, x, u):
         shape, scale = self.pred_params(x)
