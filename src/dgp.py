@@ -146,7 +146,7 @@ class LogNormalCox_linear:
 
 
 class Exp_linear:
-    def __init__(self, bh, nf, device) -> None:
+    def __init__(self, bh, nf, device, dtype=torch.float64) -> None:
         self.nf = nf
         self.bh = torch.tensor([bh]).type(torch.float32).to(device)
         self.coeff = torch.rand((nf,)).to(device)
@@ -182,7 +182,7 @@ class EXP_nonlinear(Exp_linear):
     def __init__(self, bh, nf, hd, risk_function=torch.nn.ReLU(), device='cuda', dtype=torch.float64) -> None:
         self.nf = nf
         self.hd = hd
-        self.bh = torch.tensor([bh]).type(torch.float32)
+        self.bh = torch.tensor([bh], device=device).type(torch.float32)
         self.beta = torch.rand((nf, hd), device=device).type(dtype)
         self.coeff = torch.rand((hd,), device=device).type(dtype)
         self.hidden_layer = risk_function
@@ -213,6 +213,14 @@ class Weibull_linear:
         
     def cum_hazard(self, t, x):
         return ((t/self.alpha)**self.gamma) * torch.exp(torch.matmul(x, self.coeff))
+
+    def parameters(self):
+        return [self.alpha, self.gamma, self.coeff]
+    
+    def enable_grad(self):
+        self.alpha.requires_grad = True
+        self.gamma.requires_grad = True
+        self.coeff.requires_grad = True
 
     def parameters(self):
         return [self.alpha, self.gamma, self.coeff]
@@ -255,6 +263,14 @@ class Weibull_nonlinear:
         shape = torch.matmul(hidden, self.alpha)
         scale = torch.matmul(hidden, self.gamma)
         return shape, scale
+    
+    def enable_grad(self):
+        self.alpha.requires_grad = True
+        self.gamma.requires_grad = True
+        self.beta.requires_grad = True
+
+    def parameters(self):
+        return [self.alpha, self.gamma, self.beta] 
     
     def rvs(self, x, u):
         shape, scale = self.pred_params(x)

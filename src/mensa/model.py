@@ -13,11 +13,12 @@ from torch.autograd import Function
 import numpy as np
 
 from utility.loss import triple_loss
-from dgp import Weibull_linear, Weibull_log_linear, Weibull_nonlinear
+from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear, Exp_linear, EXP_nonlinear, LogNormal_linear, LogNormal_nonlinear, LogNormalCox_linear
 from copula import NestedClayton, NestedFrank, ConvexCopula
 from copula import Clayton2D, Frank2D, Clayton
 
 from mensa.loss import (calculate_loss_two_models, calculate_loss_three_models, calculate_loss_three_models_me)
+from model_helper import get_model_best_params, set_model_best_params
 
 def make_mensa_model_2_events(n_features, start_theta, eps, device, dtype):
     model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
@@ -39,7 +40,7 @@ def make_mensa_model_3_events(n_features, start_theta, eps, device, dtype):
     copula = NestedClayton(torch.tensor([start_theta]), torch.tensor([start_theta]), eps, eps, device, dtype)
     return model1, model2, model3, copula
 
-def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n_epochs=1000, lr=5e-3, model_type='Weibull_log_linear'):
+def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n_epochs=1000, lr=5e-3, model_type='Weibull_log_linear', device = 'cpu'):
     model1.enable_grad()
     model2.enable_grad()
     copula.enable_grad()
@@ -56,7 +57,7 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
         
         for p in copula.parameters():
             p.grad = p.grad * 100
-            p.grad.clamp_(torch.tensor([-0.5]), torch.tensor([0.5]))
+            p.grad.clamp_(torch.tensor([-0.5], device=device), torch.tensor([0.5], device=device))
         
         optimizer.step()
         
@@ -73,63 +74,14 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
                 print(f"{val_loss} - {copula.theta}")
             if not torch.isnan(val_loss) and val_loss < min_val_loss:
                 stop_itr = 0
-                if model_type == 'Weibull_log_linear':
-                    best_c1 = model1.coeff.detach().clone()
-                    best_c2 = model2.coeff.detach().clone()
-                    best_mu1 = model1.mu.detach().clone()
-                    best_mu2 = model2.mu.detach().clone()
-                    best_sig1 = model1.sigma.detach().clone()
-                    best_sig2 = model2.sigma.detach().clone()
-                elif model_type == 'LogNormal_linear':
-                    best_mu_coeff1 = model1.mu_coeff.detach().clone()
-                    best_mu_coeff2 = model2.mu_coeff.detach().clone()
-                    best_sigma_coeff1 = model1.sigma_coeff.detach().clone()
-                    best_sigma_coeff2 = model2.sigma_coeff.detach().clone()
-                elif model_type == 'LogNormal_nonlinear':
-                    best_beta1 = model1.beta.detach().clone()
-                    best_beta2 = model2.beta.detach().clone()
-                    best_mu_coeff1 = model1.mu_coeff.detach().clone()
-                    best_mu_coeff2 = model2.mu_coeff.detach().clone()
-                    best_sigma_coeff1 = model1.sigma_coeff.detach().clone()
-                    best_sigma_coeff2 = model2.sigma_coeff.detach().clone()                              
-                """
-                best_bh1 = model1.bh.detach().clone()
-                best_coeff1 = model1.coeff.detach().clone()
-                best_bh2 = model2.bh.detach().clone()
-                best_coeff2 = model2.coeff.detach().clone()
-                """
+                best_params = get_model_best_params([model1, model2], model_type)
                 min_val_loss = val_loss.detach().clone()
             else:
                 stop_itr += 1
                 if stop_itr == 2000:
                     break
                 
-    if model_type == 'Weibull_log_linear':
-        model1.mu = best_mu1
-        model2.mu = best_mu2
-        model1.sigma = best_sig1
-        model2.sigma = best_sig2
-        model1.coeff = best_c1
-        model2.coeff = best_c2
-    elif model_type == 'LogNormal_linear':
-        model1.mu_coeff = best_mu_coeff1
-        model2.mu_coeff = best_mu_coeff2
-        model1.sigma_coeff = best_sigma_coeff1
-        model2.sigma_coeff = best_sigma_coeff2
-    elif model_type == 'LogNormal_nonlinear':
-        model1.beta = best_beta1
-        model2.beta = best_beta2
-        model1.mu_coeff = best_mu_coeff1
-        model2.mu_coeff = best_mu_coeff2
-        model1.sigma_coeff = best_sigma_coeff1
-        model2.sigma_coeff = best_sigma_coeff2
-    """
-    model1.bh = best_bh1
-    model1.coeff = best_coeff1
-    model2.bh = best_bh2
-    model2.coeff = best_coeff2
-    """
-    
+    [model1, model2] = set_model_best_params([model1, model2], best_params, model_type)
     return model1, model2, copula
 
 def train_mensa_model_3_events(train_dict, valid_dict, model1, model2, model3, copula, n_epochs=1000, lr=5e-3):

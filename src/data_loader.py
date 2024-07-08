@@ -81,14 +81,12 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         n_features = data_config['n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
-        beta = torch.rand((n_features,), device=device).type(dtype)
+        # beta = torch.rand((n_features,), device=device).type(dtype)
 
         if linear:
-            dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                                  beta=beta, device=device, dtype=dtype)
-            dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                                  beta=beta, device=device, dtype=dtype)
-        else:
+            dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+        else: #need to update with Ali for nonlinear
             dgp1 = Weibull_nonlinear(n_features, alpha=alpha_e1, gamma=gamma_e1,
                                      beta=beta, risk_function=relu, device=device, dtype=dtype)
             dgp2 = Weibull_nonlinear(n_features, alpha=alpha_e2, gamma=gamma_e2,
@@ -108,8 +106,8 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             u = torch.from_numpy(u).type(dtype).reshape(-1,1)
             v = torch.from_numpy(v).type(dtype).reshape(-1,1)
             uv = torch.cat([u, v], axis=1)
-        t1_times = dgp1.rvs(X, uv[:,0])
-        t2_times = dgp2.rvs(X, uv[:,1])
+        t1_times = dgp1.rvs(X, uv[:,0].to(device)).detach().cpu()
+        t2_times = dgp2.rvs(X, uv[:,1].to(device)).detach().cpu()
         event_times = np.concatenate([t1_times.reshape(-1,1),
                                       t2_times.reshape(-1,1)], axis=1)
         
@@ -117,7 +115,7 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         event_indicators = (t1_times < t2_times).type(torch.int)
         
         columns = [f'X{i}' for i in range(n_features)]
-        self.X = pd.DataFrame(X, columns=columns)
+        self.X = pd.DataFrame(X.detach().cpu(), columns=columns)
         self.y_e = event_indicators
         self.y_t = observed_times
         self.dgps = [dgp1, dgp2]

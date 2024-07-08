@@ -5,9 +5,9 @@ def get_model_from_name(n_features = 10, number_model = 2, model_type = 'Weibull
     if model_type == 'Weibull_log_linear':
         models = [Weibull_log_linear(n_features, 2, 1, device, dtype) for i in range(number_model)]
     elif model_type == 'Weibull_linear':#not working
-        models = [Weibull_linear(n_features, alpha=2, gamma=1, beta=1, device=device, dtype=dtype) for i in range(number_model)]
+        models = [Weibull_linear(n_features, alpha=2, gamma=1, device=device, dtype=dtype) for i in range(number_model)]
     elif model_type == 'Weibull_nonlinear':#not working
-        models = [Weibull_nonlinear(n_features, alpha=2, gamma=1, beta=1, device=device, dtype=dtype) for i in range(number_model)]
+        models = [Weibull_nonlinear(n_features, hd=4, device=device, dtype=dtype) for i in range(number_model)]
     elif model_type == 'Exp_linear':
         models = [Exp_linear(nf=n_features, bh=0.5, device=device, dtype=dtype) for i in range(number_model)]
     elif model_type == 'EXP_nonlinear':
@@ -42,7 +42,7 @@ def get_model_best_params(models, model_type):
             best_params[i] = {
                 'alpha': models[i].alpha.detach().clone(), 
                 'gamma': models[i].gamma.detach().clone(), 
-                'beta': models[i].beta.detach().clone()
+                'coeff': models[i].coeff.detach().clone()
             }
     elif model_type == 'Weibull_nonlinear':
         for i in range(len(models)):
@@ -104,7 +104,7 @@ def set_model_best_params(models, best_params, model_type='Weibull_log_linear'):
         for i in range(len(models)):
             models[i].alpha = best_params[i]['alpha']
             models[i].gamma = best_params[i]['gamma']
-            models[i].beta = best_params[i]['beta']
+            models[i].coeff = best_params[i]['coeff']
     elif model_type == 'Weibull_nonlinear':
         for i in range(len(models)):
             models[i].alpha = best_params[i]['alpha']
