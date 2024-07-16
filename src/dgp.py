@@ -70,7 +70,7 @@ class LogNormal_linear:
 
 class LogNormal_nonlinear(LogNormal_linear):
     # Note this is the LogNormal nonlinear model
-    def __init__(self, nf, hd, risk_function=torch.nn.ReLU(), device='cuda', dtype=torch.float64) -> None:
+    def __init__(self, nf, hd, risk_function=torch.nn.Tanh(), device='cuda', dtype=torch.float64) -> None:
         self.nf = nf  # number of features
         self.hd = hd  # number of hidden units
         self.beta = torch.rand((nf, hd), device=device).type(dtype)
@@ -179,7 +179,7 @@ class Exp_linear:
 
 class EXP_nonlinear(Exp_linear):
     # This is the exponential CoxPH model with a nonlinear risk function
-    def __init__(self, bh, nf, hd, risk_function=torch.nn.ReLU(), device='cuda', dtype=torch.float64) -> None:
+    def __init__(self, bh, nf, hd, risk_function=torch.nn.Tanh(), device='cuda', dtype=torch.float64) -> None:
         self.nf = nf
         self.hd = hd
         self.bh = torch.tensor([bh], device=device).type(torch.float32)
@@ -229,7 +229,7 @@ class Weibull_linear:
         return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
 
 class Weibull_nonlinear:
-    def __init__(self, nf, hd, risk_function=torch.nn.ReLU(), device='cuda', dtype=torch.float64):
+    def __init__(self, nf, hd, risk_function=torch.nn.Tanh(), device='cuda', dtype=torch.float64):
         self.nf = nf
         self.hd = hd  # number of hidden units
         self.alpha = torch.rand((hd,), device=device).type(dtype)
