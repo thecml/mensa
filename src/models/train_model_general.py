@@ -35,7 +35,7 @@ from pycop import simulation
 from data_loader import *
 from copula import Clayton2D
 import argparse, parser
-from model_helper import get_model_from_name
+from models.model_helper import get_model_from_name
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
 np.random.seed(0)
@@ -58,9 +58,9 @@ N_SAMPLES = 10000
 N_FEATURES = 10
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Test Genearl')
-    parser.add_argument("--model", type=str, default='Weibull_log_linear', help="Type model class name")
-    parser.add_argument("--num_epoch", type=int, default=10000, help="Type num_epoch")
+    parser = argparse.ArgumentParser(description='Test General')
+    parser.add_argument("--model", type=str, default='Weibull_nonlinear', help="Type model class name")
+    parser.add_argument("--num_epoch", type=int, default=20000, help="Type num_epoch")
     parser.add_argument("--KENDALL_TAUS", type=float, default=0.25, help="Type KENDALL_TAUS")
     parser.add_argument("--initial_theta", type=float, default=2, help="Type initial_theta")
     
@@ -97,14 +97,17 @@ if __name__ == "__main__":
     valid_dict['X'], valid_dict['E'], valid_dict['T'] = valid_dict['X'].to(device), valid_dict['E'].to(device), valid_dict['T'].to(device)    
     test_dict['X'], test_dict['E'], test_dict['T'] = test_dict['X'].to(device), test_dict['E'].to(device), test_dict['T'].to(device)    
 
-    model1, model2, copula = train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n_epochs=N_EPOCH, lr=0.001, model_type = args.model, device = device)
+    model1, model2, copula = train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n_epochs=N_EPOCH,
+                                                        lr=0.01, model_type = args.model, device = device)
 
-    # Print NLL of all events together
+    # Print NLL of all events togethers
     print(f"NLL all events: {double_loss(model1, model2, valid_dict, copula)}")
     
-    # Check the dgp performance
+    # Check the dgp performance 
     #copula.theta = torch.tensor([5.0])
-    print(f"DGP loss: {double_loss(dgps[0], dgps[1], valid_dict, copula)}")
+    true_theta = kendall_tau_to_theta('clayton', KENDALL_TAUS[0])
+    dgp_copula = Clayton2D(torch.tensor([true_theta], device=device, dtype=dtype), device, dtype)
+    print(f"DGP loss: {double_loss(dgps[0], dgps[1], valid_dict, dgp_copula)}")
 
     # Evaluate the L1
     preds_e1 = predict_survival_function(model1, test_dict['X'], time_bins, device = device).detach().cpu().numpy()

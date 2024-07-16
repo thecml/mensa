@@ -18,7 +18,7 @@ from copula import NestedClayton, NestedFrank, ConvexCopula
 from copula import Clayton2D, Frank2D, Clayton
 
 from mensa.loss import (calculate_loss_two_models, calculate_loss_three_models, calculate_loss_three_models_me)
-from model_helper import get_model_best_params, set_model_best_params
+from models.model_helper import get_model_best_params, set_model_best_params
 
 def make_mensa_model_2_events(n_features, start_theta, eps, device, dtype):
     model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
@@ -61,12 +61,10 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
         
         optimizer.step()
         
-        """
         for p in copula.parameters():
             if p <= 0.01:
                 with torch.no_grad():
                     p[:] = torch.clamp(p, 0.01, 100)
-        """
         
         with torch.no_grad():
             val_loss = calculate_loss_two_models(model1, model2, valid_dict, copula)
