@@ -4,10 +4,10 @@ import torch
 def get_model_from_name(n_features = 10, number_model = 2, model_type = 'Weibull_linear', device = 'cpu', dtype = torch.float64):
     if model_type == 'Weibull_log_linear':
         models = [Weibull_log_linear(n_features, 2, 1, device, dtype) for i in range(number_model)]
-    elif model_type == 'Weibull_linear':#not working TODO
+    elif model_type == 'Weibull_linear':
         models = [Weibull_linear(n_features, alpha=2, gamma=1, device=device, dtype=dtype) for i in range(number_model)]
     elif model_type == 'Weibull_nonlinear':
-        models = [Weibull_nonlinear(n_features, hd=12, device=device, dtype=dtype) for i in range(number_model)]
+        models = [Weibull_nonlinear(n_features, hd=4, device=device, dtype=dtype) for i in range(number_model)]
     elif model_type == 'Exp_linear':
         models = [Exp_linear(nf=n_features, bh=0.5, device=device, dtype=dtype) for i in range(number_model)]
     elif model_type == 'EXP_nonlinear':

@@ -59,8 +59,8 @@ N_FEATURES = 10
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Test General')
-    parser.add_argument("--model", type=str, default='Weibull_linear', help="Type model class name")
-    parser.add_argument("--num_epoch", type=int, default=15000, help="Type num_epoch")
+    parser.add_argument("--model", type=str, default='Weibull_nonlinear', help="Type model class name")
+    parser.add_argument("--num_epoch", type=int, default=20000, help="Type num_epoch")
     parser.add_argument("--KENDALL_TAUS", type=float, default=0.25, help="Type KENDALL_TAUS")
     parser.add_argument("--initial_theta", type=float, default=2, help="Type initial_theta")
     
