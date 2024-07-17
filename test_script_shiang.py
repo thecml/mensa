@@ -5,7 +5,7 @@ from pycop import simulation
 from Copula import Frank3, Gumbel3
 from l1_eval import surv_diff
 from nested_copula import NestedClayton
-from dgp import (LogNormal_nonlinear, LogNormal_linear, Weibull_log_linear, Weibull_linear, Weibull_nonlinear,
+from dgp import (DGP_LogNormal_nonlinear, DGP_LogNormal_linear, Weibull_log_linear, Weibull_linear, Weibull_nonlinear,
     Exp_linear, EXP_nonlinear)
 
 
@@ -173,9 +173,9 @@ if __name__ == "__main__":
     # dgp1 = LogNormal_linear(nf, DEVICE)
     # dgp2 = LogNormal_linear(nf, DEVICE)
     # dgp3 = LogNormal_linear(nf, DEVICE)
-    dgp1 = LogNormal_nonlinear(nf, 5, torch.nn.ReLU(), DEVICE, dtype=torch.float32)
-    dgp2 = LogNormal_nonlinear(nf, 3, torch.nn.ReLU(), DEVICE, dtype=torch.float32)
-    dgp3 = LogNormal_nonlinear(nf, 2, torch.nn.ReLU(), DEVICE, dtype=torch.float32)
+    dgp1 = DGP_LogNormal_nonlinear(nf, 5, torch.nn.ReLU(), DEVICE, dtype=torch.float32)
+    dgp2 = DGP_LogNormal_nonlinear(nf, 3, torch.nn.ReLU(), DEVICE, dtype=torch.float32)
+    dgp3 = DGP_LogNormal_nonlinear(nf, 2, torch.nn.ReLU(), DEVICE, dtype=torch.float32)
 
     copula_dgp = 'clayton'
     theta_dgp = 8.0

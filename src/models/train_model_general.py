@@ -18,7 +18,7 @@ from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 import copy
-from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear, Exp_linear, EXP_nonlinear, LogNormal_linear, LogNormal_nonlinear, LogNormalCox_linear
+from dgp import DGP_LogNormal_linear, DGP_LogNormal_nonlinear
 from torch.utils.data import DataLoader, TensorDataset
 import math
 from utility.data import format_data, format_data_as_dict_multi
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     # Load and split data
     data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_se.yaml")
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config,
-                                                    linear=True, copula_name="clayton",
+                                                    linear=False, copula_name="clayton",
                                                     k_tau=KENDALL_TAUS[0], device=device, dtype=dtype)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
     n_events = data_config['n_events']
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     copula = Clayton2D(torch.tensor([copula_start_point], device=device, dtype=dtype), device, dtype)
     #copula = NestedFrank(torch.tensor([copula_start_point]),
     #                     torch.tensor([copula_start_point]), eps, eps, device, dtype)
-    #c1 = NestedFrank(torch.tensor([2.0]), torch.tensor([2.0]), 1e-4, 1e-4, device, dtype)
+    #c1 = NestedFran    k(torch.tensor([2.0]), torch.tensor([2.0]), 1e-4, 1e-4, device, dtype)
     #copula = NestedClayton(torch.tensor([2.0]), torch.tensor([2.0]), 1e-4, 1e-4, device, dtype)
     #copula = ConvexCopula(c1, c2, beta=10000, device=device, dtype=dtype)
     [model1, model2] = get_model_from_name(n_features = n_features, number_model = 2, model_type = args.model, device = device, dtype = dtype)

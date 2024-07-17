@@ -17,7 +17,7 @@ from scipy import stats
 from utility.data import relu
 from utility.data import kendall_tau_to_theta, theta_to_kendall_tau
 from utility.survival import make_stratified_split
-from dgp import Weibull_log_linear, Weibull_linear, Weibull_nonlinear, Exp_linear, EXP_nonlinear
+from dgp import DGP_Weibull_linear, DGP_Weibull_nonlinear
 import torch
 
 class BaseDataLoader(ABC):
@@ -81,19 +81,13 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         n_features = data_config['n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
-        # beta = torch.rand((n_features,), device=device).type(dtype)
 
         if linear:
-            dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
-            dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
-        else: #need to update with Ali for nonlinear
-            dgp1 = Weibull_nonlinear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
-            dgp2 = Weibull_nonlinear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
-            
-        dgp1.coeff = torch.rand((n_features,), device=device, dtype=dtype)
-        dgp2.coeff = torch.rand((n_features,), device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+        else:
+            dgp1 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
     
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -106,6 +100,7 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             u = torch.from_numpy(u).type(dtype).reshape(-1,1)
             v = torch.from_numpy(v).type(dtype).reshape(-1,1)
             uv = torch.cat([u, v], axis=1)
+            
         t1_times = dgp1.rvs(X, uv[:,0].to(device)).detach().cpu()
         t2_times = dgp2.rvs(X, uv[:,1].to(device)).detach().cpu()
         event_times = np.concatenate([t1_times.reshape(-1,1),
@@ -164,19 +159,13 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         beta = torch.rand((n_features,), device=device).type(dtype)
         
         if linear:
-            dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                                beta=beta, device=device, dtype=dtype)
-            dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                                beta=beta, device=device, dtype=dtype)
-            dgp3 = Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3,
-                                beta=beta, device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
         else:
-            dgp1 = Weibull_nonlinear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
-            dgp2 = Weibull_nonlinear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
-            dgp3 = Weibull_nonlinear(n_features, alpha=alpha_e3, gamma=gamma_e3,
-                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
         
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -272,19 +261,13 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         beta = torch.rand((n_features,), device=device).type(dtype)
         
         if linear:
-            dgp1 = Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                                  beta=beta, device=device, dtype=dtype)
-            dgp2 = Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                                  beta=beta, device=device, dtype=dtype)
-            dgp3 = Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3,
-                                  beta=beta, device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
         else:
-            dgp1 = Weibull_nonlinear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
-            dgp2 = Weibull_nonlinear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                                     beta=beta, risk_function=relu, device=device, dtype=dtype)
-            dgp3 = Weibull_nonlinear(n_features, alpha=alpha_e3, gamma=gamma_e3,
-                                     beta=beta, risk_function=relu, device=device, dtype=dtype) 
+            dgp1 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
 
         u_e1, u_e2, u_e3 = simulation.simu_mixture(3, n_samples, copula_parameters)
         u = torch.from_numpy(u_e1).type(dtype).reshape(-1,1)
