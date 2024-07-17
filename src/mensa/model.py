@@ -13,7 +13,8 @@ from torch.autograd import Function
 import numpy as np
 
 from utility.loss import triple_loss
-from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear, Exp_linear, EXP_nonlinear, LogNormal_linear, LogNormal_nonlinear, LogNormalCox_linear
+from distributions import (Weibull_linear, Weibull_nonlinear, Weibull_log_linear, Exp_linear,
+                           EXP_nonlinear, LogNormal_linear, LogNormal_nonlinear, LogNormalCox_linear)
 from copula import NestedClayton, NestedFrank, ConvexCopula
 from copula import Clayton2D, Frank2D, Clayton
 

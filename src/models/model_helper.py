@@ -1,23 +1,23 @@
-from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear, Exp_linear, EXP_nonlinear, LogNormal_linear, LogNormal_nonlinear, LogNormalCox_linear
+from distributions import Weibull_linear, Weibull_nonlinear, Weibull_log_linear, Exp_linear, EXP_nonlinear, LogNormal_linear, LogNormal_nonlinear, LogNormalCox_linear
 import torch
 
-def get_model_from_name(n_features = 10, number_model = 2, model_type = 'Weibull_linear', device = 'cpu', dtype = torch.float64):
+def get_model_from_name(n_features=10, number_model=2, model_type='Weibull_linear', device='cpu', dtype=torch.float64):
     if model_type == 'Weibull_log_linear':
-        models = [Weibull_log_linear(n_features, 2, 1, device, dtype) for i in range(number_model)]
+        models = [Weibull_log_linear(n_features, device, dtype) for i in range(number_model)]
     elif model_type == 'Weibull_linear':
-        models = [Weibull_linear(n_features, alpha=2, gamma=1, device=device, dtype=dtype) for i in range(number_model)]
+        models = [Weibull_linear(n_features, device=device, dtype=dtype) for i in range(number_model)]
     elif model_type == 'Weibull_nonlinear':
         models = [Weibull_nonlinear(n_features, hd=4, device=device, dtype=dtype) for i in range(number_model)]
     elif model_type == 'Exp_linear':
-        models = [Exp_linear(nf=n_features, bh=0.5, device=device, dtype=dtype) for i in range(number_model)]
+        models = [Exp_linear(nf=n_features, device=device, dtype=dtype) for i in range(number_model)]
     elif model_type == 'EXP_nonlinear':
-        models = [EXP_nonlinear(nf=n_features, bh=0.5, hd=1, device=device, dtype=dtype) for i in range(number_model)]
+        models = [EXP_nonlinear(nf=n_features, hd=4, device=device, dtype=dtype) for i in range(number_model)]
     elif model_type == 'LogNormal_linear':
         models = [LogNormal_linear(n_features, device) for i in range(number_model)]
     elif model_type == 'LogNormal_nonlinear': 
-        models = [LogNormal_nonlinear(n_features, 4, device = device) for i in range(number_model)]
-    elif model_type == 'LogNormalCox_linear':#not working TODO
-        models = [LogNormalCox_linear(nf=n_features, mu=2, sigma=1, device = device) for i in range(number_model)]   
+        models = [LogNormal_nonlinear(n_features, hd=4, device=device) for i in range(number_model)]
+    elif model_type == 'LogNormalCox_linear': #not working TODO
+        models = [LogNormalCox_linear(nf=n_features, device = device) for i in range(number_model)]   
     else:
         raise Exception("Model_type:", model_type, 'incorrect.')
     return models
