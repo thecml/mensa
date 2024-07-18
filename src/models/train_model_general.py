@@ -35,7 +35,7 @@ from pycop import simulation
 from data_loader import *
 from copula import Clayton2D
 import argparse, parser
-from models.model_helper import get_model_from_name
+from utility.model_helper import get_model_from_name
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
 np.random.seed(0)
@@ -60,7 +60,7 @@ N_FEATURES = 10
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Test General')
     parser.add_argument("--model", type=str, default='Weibull_nonlinear', help="Type model class name")
-    parser.add_argument("--num_epoch", type=int, default=20000, help="Type num_epoch")
+    parser.add_argument("--num_epoch", type=int, default=5000, help="Type num_epoch")
     parser.add_argument("--KENDALL_TAUS", type=float, default=0.25, help="Type KENDALL_TAUS")
     parser.add_argument("--initial_theta", type=float, default=2, help="Type initial_theta")
     
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     test_dict['X'], test_dict['E'], test_dict['T'] = test_dict['X'].to(device), test_dict['E'].to(device), test_dict['T'].to(device)    
 
     model1, model2, copula = train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n_epochs=N_EPOCH,
-                                                        lr=0.01, model_type = args.model, device = device)
+                                                        lr=0.01, model_type=args.model, device=device)
 
     # Print NLL of all events togethers
     print(f"NLL all events: {double_loss(model1, model2, valid_dict, copula)}")

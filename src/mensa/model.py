@@ -19,7 +19,7 @@ from copula import NestedClayton, NestedFrank, ConvexCopula
 from copula import Clayton2D, Frank2D, Clayton
 
 from mensa.loss import (calculate_loss_two_models, calculate_loss_three_models, calculate_loss_three_models_me)
-from models.model_helper import get_model_best_params, set_model_best_params
+from utility.model_helper import get_model_best_params, set_model_best_params
 
 def make_mensa_model_2_events(n_features, start_theta, eps, device, dtype):
     model1 = Weibull_log_linear(n_features, 2, 1, device, dtype)
@@ -200,7 +200,7 @@ class CompetingMENSA:
         self.models = []
         for i in range(n_events):
             if self.distribution == "weibull":
-                model = Weibull_log_linear(n_features, 2, 1, device, dtype)
+                model = Weibull_nonlinear(n_features, n_hidden=4, device=device)
                 self.models.append(model)
             else:
                 raise NotImplementedError()

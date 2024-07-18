@@ -26,7 +26,6 @@ from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
 from copula import Clayton2D, Frank2D, NestedClayton
-from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear
 from utility.survival import (make_time_bins, preprocess_data, convert_to_structured,
                               risk_fn, compute_l1_difference, predict_survival_function,
                               make_times_hierarchical)
@@ -175,8 +174,8 @@ if __name__ == "__main__":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
             copula = NestedClayton(torch.tensor([2.0]), torch.tensor([2.0]),
                                    1e-4, 1e-4, device, dtype)
-            n_epochs = config['n_epochs']
-            lr = config['lr']
+            n_epochs = 1000 #config['n_epochs']
+            lr = 0.01 #config['lr']
             model = CompetingMENSA(n_features, n_events+1, copula=copula, device=device) # add censoring model
             model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr)
         else:
