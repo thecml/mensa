@@ -19,7 +19,7 @@ def LOG(x):
 
 class DGP_LogNormal_linear:
     # Note this is the LogNormal model, not the LogNormal CoxPH model
-    def __init__(self, nf, mu, sigma, device='cuda', dtype=torch.float64) -> None:
+    def __init__(self, n_features, mu, sigma, device='cpu', dtype=torch.float64) -> None:
         self.mu_coeff = torch.tensor([mu], device=device).type(dtype)
         self.sigma_coeff = torch.tensor([sigma], device=device).type(dtype)
         self.device = device
@@ -63,11 +63,11 @@ class DGP_LogNormal_linear:
 
 class DGP_LogNormal_nonlinear(DGP_LogNormal_linear):
     # Note this is the LogNormal nonlinear model
-    def __init__(self, nf, hd, mu, sigma, risk_function=torch.nn.Tanh(),
-                 device='cuda', dtype=torch.float64) -> None:
-        self.beta = torch.rand((nf, hd), device=device).type(dtype)
-        self.mu_coeff = torch.tensor([mu]*hd, device=device).type(dtype)
-        self.sigma_coeff = torch.tensor([sigma]*hd, device=device).type(dtype)
+    def __init__(self, n_features, n_hidden, mu, sigma, risk_function=torch.nn.Tanh(),
+                 device='cpu', dtype=torch.float64) -> None:
+        self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
+        self.mu_coeff = torch.tensor([mu]*n_hidden, device=device).type(dtype)
+        self.sigma_coeff = torch.tensor([sigma]*n_hidden, device=device).type(dtype)
         self.hidden_layer = risk_function
         self.device = device
 
@@ -81,14 +81,13 @@ class DGP_LogNormal_nonlinear(DGP_LogNormal_linear):
         return mu, sigma
 
 class DGP_LogNormalCox_linear:
-    def __init__(self, nf, mu, sigma, device) -> None:
-        self.nf = nf
-        self.mu = torch.tensor([mu]).type(torch.float32).to(device)
-        self.sigma = torch.tensor([sigma]).type(torch.float32).to(device)
-        self.coeff = torch.rand((nf,)).to(device)
+    def __init__(self, n_features, mu, sigma, device="cpu", dtype=torch.float64) -> None:
+        self.mu = torch.tensor([mu]).type(dtype).to(device)
+        self.sigma = torch.tensor([sigma]).type(dtype).to(device)
+        self.coeff = torch.rand((n_features,)).to(device)
 
     def bl_hazard(self, t):
-        # the baseline hazard function of the lognormal CoxPH model, here we use the hazard function of the lognormal
+        # The baseline hazard function of the lognormal CoxPH model, here we use the hazard function of the lognormal
         # distribution as the baseline hazard function
         pdf = (1 / (t * self.sigma * torch.sqrt(torch.tensor(2 * torch.pi)))) * torch.exp(
             -((LOG(t) - self.mu) ** 2) / (2 * self.sigma ** 2))
@@ -125,9 +124,9 @@ class DGP_LogNormalCox_linear:
         raise NotImplementedError
 
 class DGP_Exp_linear:
-    def __init__(self, baseline_hazard, num_features, device, dtype=torch.float64) -> None:
-        self.bh = torch.tensor([baseline_hazard]).type(torch.float32).to(device)
-        self.coeff = torch.rand((num_features,)).to(device)
+    def __init__(self, n_features, baseline_hazard, device="cpu", dtype=torch.float64) -> None:
+        self.bh = torch.tensor([baseline_hazard]).type(dtype).to(device)
+        self.coeff = torch.rand((n_features,)).to(device)
     
     def hazard(self, t, x):
         return self.bh * torch.exp(torch.matmul(x, self.coeff))
@@ -152,10 +151,11 @@ class DGP_Exp_linear:
 
 class DGP_EXP_nonlinear(DGP_Exp_linear):
     # This is the exponential CoxPH model with a nonlinear risk function
-    def __init__(self, bh, nf, hd, risk_function=torch.nn.Tanh(), device='cuda', dtype=torch.float64) -> None:
-        self.bh = torch.tensor([bh], device=device).type(torch.float32)
-        self.beta = torch.rand((nf, hd), device=device).type(dtype)
-        self.coeff = torch.rand((hd,), device=device).type(dtype)
+    def __init__(self, n_features, baseline_hazard, n_hidden, risk_function=torch.nn.Tanh(),
+                 device='cpu', dtype=torch.float64) -> None:
+        self.bh = torch.tensor([baseline_hazard], device=device).type(dtype)
+        self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
+        self.coeff = torch.rand((n_hidden,), device=device).type(dtype)
         self.hidden_layer = risk_function
     
     def hazard(self, t, x):
@@ -163,10 +163,10 @@ class DGP_EXP_nonlinear(DGP_Exp_linear):
         return self.bh * torch.exp(risks)
 
 class DGP_Weibull_linear:
-    def __init__(self, num_features, alpha, gamma, device, dtype):
+    def __init__(self, n_features, alpha, gamma, device="cpu", dtype=torch.float64):
         self.alpha = torch.tensor([alpha], device=device).type(dtype)
         self.gamma = torch.tensor([gamma], device=device).type(dtype)
-        self.coeff = torch.rand((num_features,), device=device).type(dtype)
+        self.coeff = torch.rand((n_features,), device=device).type(dtype)
 
     def PDF(self ,t ,x):
         return self.hazard(t, x) * self.survival(t,x)
@@ -190,11 +190,11 @@ class DGP_Weibull_linear:
         return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
 
 class DGP_Weibull_nonlinear:
-    def __init__(self, num_features, num_hidden, alpha, gamma,
-                 risk_function=torch.nn.Tanh(), device='cuda', dtype=torch.float64):
-        self.alpha = torch.tensor([alpha]*num_hidden, device=device).type(dtype)
-        self.gamma = torch.tensor([gamma]*num_hidden, device=device).type(dtype)
-        self.beta = torch.rand((num_features, num_hidden), device=device).type(dtype)
+    def __init__(self, n_features, n_hidden, alpha, gamma, risk_function=torch.nn.Tanh(),
+                 device='cpu', dtype=torch.float64):
+        self.alpha = torch.tensor([alpha]*n_hidden, device=device).type(dtype)
+        self.gamma = torch.tensor([gamma]*n_hidden, device=device).type(dtype)
+        self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
         self.hidden_layer = risk_function
         
     def PDF(self ,t ,x):
@@ -208,7 +208,6 @@ class DGP_Weibull_nonlinear:
     
     def hazard(self, t, x):
         shape, scale = self.pred_params(x)
-        # get hazard from a weiibull distribution
         return shape/scale * (t/scale)**(shape-1)
 
     def cum_hazard(self, t, x):

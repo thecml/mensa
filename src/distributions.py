@@ -19,10 +19,9 @@ def LOG(x):
 
 class LogNormal_linear:
     # Note this is the LogNormal model, not the LogNormal CoxPH model
-    def __init__(self, nf, device='cuda', dtype=torch.float64) -> None:
-        self.nf = nf
-        self.mu_coeff = torch.rand((nf,), device=device).type(dtype)
-        self.sigma_coeff = torch.rand((nf,), device=device).type(dtype)
+    def __init__(self, n_features, device="cpu", dtype=torch.float64) -> None:
+        self.mu_coeff = torch.rand((n_features,), device=device).type(dtype)
+        self.sigma_coeff = torch.rand((n_features,), device=device).type(dtype)
         self.device = device
 
     def hazard(self, t, x):
@@ -68,10 +67,11 @@ class LogNormal_linear:
 
 class LogNormal_nonlinear(LogNormal_linear):
     # Note this is the LogNormal nonlinear model
-    def __init__(self, nf, hd, risk_function=torch.nn.Tanh(), device='cuda', dtype=torch.float64) -> None:
-        self.beta = torch.rand((nf, hd), device=device).type(dtype)
-        self.mu_coeff = torch.rand((hd,), device=device).type(dtype)
-        self.sigma_coeff = torch.rand((hd,), device=device).type(dtype)
+    def __init__(self, n_features, n_hidden, risk_function=torch.nn.Tanh(),
+                 device="cpu", dtype=torch.float64) -> None:
+        self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
+        self.mu_coeff = torch.rand((n_hidden,), device=device).type(dtype)
+        self.sigma_coeff = torch.rand((n_hidden,), device=device).type(dtype)
         self.hidden_layer = risk_function
         self.device = device
 
@@ -90,11 +90,10 @@ class LogNormal_nonlinear(LogNormal_linear):
         return mu, sigma
 
 class LogNormalCox_linear:
-    def __init__(self, nf, device) -> None:
-        self.nf = nf
-        self.mu = torch.rand(1).type(torch.float32).to(device)
-        self.sigma = torch.rand(1).type(torch.float32).to(device)
-        self.coeff = torch.rand((nf,)).to(device)
+    def __init__(self, n_features, device="cpu", dtype=torch.float64) -> None:
+        self.mu = torch.rand(1).type(dtype).to(device)
+        self.sigma = torch.rand(1).type(dtype).to(device)
+        self.coeff = torch.rand((n_features,)).to(device)
 
     def bl_hazard(self, t):
         # the baseline hazard function of the lognormal CoxPH model, here we use the hazard function of the lognormal
@@ -139,10 +138,9 @@ class LogNormalCox_linear:
         raise NotImplementedError
 
 class Exp_linear:
-    def __init__(self, nf, device, dtype=torch.float64) -> None:
-        self.nf = nf
-        self.bh = torch.rand(1).type(torch.float32).to(device)
-        self.coeff = torch.rand((nf,)).to(device)
+    def __init__(self, n_features, device="cpu", dtype=torch.float64) -> None:
+        self.bh = torch.rand(1).type(dtype).to(device)
+        self.coeff = torch.rand((n_features,)).to(device)
     
     def hazard(self, t, x):
         return self.bh * torch.exp(torch.matmul(x, self.coeff))
@@ -171,10 +169,11 @@ class Exp_linear:
 
 class EXP_nonlinear(Exp_linear):
     # This is the exponential CoxPH model with a nonlinear risk function
-    def __init__(self, nf, hd, risk_function=torch.nn.Tanh(), device='cuda', dtype=torch.float64) -> None:
-        self.bh = torch.rand(1, device=device).type(torch.float32)
-        self.beta = torch.rand((nf, hd), device=device).type(dtype)
-        self.coeff = torch.rand((hd,), device=device).type(dtype)
+    def __init__(self, n_features, n_hidden, risk_function=torch.nn.Tanh(),
+                 device='cpu', dtype=torch.float64) -> None:
+        self.bh = torch.rand(1, device=device).type(dtype)
+        self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
+        self.coeff = torch.rand((n_hidden,), device=device).type(dtype)
         self.hidden_layer = risk_function
     
     def hazard(self, t, x):
@@ -182,10 +181,10 @@ class EXP_nonlinear(Exp_linear):
         return self.bh * torch.exp(risks)
 
 class Weibull_linear:
-    def __init__(self, nf, device, dtype):
+    def __init__(self, n_features, device="cpu", dtype=torch.float64):
         self.alpha = torch.rand(1, device=device).type(dtype)
         self.gamma = torch.rand(1, device=device).type(dtype)
-        self.coeff = torch.rand((nf,), device=device).type(dtype)
+        self.coeff = torch.rand((n_features,), device=device).type(dtype)
 
     def PDF(self ,t ,x):
         return self.hazard(t, x) * self.survival(t,x)
@@ -193,7 +192,7 @@ class Weibull_linear:
     def CDF(self ,t ,x):   
         return 1 - self.survival(t,x)
     
-    def survival(self ,t ,x):   
+    def survival(self ,t ,x):
         return torch.exp(-self.cum_hazard(t,x))
     
     def hazard(self, t, x):
@@ -217,10 +216,11 @@ class Weibull_linear:
         return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
 
 class Weibull_nonlinear:
-    def __init__(self, nf, hd, risk_function=torch.nn.Tanh(), device='cuda', dtype=torch.float64):
-        self.alpha = torch.rand((hd,), device=device).type(dtype)
-        self.gamma = torch.rand((hd,), device=device).type(dtype)
-        self.beta = torch.rand((nf, hd), device=device).type(dtype)
+    def __init__(self, n_features, n_hidden, risk_function=torch.nn.Tanh(),
+                 device='cpu', dtype=torch.float64):
+        self.alpha = torch.rand((n_hidden,), device=device).type(dtype)
+        self.gamma = torch.rand((n_hidden,), device=device).type(dtype)
+        self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
         self.hidden_layer = risk_function
         
     def PDF(self ,t ,x):
@@ -234,7 +234,6 @@ class Weibull_nonlinear:
     
     def hazard(self, t, x):
         shape, scale = self.pred_params(x)
-        # get hazard from a weiibull distribution
         return shape/scale * (t/scale)**(shape-1)
 
     def cum_hazard(self, t, x):
@@ -263,11 +262,10 @@ class Weibull_nonlinear:
         return scale * ((-LOG(u))**(1/shape))
     
 class Weibull_log_linear:
-    def __init__(self, nf, device, dtype) -> None:
-        self.nf = nf
+    def __init__(self, n_features, device="cpu", dtype=torch.float64) -> None:
         self.mu = torch.rand(1, device=device).type(dtype)
         self.sigma = torch.rand(1, device=device).type(dtype)
-        self.coeff = torch.rand((nf,), device=device).type(dtype)
+        self.coeff = torch.rand((n_features,), device=device).type(dtype)
     
     def survival(self,t,x):
         return torch.exp(-1*torch.exp((LOG(t)-self.mu-torch.matmul(x, self.coeff))/torch.exp(self.sigma)))

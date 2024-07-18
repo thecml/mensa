@@ -86,8 +86,8 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
             dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=4, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=4, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
     
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
