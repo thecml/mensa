@@ -32,10 +32,10 @@ from utility.survival import (make_time_bins, preprocess_data, convert_to_struct
 from utility.data import dotdict
 from utility.config import load_config
 from utility.loss import triple_loss
-from mensa.model import train_mensa_model_3_events, make_mensa_model_3_events
 from utility.data import format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch, format_survtrace_data
 from utility.evaluation import global_C_index, local_C_index
-from mensa.model import CompetingMENSA
+from mensa.model import MENSA
+from Copula2 import Convex_Nested
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
@@ -69,7 +69,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv']
+MODELS = ['mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -171,12 +171,12 @@ if __name__ == "__main__":
             model.fit(X_train, pd.DataFrame(y_train), val_data=(X_valid, pd.DataFrame(y_valid)))
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
-            copula = NestedClayton(torch.tensor([2.0]), torch.tensor([2.0]),
-                                   1e-4, 1e-4, device, dtype)
-            n_epochs = 1000 #config['n_epochs']
-            lr = 0.01 #config['lr']
-            model = CompetingMENSA(n_features, n_events, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr)
+            n_epochs = config['n_epochs']
+            lr = config['lr']
+            batch_size = config['batch_size']
+            copula = Convex_Nested(2, 2, 1e-3, 1e-3, device)
+            model = MENSA(n_features, n_events, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=100, lr=0.005, batch_size=1024)
         elif model_name == "dgp":
             pass
         else:
@@ -225,12 +225,11 @@ if __name__ == "__main__":
             model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
             all_preds = [model_preds for _ in range(n_events)]
         elif model_name == "mensa":
-            models = model.get_models()
+            model_preds = model.predict(test_dict['X'], time_bins.numpy())
             all_preds = []
-            for i in range(n_events):
-                model_preds = predict_survival_function(models[i], test_dict['X'], time_bins).detach().numpy()
-                model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
-                all_preds.append(model_preds)
+            for model_pred in model_preds:
+                model_pred = pd.DataFrame(model_pred.detach().numpy(), columns=time_bins.numpy())
+                all_preds.append(model_pred)
         elif model_name == "dgp":
             all_preds = []
             for model in dgps:

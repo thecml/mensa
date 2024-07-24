@@ -26,19 +26,18 @@ from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
 from copula import Clayton2D, Frank2D, NestedClayton
-from dgp import Weibull_linear, Weibull_nonlinear, Weibull_log_linear
 from utility.survival import (make_time_bins, preprocess_data, convert_to_structured,
                               risk_fn, compute_l1_difference, predict_survival_function,
                               make_times_hierarchical)
 from utility.data import (dotdict, format_data)
 from utility.config import load_config
 from utility.loss import triple_loss
-from mensa.model import train_mensa_model_3_events, make_mensa_model_3_events
 from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch,
                           format_survtrace_data, format_data_as_dict_multi)
 from utility.evaluation import global_C_index, local_C_index
 from data_loader import ALSDataLoader
-from mensa.model import MultiMENSA
+from mensa.model import MENSA
+from Copula2 import Convex_Nested
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
@@ -153,12 +152,12 @@ if __name__ == "__main__":
                                               valid_data, config, hyperparams, verbose)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
-            copula = NestedClayton(torch.tensor([2.0]), torch.tensor([2.0]),
-                                   1e-4, 1e-4, device, dtype)
             n_epochs = config['n_epochs']
             lr = config['lr']
-            model = MultiMENSA(n_features, n_events, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr)
+            batch_size = config['batch_size']
+            copula = Convex_Nested(2, 2, 1e-3, 1e-3, device)
+            model = MENSA(n_features, n_events, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=128)
         else:
             raise NotImplementedError()
         
@@ -180,12 +179,11 @@ if __name__ == "__main__":
                 preds = pd.DataFrame(event_preds[i], columns=bin_locations)
                 all_preds.append(preds)
         elif model_name == "mensa":
-            models = model.get_models()
+            model_preds = model.predict(test_dict['X'], time_bins.numpy())
             all_preds = []
-            for i in range(n_events):
-                model_preds = predict_survival_function(models[i], test_dict['X'], time_bins).detach().numpy()
-                model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
-                all_preds.append(model_preds)
+            for model_pred in model_preds:
+                model_pred = pd.DataFrame(model_pred.detach().numpy(), columns=time_bins.numpy())
+                all_preds.append(model_pred)
         else:
             raise NotImplementedError()
         

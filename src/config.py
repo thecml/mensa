@@ -218,3 +218,9 @@ DCSURVIVAL_PARAMS = {
     'lc_w_range': [0, 1.0],
     'shift_w_range': [0., 2.0]
 }
+
+MENSA_PARAMS = {
+    'layers': [64, 64],
+    'lr': 0.005,
+    'dropout': 0.25
+}

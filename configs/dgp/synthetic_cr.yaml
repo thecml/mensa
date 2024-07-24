@@ -1,9 +1,11 @@
 alpha_e1: 18
 alpha_e2: 17
 alpha_e3: 16
+alpha_e4: 15
 gamma_e1: 3
 gamma_e2: 3
 gamma_e3: 3
+gamma_e4: 3
 n_events: 3
 n_samples: 10000
 n_features: 10
