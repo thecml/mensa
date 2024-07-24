@@ -1,90 +1,53 @@
 import torch
+from mensa.utility import *
 
-def LOG(x):
-    return torch.log(x+1e-20*(x<1e-20))
+def safe_log(x):
+    return torch.log(x+1e-6*(x<1e-6))
 
-def calculate_loss_one_model(model, data, event_name='T1'):
-    """
-    Calculates loss assuming everything is observed/no censoring
-    """
-    f = model.PDF(data[event_name], data['X'])
-    return -torch.mean(LOG(f))
-
-def calculate_loss_two_models(model1, model2, data, copula=None):
-    """
-    Calculates loss for two models in singe event scenario
-    """
-    s1 = model1.survival(data['T'], data['X'])
-    s2 = model2.survival(data['T'], data['X'])
-    f1 = model1.PDF(data['T'], data['X'])
-    f2 = model2.PDF(data['T'], data['X'])
-    w = torch.mean(data['E'])
+def double_loss(model, X, T, E, copula, device):
+    k1, k2, lam1, lam2 = model(X)
+    log_pdf1 = weibull_log_pdf(T, k1, lam1)
+    log_pdf2 = weibull_log_pdf(T, k2, lam2)
+    log_surv1 = weibull_log_survival(T, k1, lam1)
+    log_surv2 = weibull_log_survival(T, k2, lam2)
     if copula is None:
-        p1 = LOG(f1) + LOG(s2)
-        p2 = LOG(f2) + LOG(s1)
+        p1 = log_pdf1 + log_surv2
+        p2 = log_surv1 + log_pdf2
     else:
-        S = torch.cat([s1.reshape(-1,1), s2.reshape(-1,1)], dim=1).clamp(0.001,0.999)
-        p1 = LOG(f1) + LOG(copula.conditional_cdf("u", S))
-        p2 = LOG(f2) + LOG(copula.conditional_cdf("v", S))
+        S = torch.cat([torch.exp(log_surv1).reshape(-1,1), torch.exp(log_surv2).reshape(-1,1)], dim=1)
+        p1 = log_pdf1 + safe_log(copula.conditional_cdf("u", S))
+        p2 = log_pdf2 + safe_log(copula.conditional_cdf("v", S))
     p1[torch.isnan(p1)] = 0
     p2[torch.isnan(p2)] = 0
-    return -torch.mean(p1 * data['E'] + (1-data['E'])*p2)
-
-def calculate_loss_three_models(model1, model2, model3, data, copula=None):
-    """
-    Calculates loss for three models in competing risks (K=3) scenario
-    """
-    s1 = model1.survival(data['T'], data['X'])
-    s2 = model2.survival(data['T'], data['X'])
-    s3 = model3.survival(data['T'], data['X'])
-    f1 = model1.PDF(data['T'], data['X'])
-    f2 = model2.PDF(data['T'], data['X'])
-    f3 = model3.PDF(data['T'], data['X'])
-    w = torch.mean(data['E'])
-    if copula is None:
-        p1 = LOG(f1) + LOG(s2) + LOG(s3)
-        p2 = LOG(f2) + LOG(s1) + LOG(s3)
-        p3 = LOG(f3) + LOG(s1) + LOG(s2)
-    else:
-        S = torch.cat([s1.reshape(-1,1), s2.reshape(-1,1), s3.reshape(-1,1)], dim=1).clamp(0.001,0.999)
-        p1 = LOG(f1) + LOG(copula.conditional_cdf("u", S))
-        p2 = LOG(f2) + LOG(copula.conditional_cdf("v", S))
-        p3 = LOG(f3) + LOG(copula.conditional_cdf("w", S))
-    p1[torch.isnan(p1)] = 0
-    p2[torch.isnan(p2)] = 0
-    p3[torch.isnan(p3)] = 0
-    e1 = (data['E'] == 0)*1.0
-    e2 = (data['E'] == 1)*1.0
-    e3 = (data['E'] == 2)*1.0
-    loss = torch.sum(p1 * e1) + torch.sum(p2*e2) + torch.sum(p3*e3)
-    loss = -loss/data['E'].shape[0]
+    e1 = (E == 0) * 1.0
+    e2 = (E == 1) * 1.0
+    loss = torch.sum(e1 * p1) + torch.sum(e2 * p2)
+    loss = -loss/E.shape[0]
     return loss
 
-def calculate_loss_three_models_me(model1, model2, model3, data, copula=None):
-    """
-    Calculates loss for thee models in multi event scenario
-    """
-    s1 = model1.survival(data['T'][:,0], data['X'])
-    s2 = model2.survival(data['T'][:,1], data['X'])
-    s3 = model3.survival(data['T'][:,2], data['X'])
-    f1 = model1.PDF(data['T'][:,0], data['X'])
-    f2 = model2.PDF(data['T'][:,1], data['X'])
-    f3 = model3.PDF(data['T'][:,2], data['X'])
+def triple_loss(model, X, T, E, copula, device):
+    k1, k2, k3, lam1, lam2, lam3 = model(X)
+    log_pdf1 = weibull_log_pdf(T, k1, lam1)
+    log_pdf2 = weibull_log_pdf(T, k2, lam2)
+    log_pdf3 = weibull_log_pdf(T, k3, lam3)
+    log_surv1 = weibull_log_survival(T, k1, lam1)
+    log_surv2 = weibull_log_survival(T, k2, lam2)
+    log_surv3 = weibull_log_survival(T, k3, lam3)
     if copula is None:
-        p1 = LOG(f1) + LOG(s2) + LOG(s3)
-        p2 = LOG(f2) + LOG(s1) + LOG(s3)
-        p3 = LOG(f3) + LOG(s1) + LOG(s2)
+        p1 = log_pdf1 + log_surv2 + log_surv3
+        p2 = log_surv1 + log_pdf2 + log_surv3
+        p3 = log_surv1 + log_surv2 + log_pdf3
     else:
-        S = torch.cat([s1.reshape(-1,1), s2.reshape(-1,1), s3.reshape(-1,1)], dim=1).clamp(0.001,0.999)
-        p1 = LOG(f1) + LOG(copula.conditional_cdf("u", S))
-        p2 = LOG(f2) + LOG(copula.conditional_cdf("v", S))
-        p3 = LOG(f3) + LOG(copula.conditional_cdf("w", S))
+        S = torch.cat([torch.exp(log_surv1).reshape(-1,1), torch.exp(log_surv2).reshape(-1,1), torch.exp(log_surv3).reshape(-1,1)], dim=1)
+        p1 = log_pdf1 + safe_log(copula.conditional_cdf("u", S))
+        p2 = log_pdf2 + safe_log(copula.conditional_cdf("v", S))
+        p3 = log_pdf3 + safe_log(copula.conditional_cdf("w", S))
     p1[torch.isnan(p1)] = 0
     p2[torch.isnan(p2)] = 0
     p3[torch.isnan(p3)] = 0
-    e1 = data['E'][:,0]
-    e2 = data['E'][:,1]
-    e3 = data['E'][:,2]
-    loss = torch.sum(p1 * e1) + torch.sum(p2*e2) + torch.sum(p3*e3)
-    loss = -loss/data['E'].shape[0]
+    e1 = (E == 0) * 1.0
+    e2 = (E == 1) * 1.0
+    e3 = (E == 2) * 1.0
+    loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3)
+    loss = -loss/E.shape[0]
     return loss

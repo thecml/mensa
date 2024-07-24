@@ -63,7 +63,7 @@ class DGP_LogNormal_linear:
 
 class DGP_LogNormal_nonlinear(DGP_LogNormal_linear):
     # Note this is the LogNormal nonlinear model
-    def __init__(self, n_features, n_hidden, mu, sigma, risk_function=torch.nn.Tanh(),
+    def __init__(self, n_features, n_hidden, mu, sigma, risk_function=torch.nn.ReLU(),
                  device='cpu', dtype=torch.float64) -> None:
         self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
         self.mu_coeff = torch.tensor([mu]*n_hidden, device=device).type(dtype)
@@ -151,7 +151,7 @@ class DGP_Exp_linear:
 
 class DGP_EXP_nonlinear(DGP_Exp_linear):
     # This is the exponential CoxPH model with a nonlinear risk function
-    def __init__(self, n_features, baseline_hazard, n_hidden, risk_function=torch.nn.Tanh(),
+    def __init__(self, n_features, baseline_hazard, n_hidden, risk_function=torch.nn.ReLU(),
                  device='cpu', dtype=torch.float64) -> None:
         self.bh = torch.tensor([baseline_hazard], device=device).type(dtype)
         self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
@@ -190,7 +190,7 @@ class DGP_Weibull_linear:
         return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
 
 class DGP_Weibull_nonlinear:
-    def __init__(self, n_features, n_hidden, alpha, gamma, risk_function=torch.nn.Tanh(),
+    def __init__(self, n_features, n_hidden, alpha, gamma, risk_function=torch.nn.ReLU(),
                  device='cpu', dtype=torch.float64):
         self.alpha = torch.tensor([alpha]*n_hidden, device=device).type(dtype)
         self.gamma = torch.tensor([gamma]*n_hidden, device=device).type(dtype)

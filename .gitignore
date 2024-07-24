@@ -16,6 +16,9 @@ __pycache__/
 # Results
 results/*.csv
 
+# Models
+models/*
+
 # NN weights
 weight*
 survtrace.pt
