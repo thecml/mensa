@@ -124,7 +124,7 @@ class Convex_Nested:
         self.P_clayton = Convex_2_Clayton(theta1, theta1, eps1, eps1, device)
         self.CH_clayton = Convex_2_Clayton(theta2, theta2, eps2, eps2, device)
         self.device = device
-        self.eps=eps1
+        self.eps = eps1
     
     def enable_grad(self):
         self.P_clayton.enable_grad()

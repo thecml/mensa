@@ -69,7 +69,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['mensa']
+MODELS = ['hierarch']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -275,7 +275,7 @@ if __name__ == "__main__":
             print(metrics)
             res_sr = pd.Series([model_name, seed, linear, copula_name, k_tau, event_id+1] + metrics,
                                 index=["ModelName", "Seed", "Linear", "Copula", "KTau", "EventId",
-                                        "CI", "IBS", "MAE", "L1", "DCalib", "GlobalCI", "LocalCI"])
+                                       "CI", "IBS", "MAE", "L1", "DCalib", "GlobalCI", "LocalCI"])
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
         
         # Save results

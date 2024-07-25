@@ -67,7 +67,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['mensa']
+MODELS = ['hierarch']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -98,6 +98,7 @@ if __name__ == "__main__":
     train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
     valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
     test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
+    n_samples = train_dict['X'].shape[0]
     
     # Make time bins
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
@@ -133,9 +134,10 @@ if __name__ == "__main__":
             model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
                                         (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
         elif model_name == "hierarch":
-            config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"seer.yaml")
+            config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"{dataset_name}.yaml")
             n_time_bins = len(time_bins)
-            train_data, valid_data, test_data = format_hierarchical_data_cr(train_dict, valid_dict, test_dict, n_time_bins)
+            train_data, valid_data, test_data = format_hierarchical_data_cr(train_dict, valid_dict, test_dict,
+                                                                            n_time_bins, n_events, censoring_event=False)
             config['min_time'] = int(train_data[1].min())
             config['max_time'] = int(train_data[1].max())
             config['num_bins'] = len(time_bins)
@@ -182,7 +184,6 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Compute survival function
-        n_samples = test_dict['X'].shape[0]
         if model_name == "deepsurv":
             all_preds = []
             for trained_model in trained_models:
