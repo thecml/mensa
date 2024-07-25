@@ -144,7 +144,7 @@ class MENSA:
                 elif self.n_events == 3:
                     loss = triple_loss(self.model, X, T, E, self.copula, self.device)
                 else:
-                    raise NotImplementedError()        
+                    raise NotImplementedError()
             
                 loss.backward()
                 optimizer.step()

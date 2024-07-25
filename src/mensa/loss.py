@@ -27,7 +27,7 @@ def double_loss(model, X, T, E, copula, device):
 
 def triple_loss(model, X, T, E, copula, device):
     k1, k2, k3, lam1, lam2, lam3 = model(X)
-    log_pdf1 = weibull_log_pdf(T, k1, lam1)
+    log_pdf1 = weibull_log_pdf(T, k1, lam1) # TODO: Handle multi-event
     log_pdf2 = weibull_log_pdf(T, k2, lam2)
     log_pdf3 = weibull_log_pdf(T, k3, lam3)
     log_surv1 = weibull_log_survival(T, k1, lam1)

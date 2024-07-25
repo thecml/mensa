@@ -107,7 +107,7 @@ DEEPSURV_PARAMS = {
     'verbose': False,
     'lr': 0.005,
     'c1': 0.01,
-    'num_epochs': 1000,
+    'num_epochs': 100,
     'dropout': 0.25,
     'n_samples_train': 10,
     'n_samples_test': 100,

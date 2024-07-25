@@ -78,7 +78,8 @@ if __name__ == "__main__":
     data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_me.yaml")
     dl = MultiEventSyntheticDataLoader().load_data(data_config, k_taus=[k_tau, k_tau, k_tau],
                                                    linear=linear, device=device, dtype=dtype)
-    train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
+    train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
+                                                      random_state=seed)
     
     n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
@@ -126,7 +127,7 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             copula = Convex_Nested(2, 2, 1e-3, 1e-3, device)
             model = MENSA(n_features, n_events, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=128)
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=1024)
         elif model_name == "dgp":
             pass
         else:
