@@ -164,8 +164,8 @@ if __name__ == "__main__":
                 preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
                 for i in range(time_bins.shape[0]):
                     preds[:,i] = model.survival(time_bins[i], test_dict['X'])
-                    preds = pd.DataFrame(preds, columns=time_bins.numpy())
-                    all_preds.append(preds)
+                preds_df = pd.DataFrame(preds, columns=time_bins.numpy())
+                all_preds.append(preds_df)
         else:
             raise NotImplementedError()
         

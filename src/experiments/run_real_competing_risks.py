@@ -67,7 +67,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['hierarch']
+MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -81,7 +81,7 @@ if __name__ == "__main__":
     
     # Load and split data
     dl = get_data_loader(dataset_name)
-    dl = dl.load_data()
+    dl = dl.load_data(n_samples=1000)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=seed)
     n_events = dl.n_events
@@ -234,8 +234,10 @@ if __name__ == "__main__":
         y_test_time = np.stack([test_dict['T'] for _ in range(n_events)], axis=1)
         y_test_event = np.stack([np.array((test_dict['E'] == i+1)*1.0) for i in range(n_events)], axis=1)
         all_preds_arr = [df.to_numpy() for df in all_preds]
-        global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
-        local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
+        #global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
+        #local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
+        global_ci = 0 #TODO: Weijie, add 1 to the start of surv_preds when calculating CI
+        local_ci = 0
         
         # Make evaluation for each event
         model_results = pd.DataFrame()
@@ -258,8 +260,8 @@ if __name__ == "__main__":
             
             metrics = [ci, ibs, mae_hinge, mae_margin, mae_pseudo, d_calib, global_ci, local_ci]
             print(metrics)
-            res_sr = pd.Series([model_name, seed, event_id+1] + metrics,
-                                index=["ModelName", "Seed", "EventId", "CI", "IBS",
+            res_sr = pd.Series([model_name, dataset_name, seed, event_id+1] + metrics,
+                                index=["ModelName", "DatasetName", "Seed", "EventId", "CI", "IBS",
                                        "MAEH", "MAEM", "MAEPO", "DCalib", "GlobalCI", "LocalCI"])
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
             

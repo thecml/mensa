@@ -69,7 +69,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['mensa']
+MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'dgp']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -176,7 +176,7 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             copula = Convex_Nested(2, 2, 1e-3, 1e-3, device)
             model = MENSA(n_features, n_events, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100, lr=0.005, batch_size=1024)
+            model.fit(train_dict, valid_dict, n_epochs=100, lr=0.005, batch_size=128)
         elif model_name == "dgp":
             pass
         else:
@@ -236,8 +236,8 @@ if __name__ == "__main__":
                 preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
                 for i in range(time_bins.shape[0]):
                     preds[:,i] = model.survival(time_bins[i], test_dict['X'])
-                    preds = pd.DataFrame(preds, columns=time_bins.numpy())
-                    all_preds.append(preds)
+                preds_df = pd.DataFrame(preds, columns=time_bins.numpy())
+                all_preds.append(preds_df)
         else:
             raise NotImplementedError()
         
