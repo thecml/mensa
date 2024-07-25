@@ -174,7 +174,7 @@ class MENSA:
                 
                 if val_loss  < min_val_loss:
                     min_val_loss = val_loss
-                    torch.save(self.model.state_dict(), 'models/mensa.pt')
+                    torch.save(self.model.state_dict(), '../models/mensa.pt')
                     patience = 500
                 else:
                     patience = patience - 1
@@ -191,7 +191,7 @@ class MENSA:
                     print(f"{min_val_loss}")
                     
     def predict(self, x_test, time_bins):
-        self.model.load_state_dict(torch.load('models/mensa.pt'))
+        self.model.load_state_dict(torch.load('../models/mensa.pt'))
         self.model.eval()
         
         if self.n_events == 2:

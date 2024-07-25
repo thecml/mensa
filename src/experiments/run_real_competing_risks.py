@@ -6,7 +6,8 @@ Experiment 2.1
 Datasets: SEER, Rotterdam
 Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
 """
-
+import sys, os
+sys.path.append(os.path.abspath('../'))
 # 3rd party
 import pandas as pd
 import numpy as np
@@ -64,10 +65,12 @@ dtype = torch.float64
 torch.set_default_dtype(dtype)
 
 # Setup device
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu')
 
 # Define models
-MODELS = ['mensa']
+MODELS = ['hierarch']
+# 'mensa', 'deepsurv', 'deephit', 'hierarch', 'mtlrcr', 'dsm',
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -135,7 +138,7 @@ if __name__ == "__main__":
         elif model_name == "hierarch":
             config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"seer.yaml")
             n_time_bins = len(time_bins)
-            train_data, valid_data, test_data = format_hierarchical_data_cr(train_dict, valid_dict, test_dict, n_time_bins)
+            train_data, valid_data, test_data = format_hierarchical_data_cr(train_dict, valid_dict, test_dict, n_time_bins, n_events=1)
             config['min_time'] = int(train_data[1].min())
             config['max_time'] = int(train_data[1].max())
             config['num_bins'] = len(time_bins)
@@ -195,7 +198,7 @@ if __name__ == "__main__":
             cif = model.predict_cif(test_dict['X'])
             all_preds = []
             for i in range(n_events):
-                preds = pd.DataFrame((1-cif[i]).T, columns=time_bins_dh.numpy())
+                preds = pd.DataFrame((1-cif[i]).T.cpu().detach().numpy(), columns=time_bins_dh.cpu().detach().numpy())
                 all_preds.append(preds)
         elif model_name == "hierarch":
             event_preds = util.get_surv_curves(test_data[0], model)
