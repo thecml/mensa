@@ -104,6 +104,9 @@ class MENSA:
         self.device = device
         self.dtype = dtype
         
+        self.train_loss, self.valid_loss = list(), list()
+        self.thetas = list() 
+        
         if self.n_events == 2:
             self.model = Net2(n_features, layers, dropout).to(device)
         elif self.n_events == 3:
@@ -133,6 +136,7 @@ class MENSA:
         patience = 500
         for itr in range(n_epochs):
             self.model.train()
+            batch_loss = list()
             for batch in train_dataloader:
                 optimizer.zero_grad()
                 X = batch[0].to(self.device)
@@ -145,6 +149,8 @@ class MENSA:
                     loss = triple_loss(self.model, X, T, E, self.copula, self.device)
                 else:
                     raise NotImplementedError()
+                
+                batch_loss.append(float(loss.detach().numpy()))
             
                 loss.backward()
                 optimizer.step()
@@ -154,6 +160,10 @@ class MENSA:
                         if p < 0.01:
                             with torch.no_grad():
                                 p[:] = torch.clamp(p, 0.01, 100)
+            
+            self.train_loss.append(np.mean(batch_loss))
+            self.thetas.append(tuple([float(tensor.detach().numpy())
+                                      for tensor in self.copula.parameters()[:-2]]))
                 
             with torch.no_grad():
                 self.model.eval()
@@ -168,6 +178,8 @@ class MENSA:
                                            self.copula, self.device).detach().clone().cpu().numpy()
                 else:
                     raise NotImplementedError()
+                
+                self.valid_loss.append(val_loss)
                 
                 if use_wandb:
                     wandb.log({"val_loss": val_loss})
