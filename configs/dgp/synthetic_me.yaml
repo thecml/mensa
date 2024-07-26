@@ -7,3 +7,4 @@ gamma_e3: 3
 n_events: 3
 n_samples: 10000
 n_features: 10
+adm_censoring_time: 10

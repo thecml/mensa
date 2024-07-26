@@ -124,7 +124,8 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         df['time'] = self.y_t
     
         df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
-                                                            frac_valid=valid_size, frac_test=test_size, random_state=0)
+                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            random_state=random_state)
     
         dataframes = [df_train, df_valid, df_test]
         dicts = []
@@ -233,8 +234,7 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         
 class MultiEventSyntheticDataLoader(BaseDataLoader):
     def load_data(self, data_config, copula_names=["clayton", "clayton", "clayton"],
-                  k_taus=[0, 0, 0], linear=True, device='cpu',
-                  adm_censoring_time=14, dtype=torch.float64):
+                  k_taus=[0, 0, 0], linear=True, device='cpu', dtype=torch.float64):
         """
         This method generates synthetic data for 3 multiple events (with adm. censoring)
         DGP1: Data generation process for event 1
@@ -249,6 +249,7 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         gamma_e3 = data_config['gamma_e3']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
+        adm_censoring_time = data_config['adm_censoring_time']
         
         thetas = [kendall_tau_to_theta(copula_names[i], k_taus[i]) for i in range(3)]
         copula_parameters = [
