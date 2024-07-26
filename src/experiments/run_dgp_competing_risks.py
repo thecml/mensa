@@ -35,7 +35,7 @@ from utility.loss import triple_loss
 from utility.data import format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch, format_survtrace_data
 from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
-from Copula2 import Convex_Nested
+from Copula2 import Convex_Nested, Convex_Nested2
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
@@ -69,7 +69,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'dgp']
+MODELS = ["mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -174,9 +174,9 @@ if __name__ == "__main__":
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
-            copula = Convex_Nested(2, 2, 1e-3, 1e-3, device)
+            copula = Convex_Nested2(2, 2, 1e-3, 1e-3, device)
             model = MENSA(n_features, n_events, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100, lr=0.005, batch_size=128)
+            model.fit(train_dict, valid_dict, n_epochs=2000, lr=0.005, batch_size=1024)
         elif model_name == "dgp":
             pass
         else:

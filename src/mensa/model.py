@@ -187,7 +187,7 @@ class MENSA:
                 if val_loss  < min_val_loss:
                     min_val_loss = val_loss
                     torch.save(self.model.state_dict(), 'models/mensa.pt')
-                    patience = 500
+                    patience = 1000
                 else:
                     patience = patience - 1
             if patience == 0:
@@ -198,7 +198,7 @@ class MENSA:
                     if self.n_events == 2:
                         print(f"{min_val_loss} - {self.copula.parameters()}")
                     else:
-                        print(f"{min_val_loss} - {self.copula.parameters()[:-2]}")
+                        print(f"{min_val_loss} - {self.copula.parameters()}")
                 else:
                     print(f"{min_val_loss}")
                     

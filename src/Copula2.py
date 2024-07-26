@@ -155,7 +155,44 @@ class Convex_Nested:
             u_eps[:,2] = u[:,2] + self.eps
 
         return (self.CDF(u_eps)-self.CDF(u))/self.eps
+
+class Convex_Nested2:
+    def __init__(self, theta1, theta2, eps1, eps2, device):
+        self.P_clayton = Convex_2_Clayton(theta1, theta1, eps1, eps1, device)
+        self.CH_clayton = Convex_1_Clayton(theta2, eps2, device)
+        self.device = device
+        self.eps = eps1
     
+    def enable_grad(self):
+        self.P_clayton.enable_grad()
+        self.CH_clayton.enable_grad()
+    
+    def parameters(self):
+        return [self.P_clayton.copula_1.theta, self.P_clayton.copula_2.theta, self.CH_clayton.copula_1.theta, self.P_clayton.weight, self.CH_clayton.weight]
+
+    def CDF(self, UV):
+        U = self.CH_clayton.CDF(UV[:,:2]).reshape(-1,1)
+        #print(U, UV[:,:2])
+        new_uv = torch.cat([U, UV[:,2:3]], dim=1)
+        return self.P_clayton.CDF(new_uv)
+    
+    def conditional_cdf(self, condition_on, u):
+        u_eps = torch.empty_like(u, device=self.device)
+        if condition_on == "u":
+            u_eps[:,0] = u[:,0] + self.eps
+            u_eps[:,1] = u[:,1] 
+            u_eps[:,2] = u[:,2] 
+        elif condition_on == 'v':
+            u_eps[:,0] = u[:,0] 
+            u_eps[:,1] = u[:,1] + self.eps
+            u_eps[:,2] = u[:,2] 
+        elif condition_on == 'w':
+            u_eps[:,0] = u[:,0] 
+            u_eps[:,1] = u[:,1] 
+            u_eps[:,2] = u[:,2] + self.eps
+
+        return (self.CDF(u_eps)-self.CDF(u))/self.eps
+
 class Convex_2_Clayton:
     def __init__(self, theta1, theta2, eps1, eps2, device):
         self.copula_1 = Clayton_two(theta1, eps1, device)
@@ -195,7 +232,41 @@ class Convex_2_Clayton:
 
         return (self.CDF(u_eps)-self.CDF(u))/self.eps
     
+class Convex_1_Clayton:
+    def __init__(self, theta1, eps1, device):
+        self.copula_1 = Clayton_two(theta1, eps1, device)
+        self.weight = torch.nn.parameter.Parameter(torch.rand(2,).to(device))
+        self.device = device
+        self.eps=eps1
 
+    
+    def enable_grad(self):
+        self.copula_1.enable_grad()
+        self.weight.requires_grad = True
+    
+    def parameters(self):
+        return [self.copula_1.theta, self.weight]
+
+    def CDF(self, UV):
+        cdf1 = self.copula_1.CDF(UV)
+        return (torch.nn.Softmax()(self.weight) * torch.cat([cdf1.reshape(-1,1)], dim=1)).sum(dim=1) 
+        
+    def conditional_cdf(self, condition_on, u):
+        u_eps = torch.empty_like(u, device=self.device)
+        if condition_on == "u":
+            u_eps[:,0] = u[:,0] + self.eps
+            u_eps[:,1] = u[:,1] 
+            u_eps[:,2] = u[:,2] 
+        elif condition_on == 'v':
+            u_eps[:,0] = u[:,0] 
+            u_eps[:,1] = u[:,1] + self.eps
+            u_eps[:,2] = u[:,2] 
+        elif condition_on == 'w':
+            u_eps[:,0] = u[:,0] 
+            u_eps[:,1] = u[:,1] 
+            u_eps[:,2] = u[:,2] + self.eps
+
+        return (self.CDF(u_eps)-self.CDF(u))/self.eps
     
 class Convex_clayton:
     def __init__(self, theta1, theta2, eps1, eps2, device):
