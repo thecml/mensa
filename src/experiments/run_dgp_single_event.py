@@ -3,7 +3,7 @@ run_synthetic_se_event.py
 ====================================
 Experiment 1.1
 
-Models: ["cox", "coxnet", "coxboost", "rsf", "dsm", "deepsurv", "deephit", "mtlr", "dcsurvival", "dgp"]
+Models: ["cox", "coxnet", "coxboost", "rsf", "dsm", "deepsurv", "deephit", "mtlr", "dcsurvival", "mensa", "dgp"]
 """
 
 # 3rd party
@@ -29,6 +29,7 @@ from utility.config import load_config
 from mensa.model import MENSA
 from utility.data import format_data_deephit_single
 from copula import Clayton2D
+from Copula2 import Convex_Nested
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
@@ -54,15 +55,15 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["mensa"]
+MODELS = ["deepsurv"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--k_tau', type=float, default=0.25)
     parser.add_argument('--copula_name', type=str, default="clayton")
-    parser.add_argument('--linear', type=bool, default=True)
+    parser.add_argument('--linear', type=bool, default=False)
     
     args = parser.parse_args()
     seed = args.seed
@@ -75,7 +76,8 @@ if __name__ == "__main__":
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config,
                                                     linear=linear, copula_name=copula_name,
                                                     k_tau=k_tau, device=device, dtype=dtype)
-    train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
+    train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
+                                                      random_state=seed)
     n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
     n_events = data_config['n_events']
@@ -85,8 +87,6 @@ if __name__ == "__main__":
     min_time = dl.get_data()[1].min()
     max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
-    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
-                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
 
     # Format data to work easier with sksurv API
     X_train = pd.DataFrame(train_dict['X'], columns=[f'X{i}' for i in range(n_features)])
@@ -161,7 +161,7 @@ if __name__ == "__main__":
             model = train_dcsurvival_model(model, train_dict['X'], valid_dict['X'],
                                             train_dict['T'], train_dict['E'],
                                             valid_dict['T'], valid_dict['E'],
-                                            num_epochs=100, batch_size=32, device=device)
+                                            num_epochs=10, batch_size=32, device=device)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
@@ -169,7 +169,7 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             copula = Clayton2D(torch.tensor([2.0]).type(dtype), device, dtype)
             model = MENSA(n_features=n_features, n_events=2, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100, lr=0.005, batch_size=4096) #4096
+            model.fit(train_dict, valid_dict, n_epochs=100, lr=0.005, batch_size=128) #4096
         elif model_name == "dgp":
             pass
         else:

@@ -258,16 +258,23 @@ def make_times_hierarchical(event_times, num_bins):
     binned_event_time[binned_event_time == num_bins] = num_bins - 1
     return binned_event_time
 
-def format_hierarchical_data_cr(train_dict, valid_dict, test_dict, num_bins, n_events):
+def format_hierarchical_data_cr(train_dict, valid_dict, test_dict,
+                                num_bins, n_events, censoring_event=True):
+    #If censoring_event=True, encode censoring as a seperate event
     train_times = np.stack([train_dict['T'] for _ in range(n_events)], axis=1)
     valid_times = np.stack([valid_dict['T'] for _ in range(n_events)], axis=1)
     test_times = np.stack([test_dict['T'] for _ in range(n_events)], axis=1)
     train_event_bins = make_times_hierarchical(train_times, num_bins=num_bins)
     valid_event_bins = make_times_hierarchical(valid_times, num_bins=num_bins)
     test_event_bins = make_times_hierarchical(test_times, num_bins=num_bins)
-    train_events = np.array(pd.get_dummies(train_dict['E']))
-    valid_events = np.array(pd.get_dummies(valid_dict['E']))
-    test_events = np.array(pd.get_dummies(test_dict['E']))
+    if censoring_event:
+        train_events = np.array(pd.get_dummies(train_dict['E']))
+        valid_events = np.array(pd.get_dummies(valid_dict['E']))
+        test_events = np.array(pd.get_dummies(test_dict['E']))
+    else:
+        train_events = np.array(pd.get_dummies(train_dict['E']))[:,1:] # drop censoring event
+        valid_events = np.array(pd.get_dummies(valid_dict['E']))[:,1:]
+        test_events = np.array(pd.get_dummies(test_dict['E']))[:,1:]
     train_data = [train_dict['X'], train_event_bins, train_events]
     valid_data = [valid_dict['X'], valid_event_bins, valid_events]
     test_data = [test_dict['X'], test_event_bins, test_events]
