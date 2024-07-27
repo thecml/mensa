@@ -1,9 +1,6 @@
 """
-run_synthetic_competing_risks.py
+run_real_competing_risks.py
 ====================================
-Experiment 2.1
-
-Datasets: SEER, Rotterdam
 Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
 """
 
@@ -73,7 +70,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='rotterdam')
+    parser.add_argument('--dataset_name', type=str, default='seer')
     
     args = parser.parse_args()
     seed = args.seed

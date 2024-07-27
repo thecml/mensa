@@ -234,3 +234,5 @@ l10n/
 results/model_results.csv
 results/model_results2.csv
 results/synthetic_se_event.csv
+data/seer.csv
+data/support.feather

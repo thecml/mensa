@@ -20,7 +20,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 early_stop_epochs = 10
 
 def train_dcsurvival_model(model, X_train, X_valid, times_train, events_train,
-                           times_valid, events_valid, num_epochs, batch_size, device):
+                           times_valid, events_valid, num_epochs, batch_size,
+                           learning_rate, device):
     # Format data
     times_tensor_train = torch.tensor(times_train).to(device)
     event_indicator_tensor_train = torch.tensor(events_train).to(device)
@@ -31,9 +32,9 @@ def train_dcsurvival_model(model, X_train, X_valid, times_train, events_train,
     covariate_tensor_val = torch.tensor(X_valid).to(device)
 
     # Make the model
-    optimizer = optim.Adam([{"params": model.sumo_e.parameters(), "lr": 1e-3},
-                            {"params": model.sumo_c.parameters(), "lr": 1e-3},
-                            {"params": model.phi.parameters(), "lr": 1e-4}])
+    optimizer = optim.Adam([{"params": model.sumo_e.parameters(), "lr": learning_rate},
+                            {"params": model.sumo_c.parameters(), "lr": learning_rate},
+                            {"params": model.phi.parameters(), "lr": learning_rate}])
     
     # Train the model
     best_val_loglikelihood = float('-inf')
