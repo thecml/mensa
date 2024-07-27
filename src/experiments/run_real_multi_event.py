@@ -1,9 +1,6 @@
 """
-run_synthetic_competing_risks.py
+run_real_multi_event.py
 ====================================
-Experiment 2.1
-
-Datasets: MIMIC-IV, ALS
 Models: ["deepsurv", 'hierarch', 'mensa']
 """
 
@@ -35,7 +32,7 @@ from utility.loss import triple_loss
 from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch,
                           format_survtrace_data, format_data_as_dict_multi)
 from utility.evaluation import global_C_index, local_C_index
-from data_loader import ALSDataLoader
+from data_loader import ALSMultiDataLoader
 from mensa.model import MENSA
 from Copula2 import Convex_Nested
 

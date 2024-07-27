@@ -1,7 +1,7 @@
 from data_loader import (SingleEventSyntheticDataLoader,
                          CompetingRiskSyntheticDataLoader,
                          MultiEventSyntheticDataLoader,
-                         MimicDataLoader)
+                         MimicMultiDataLoader)
 from utility.config import load_config
 import config as cfg
 import random
