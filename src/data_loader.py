@@ -647,8 +647,8 @@ class SeerCompetingDataLoader(BaseDataLoader):
         for dataframe in dataframes:
             data_dict = dict()
             data_dict['X'] = dataframe.drop(['event', 'time'], axis=1).to_numpy()
-            data_dict['E'] = dataframe['event'].to_numpy()
-            data_dict['T'] = dataframe['time'].to_numpy()
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.float64),dtype=dtype)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float64), dtype=dtype)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -720,8 +720,8 @@ class RotterdamCompetingDataLoader(BaseDataLoader):
         for dataframe in dataframes:
             data_dict = dict()
             data_dict['X'] = dataframe.drop(['event', 'time'], axis=1).to_numpy()
-            data_dict['E'] = dataframe['event'].to_numpy()
-            data_dict['T'] = dataframe['time'].to_numpy()
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.float64),dtype=dtype)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float64), dtype=dtype)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
