@@ -19,6 +19,11 @@ from utility.data import kendall_tau_to_theta, theta_to_kendall_tau
 from utility.survival import make_stratified_split
 from dgp import DGP_Weibull_linear, DGP_Weibull_nonlinear
 import torch
+import random
+
+np.random.seed(0)
+torch.manual_seed(0)
+random.seed(0)
 
 class BaseDataLoader(ABC):
     """
@@ -391,10 +396,13 @@ class MimicMultiDataLoader(BaseDataLoader):
         '''
         t and e order, followed by arf, shock, death
         '''
-        df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, 'mimic.csv.gz'), compression='gzip')
+        df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, 'mimic.csv.gz'), compression='gzip', index_col=0)
             
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
+            
+        df = df[(df['Age'] >= 60) & (df['Age'] <= 65)] # select cohort ages 60-65    
+        
         columns_to_drop = [col for col in df.columns if
                            any(substring in col for substring in ['_event', '_time', 'hadm_id'])]
         events = ['ARF', 'shock', 'death']
@@ -445,51 +453,44 @@ class SeerSingleDataLoader(BaseDataLoader):
     """
     Data loader for SEER dataset (SE)
     """
-    def load_data(self, n_samples:int = None) -> None:
-        path = Path.joinpath(cfg.DATA_DIR, 'seer.csv')
-        data = pd.read_csv(path)
-
-        if n_samples:
-            data = data.sample(n=n_samples, random_state=0)
-
-        data = data.loc[data['Survival Months'] > 0]
+    def load_data(self, n_samples:int = None):
+        df = pd.read_csv(f'{cfg.DATA_DIR}/seer_processed.csv')
         
-        numeric_rows = pd.to_numeric(data["Grade"], errors='coerce').notna()
-        data = data[numeric_rows]
-
-        outcomes = data.copy()
-        outcomes['event'] =  data['Status']
-        outcomes['time'] = data['Survival Months']
-        outcomes = outcomes[['event', 'time']]
-        outcomes.loc[outcomes['event'] == 'Alive', ['event']] = 0
-        outcomes.loc[outcomes['event'] == 'Dead', ['event']] = 1
-
-        data = data.drop(['Status', "Survival Months"], axis=1)
-
-        obj_cols = data.select_dtypes(['bool']).columns.tolist() \
-                + data.select_dtypes(['object']).columns.tolist()
-        for col in obj_cols:
-            data[col] = data[col].astype('object')
-
-        self.X = pd.DataFrame(data)
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
+            
+        # Select cohort of newly-diagnosed patients
+        df = df.loc[df['Year of diagnosis'] == 0]
+        df = df.drop('Year of diagnosis', axis=1)
+            
+        self.X = df.drop(['duration', 'event_heart', 'event_breast'], axis=1)
+        self.columns = list(self.X.columns)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
-        self.y_e = outcomes['event']
-        self.y_t = outcomes['time']
-        self.columns = self.X.columns
+
+        encoded_events = np.zeros(len(df), dtype=int)
+        encoded_events[df['event_breast'] == 1] = 1
+        encoded_events[df['event_heart'] == 1] = 0 # event is censored
+
+        self.y_t = np.array(df['duration'])
+        self.y_e = encoded_events
         
         return self
     
-    def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+    def split_data(self,
+                train_size: float,
+                valid_size: float,
+                test_size: float,
+                dtype=torch.float64,
+                random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
         df['time'] = self.y_t
-    
+        
         df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
                                                             frac_valid=valid_size, frac_test=test_size,
                                                             random_state=random_state)
-    
+        
         dataframes = [df_train, df_valid, df_test]
         dicts = []
         for dataframe in dataframes:
@@ -505,42 +506,44 @@ class MimicSingleDataLoader(BaseDataLoader):
     """
     Data loader for MIMIC dataset (SE)
     """
-    def load_data(self, n_samples:int = None) -> None:
-        path = Path.joinpath(cfg.DATA_DIR, "mimic.csv")
-        data = pd.read_csv(path)
-
+    def load_data(self, n_samples:int = None):
+        '''
+        t and e order, followed by death
+        '''
+        df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, 'mimic.csv.gz'), compression='gzip', index_col=0)
+            
         if n_samples:
-            data = data.sample(n=n_samples, random_state=0)
-        
-        outcomes = data.copy()
-        outcomes['event'] =  data['event']
-        outcomes['time'] = data['time']
-        outcomes = outcomes[['event', 'time']]
-
-        data = data.drop(['event', "time"], axis=1)
-        
-        obj_cols = ['is_male', 'is_white', 'renal', 'cns', 'coagulation', 'cardiovascular']
-        data[obj_cols] = data[obj_cols].astype('object')
-
-        self.X = pd.DataFrame(data)
+            df = df.sample(n=n_samples, random_state=0)
+            
+        df = df[(df['Age'] >= 60) & (df['Age'] <= 65)] # select cohort ages 60-65
+  
+        columns_to_drop = [col for col in df.columns if
+                           any(substring in col for substring in ['_event', '_time', 'hadm_id'])]
+        events = ['death']
+        self.X = df.drop(columns_to_drop, axis=1)
+        self.columns = list(self.X.columns)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
-        self.y_e = outcomes['event']
-        self.y_t = outcomes['time']
-        self.columns = self.X.columns
+        
+        self.y_t = df[f'death_time'].values
+        self.y_e = df[f'death_event'].values
         
         return self
-    
-    def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+
+    def split_data(self,
+                train_size: float,
+                valid_size: float,
+                test_size: float,
+                dtype=torch.float64,
+                random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
         df['time'] = self.y_t
-    
+        
         df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
                                                             frac_valid=valid_size, frac_test=test_size,
                                                             random_state=random_state)
-    
+        
         dataframes = [df_train, df_valid, df_test]
         dicts = []
         for dataframe in dataframes:
@@ -613,6 +616,10 @@ class SeerCompetingDataLoader(BaseDataLoader):
         
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
+
+        # Select cohort of newly-diagnosed patients
+        df = df.loc[df['Year of diagnosis'] == 0]
+        df = df.drop('Year of diagnosis', axis=1)
             
         self.X = df.drop(['duration', 'event_heart', 'event_breast'], axis=1)
         self.columns = list(self.X.columns)
