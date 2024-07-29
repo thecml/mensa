@@ -67,12 +67,13 @@ device = torch.device('cpu')
 
 # Define models
 MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
+MODELS = ['mtlrcr']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='seer_cr')
+    parser.add_argument('--dataset_name', type=str, default='rotterdam_cr')
     
     args = parser.parse_args()
     seed = args.seed
@@ -101,7 +102,7 @@ if __name__ == "__main__":
     
     # Make time bins
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
-    
+    print ('time_bins:', time_bins)
     # Evaluate models
     for model_name in MODELS:
         if model_name == "deepsurv":
@@ -149,6 +150,7 @@ if __name__ == "__main__":
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose)
         elif model_name == "mtlrcr":
+            time_bins = np.insert(time_bins, 0, 0) #Weijie: currently, I think this is better
             train_times = np.digitize(train_dict['T'], bins=time_bins).astype(np.int64)
             train_events = train_dict['E'].type(torch.int64)
             valid_times = np.digitize(valid_dict['T'], bins=time_bins).astype(np.int64)
