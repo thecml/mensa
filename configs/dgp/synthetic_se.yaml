@@ -3,5 +3,5 @@ alpha_e2: 17
 gamma_e1: 3
 gamma_e2: 3
 n_events: 2
-n_samples: 1000
+n_samples: 20000
 n_features: 10
