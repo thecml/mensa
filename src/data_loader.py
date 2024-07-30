@@ -17,7 +17,7 @@ from scipy import stats
 from utility.data import relu
 from utility.data import kendall_tau_to_theta, theta_to_kendall_tau
 from utility.survival import make_stratified_split
-from dgp import DGP_Weibull_linear, DGP_Weibull_nonlinear
+from dgp import *
 import torch
 import random
 
@@ -78,21 +78,20 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         DGP1: Data generation process for event
         DGP2: Data generation process for censoring
         """
-        alpha_e1 = data_config['alpha_e1']
-        alpha_e2 = data_config['alpha_e2']
-        gamma_e1 = data_config['gamma_e1']
-        gamma_e2 = data_config['gamma_e2']
+        bl_e1 = data_config['bl_e1']
+        bl_e2 = data_config['bl_e2']
+        n_hidden = data_config['n_hidden']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
 
         if linear:
-            dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+            dgp1 = DGP_Exp_linear(n_features, baseline_hazard=bl_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Exp_linear(n_features, baseline_hazard=bl_e2, device=device, dtype=dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+            dgp1 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_e1, n_hidden=n_hidden, device=device, dtype=dtype)
+            dgp2 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_e2, n_hidden=n_hidden, device=device, dtype=dtype)
     
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -152,12 +151,10 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         DGP2: Data generation process for event 2
         DGP3: Data generation process for censoring
         """
-        alpha_e1 = data_config['alpha_e1']
-        alpha_e2 = data_config['alpha_e2']
-        alpha_e3 = data_config['alpha_e3']
-        gamma_e1 = data_config['gamma_e1']
-        gamma_e2 = data_config['gamma_e2']
-        gamma_e3 = data_config['gamma_e3']
+        bl_e1 = data_config['bl_e1']
+        bl_e2 = data_config['bl_e2']
+        bl_e3 = data_config['bl_e3']
+        n_hidden = data_config['n_hidden']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
         
@@ -165,13 +162,13 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         beta = torch.rand((n_features,), device=device).type(dtype)
         
         if linear:
-            dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
+            dgp1 = DGP_Exp_linear(n_features, baseline_hazard=bl_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Exp_linear(n_features, baseline_hazard=bl_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Exp_linear(n_features, baseline_hazard=bl_e3, device=device, dtype=dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
+            dgp1 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_e1, n_hidden=n_hidden, device=device, dtype=dtype)
+            dgp2 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_e2, n_hidden=n_hidden, device=device, dtype=dtype)
+            dgp3 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_e3, n_hidden=n_hidden, device=device, dtype=dtype)
         
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -246,12 +243,10 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         DGP2: Data generation process for event 2
         DGP3: Data generation process for event 3
         """
-        alpha_e1 = data_config['alpha_e1']
-        alpha_e2 = data_config['alpha_e2']
-        alpha_e3 = data_config['alpha_e3']
-        gamma_e1 = data_config['gamma_e1']
-        gamma_e2 = data_config['gamma_e2']
-        gamma_e3 = data_config['gamma_e3']
+        bl_e1 = data_config['bl_e1']
+        bl_e2 = data_config['bl_e2']
+        bl_e3 = data_config['bl_e3']
+        n_hidden = data_config['n_hidden']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
         adm_censoring_time = data_config['adm_censoring_time']
@@ -267,13 +262,13 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         beta = torch.rand((n_features,), device=device).type(dtype)
         
         if linear:
-            dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
+            dgp1 = DGP_Exp_linear(n_features, baseline_hazard=bl_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Exp_linear(n_features, baseline_hazard=bl_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Exp_linear(n_features, baseline_hazard=bl_e3, device=device, dtype=dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
+            dgp1 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_e1, n_hidden=n_hidden, device=device, dtype=dtype)
+            dgp2 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_e2, n_hidden=n_hidden, device=device, dtype=dtype)
+            dgp3 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_e3, n_hidden=n_hidden, device=device, dtype=dtype)
 
         u_e1, u_e2, u_e3 = simulation.simu_mixture(3, n_samples, copula_parameters)
         u = torch.from_numpy(u_e1).type(dtype).reshape(-1,1)
