@@ -91,8 +91,8 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
             dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=4, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=4, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
     
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -169,9 +169,9 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
             dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
             dgp3 = DGP_Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
         
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -271,9 +271,9 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
             dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
             dgp3 = DGP_Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_nonlinear(n_features, num_hidden=4, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e1, gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e2, gamma=gamma_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=1, alpha=alpha_e3, gamma=gamma_e3, device=device, dtype=dtype)
 
         u_e1, u_e2, u_e3 = simulation.simu_mixture(3, n_samples, copula_parameters)
         u = torch.from_numpy(u_e1).type(dtype).reshape(-1,1)

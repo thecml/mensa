@@ -63,7 +63,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--k_tau', type=float, default=0.25)
     parser.add_argument('--copula_name', type=str, default="clayton")
-    parser.add_argument('--linear', type=bool, default=False)
+    parser.add_argument('--linear', type=bool, default=True)
     
     args = parser.parse_args()
     seed = args.seed
@@ -218,7 +218,7 @@ if __name__ == "__main__":
                                            n_samples, steps=time_bins))
         
         # Compute prediction metrics
-        surv_preds = pd.DataFrame(model_preds, columns=time_bins)
+        surv_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
         n_train_samples = len(train_dict['X'])
         n_test_samples= len(test_dict['X'])
         y_train_time = train_dict['T']
