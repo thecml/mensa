@@ -55,7 +55,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deephit"]
+MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "dgp"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -218,7 +218,7 @@ if __name__ == "__main__":
                                            n_samples, steps=time_bins))
         
         # Compute prediction metrics
-        surv_preds = pd.DataFrame(model_preds, columns=time_bins)
+        surv_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
         n_train_samples = len(train_dict['X'])
         n_test_samples= len(test_dict['X'])
         y_train_time = train_dict['T']
