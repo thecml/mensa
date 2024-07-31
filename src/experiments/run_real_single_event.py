@@ -180,7 +180,7 @@ if __name__ == "__main__":
             model_preds, time_bins_deepsurv, _ = make_deepsurv_prediction(model, test_dict['X'],
                                                                           config=config, dtype=dtype)
             
-            spline = interp1d(time_bins_deepsurv,
+            spline = interp1d(time_bins_deepsurv.cpu().numpy(),
                               model_preds.cpu().numpy(), kind='linear', fill_value='extrapolate')
             model_preds = spline(time_bins)
         elif model_name == "mtlr":
@@ -214,8 +214,8 @@ if __name__ == "__main__":
         ci = lifelines_eval.concordance()[0]
         ibs = lifelines_eval.integrated_brier_score()
         mae_margin = lifelines_eval.mae(method="Margin")
-        mae_pseudo = lifelines_eval.mae(method="Pseudo")
-        mae_hinge = lifelines_eval.mae(method="Pseudo")
+        mae_pseudo = lifelines_eval.mae(method="Pseudo_obs")
+        mae_hinge = lifelines_eval.mae(method="Hinge")
         d_calib = lifelines_eval.d_calibration()[0]
         
         metrics = [ci, ibs, mae_margin, mae_pseudo, mae_hinge, d_calib]
