@@ -55,7 +55,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "mensa"]
+MODELS = ["deepsurv", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -192,7 +192,7 @@ if __name__ == "__main__":
             survival_outputs, _, _ = make_mtlr_prediction(model, mtlr_test_data, time_bins, config)
             model_preds = survival_outputs[:, 1:].numpy()
         elif model_name == "deephit":
-            model_preds = model.predict_surv(test_dict['X'])
+            model_preds = model.predict_surv(test_dict['X']).detach().numpy()
         elif model_name == "dcsurvival":
             model_preds = predict_survival_function(model, test_dict['X'], time_bins).numpy()
         elif model_name == "mensa":
