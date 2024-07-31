@@ -60,7 +60,7 @@ MODELS = ["mensa"]
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--k_tau', type=float, default=0.25)
     parser.add_argument('--copula_name', type=str, default="clayton")
     parser.add_argument('--linear', type=bool, default=True)
@@ -170,7 +170,7 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             copula = Clayton2D(torch.tensor([2.0]).type(dtype), device, dtype)
             model = MENSA(n_features=n_features, n_events=2, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100, lr=0.005, batch_size=128) #4096
+            model.fit(train_dict, valid_dict, n_epochs=200, lr=0.005, batch_size=4096) #4096
         elif model_name == "dgp":
             pass
         else:
@@ -217,7 +217,7 @@ if __name__ == "__main__":
                                            n_samples, steps=time_bins))
         
         # Compute prediction metrics
-        surv_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
+        surv_preds = pd.DataFrame(model_preds, columns=time_bins.detach().numpy())
         n_train_samples = len(train_dict['X'])
         n_test_samples= len(test_dict['X'])
         y_train_time = train_dict['T']

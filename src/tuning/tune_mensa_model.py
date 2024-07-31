@@ -61,7 +61,6 @@ def train_mensa_model():
                                                     k_tau=k_tau, device=device, dtype=dtype)
     train_dict, valid_dict, _ = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
     n_features = train_dict['X'].shape[1]
-    dgps = dl.dgps
 
     # Make time bins
     min_time = dl.get_data()[1].min()
