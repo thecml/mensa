@@ -87,7 +87,7 @@ if __name__ == "__main__":
     n_samples = train_dict['X'].shape[0]
 
     # Make time bins
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
 
     # Format data to work easier with sksurv API
     n_features = train_dict['X'].shape[1]
