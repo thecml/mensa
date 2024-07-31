@@ -1,4 +1,4 @@
-n_epochs: 1000
+n_epochs: 750
 lr: 0.005
 batch_size: 4096
 layers: [32]
