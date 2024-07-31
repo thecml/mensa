@@ -179,7 +179,9 @@ if __name__ == "__main__":
         elif model_name == "deepsurv":
             model_preds, time_bins_deepsurv, _ = make_deepsurv_prediction(model, test_dict['X'],
                                                                           config=config, dtype=dtype)
-            spline = interp1d(time_bins_deepsurv, model_preds, kind='linear', fill_value='extrapolate')
+            
+            spline = interp1d(time_bins_deepsurv,
+                              model_preds.cpu().numpy(), kind='linear', fill_value='extrapolate')
             model_preds = spline(time_bins)
         elif model_name == "mtlr":
             data_test = X_test.copy()
