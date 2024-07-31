@@ -55,7 +55,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["mensa"]
+MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -159,13 +159,13 @@ if __name__ == "__main__":
                                            num_epochs=10, batch_size=32,
                                            learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
             copula = Clayton2D(torch.tensor([2.0]).type(dtype), device, dtype)
             model = MENSA(n_features=n_features, n_events=2, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=500, lr=0.001, batch_size=1024) #4096
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
         else:
             raise NotImplementedError()
         
@@ -212,9 +212,13 @@ if __name__ == "__main__":
         ci = lifelines_eval.concordance()[0]
         ibs = lifelines_eval.integrated_brier_score()
         mae_margin = lifelines_eval.mae(method="Margin")
+        mae_pseudo = lifelines_eval.mae(method="Pseudo")
+        mae_hinge = lifelines_eval.mae(method="Pseudo")
+        d_calib = lifelines_eval.d_calibration()[0]
         
+        metrics = [ci, ibs, mae_margin, mae_pseudo, mae_hinge, d_calib]
+        print(f'{model_name}: ' + metrics)
         metrics = [ci, ibs, mae_margin]
-        print(metrics)
         res_sr = pd.Series([model_name, dataset_name, seed] + metrics,
                             index=["ModelName", "DatasetName", "Seed", "CI", "IBS", "MAEM"])
         model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)

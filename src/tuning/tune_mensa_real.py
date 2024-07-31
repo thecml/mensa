@@ -28,7 +28,7 @@ random.seed(0)
 os.environ["WANDB_SILENT"] = "true"
 import wandb
 
-N_RUNS = 1
+N_RUNS = 100
 PROJECT_NAME = "mensa"
 
 # Setup precision
