@@ -55,7 +55,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa"] 
+MODELS = ["mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -165,7 +165,7 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             copula = Clayton2D(torch.tensor([2.0]).type(dtype), device, dtype)
             model = MENSA(n_features=n_features, n_events=2, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100, lr=0.005, batch_size=128) #4096
+            model.fit(train_dict, valid_dict, n_epochs=500, lr=0.001, batch_size=1024) #4096
         else:
             raise NotImplementedError()
         

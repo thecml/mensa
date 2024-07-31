@@ -1,6 +1,6 @@
-bl_e1: 0.6
-bl_e2: 0.5
-bl_e3: 0.4
+bl_e1: 0.05
+bl_e2: 0.025
+bl_e3: 0.01
 n_hidden: 4
 n_events: 3
 n_samples: 20000

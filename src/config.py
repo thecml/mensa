@@ -222,5 +222,7 @@ DCSURVIVAL_PARAMS = {
 MENSA_PARAMS = {
     'layers': [64, 64],
     'lr': 0.005,
-    'dropout': 0.25
+    'dropout': 0.25,
+    'batch_size': 1024,
+    'n_epochs': 100
 }

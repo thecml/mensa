@@ -55,7 +55,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "dgp"]
+MODELS = ["mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -80,10 +80,9 @@ if __name__ == "__main__":
                                                       random_state=seed)
     n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
-    n_events = data_config['n_events']
     dgps = dl.dgps
     
-    # Make time bins
+    # Make time bins    
     min_time = dl.get_data()[1].min()
     max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)

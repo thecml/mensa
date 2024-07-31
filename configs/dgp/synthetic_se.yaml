@@ -1,5 +1,5 @@
-bl_e1: 0.6
-bl_e2: 0.4
+bl_e1: 0.05
+bl_e2: 0.025
 n_hidden: 4
 n_samples: 20000
 n_features: 10
