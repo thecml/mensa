@@ -91,12 +91,12 @@ if __name__ == "__main__":
 
     # Format data to work easier with sksurv API
     n_features = train_dict['X'].shape[1]
-    X_train = pd.DataFrame(train_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-    X_valid = pd.DataFrame(valid_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-    X_test = pd.DataFrame(test_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-    y_train = convert_to_structured(train_dict['T'], train_dict['E'])
-    y_valid = convert_to_structured(valid_dict['T'], valid_dict['E'])
-    y_test = convert_to_structured(test_dict['T'], test_dict['E'])
+    X_train = pd.DataFrame(train_dict['X'].cpu().numpy(), columns=[f'X{i}' for i in range(n_features)])
+    X_valid = pd.DataFrame(valid_dict['X'].cpu().numpy(), columns=[f'X{i}' for i in range(n_features)])
+    X_test = pd.DataFrame(test_dict['X'].cpu().numpy(), columns=[f'X{i}' for i in range(n_features)])
+    y_train = convert_to_structured(train_dict['T'].cpu().numpy(), train_dict['E'].cpu().numpy())
+    y_valid = convert_to_structured(valid_dict['T'].cpu().numpy(), valid_dict['E'].cpu().numpy())
+    y_test = convert_to_structured(test_dict['T'].cpu().numpy(), test_dict['E'].cpu().numpy())
     
     # Evaluate each model
     for model_name in MODELS:
