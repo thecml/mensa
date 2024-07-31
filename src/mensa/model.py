@@ -13,6 +13,7 @@ from torch.autograd import Function
 import wandb
 
 import numpy as np
+import config as cfg
 
 from utility.loss import triple_loss
 from distributions import (Weibull_linear, Weibull_nonlinear, Weibull_log_linear, Exp_linear,
@@ -150,7 +151,7 @@ class MENSA:
                 else:
                     raise NotImplementedError()
                 
-                batch_loss.append(float(loss.detach().numpy()))
+                batch_loss.append(float(loss.cpu().detach().numpy()))
             
                 loss.backward()
                 optimizer.step()
@@ -162,7 +163,7 @@ class MENSA:
                                 p[:] = torch.clamp(p, 0.01, 100)
             
             self.train_loss.append(np.mean(batch_loss))
-            self.thetas.append(tuple([float(tensor.detach().numpy())
+            self.thetas.append(tuple([float(tensor.cpu().detach().numpy())
                                       for tensor in self.copula.parameters()]))
                 
             with torch.no_grad():
@@ -182,12 +183,13 @@ class MENSA:
                 self.valid_loss.append(val_loss)
                 
                 if use_wandb:
-                    theta = float(self.copula.parameters()[0].detach().numpy())
+                    theta = float(self.copula.parameters()[0].cpu().detach().numpy())
                     wandb.log({"val_loss": val_loss, "theta": theta})
                 
                 if val_loss  < min_val_loss:
                     min_val_loss = val_loss
-                    torch.save(self.model.state_dict(), 'models/mensa.pt')
+                    filename = f"{cfg.MODELS_DIR}/mensa.pt"
+                    torch.save(self.model.state_dict(), filename)
                     patience = 1000
                 else:
                     patience = patience - 1
@@ -204,7 +206,8 @@ class MENSA:
                     print(f"{min_val_loss}")
                     
     def predict(self, x_test, time_bins):
-        self.model.load_state_dict(torch.load('models/mensa.pt'))
+        filename = f"{cfg.MODELS_DIR}/mensa.pt"
+        self.model.load_state_dict(torch.load(filename))
         self.model.eval()
         
         if self.n_events == 2:
