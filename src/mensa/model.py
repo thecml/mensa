@@ -27,6 +27,8 @@ from mensa.utility import *
 
 from torch.utils.data import TensorDataset, DataLoader
 
+MAX_PATIENCE = 100
+
 """
 From: https://github.com/aligharari96/mensa_mine/blob/main/new_model.py
 """
@@ -134,7 +136,7 @@ class MENSA:
         optimizer = torch.optim.Adam(params)
         
         min_val_loss = 1000
-        patience = 5000
+        patience = MAX_PATIENCE
         for itr in range(n_epochs):
             self.model.train()
             batch_loss = list()
@@ -184,14 +186,13 @@ class MENSA:
                 
                 if use_wandb:
                     theta = float(self.copula.parameters()[0].cpu().detach().numpy())
-                    val_loss_norm = val_loss / batch_size
-                    wandb.log({"val_loss": val_loss_norm, "theta": theta})
+                    wandb.log({"val_loss": val_loss, "theta": theta})
                 
                 if val_loss  < min_val_loss:
                     min_val_loss = val_loss
                     filename = f"{cfg.MODELS_DIR}/mensa.pt"
                     torch.save(self.model.state_dict(), filename)
-                    patience = 5000
+                    patience = MAX_PATIENCE
                 else:
                     patience = patience - 1
             if patience == 0:

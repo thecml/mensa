@@ -21,7 +21,7 @@ def get_mensa_sweep_cfg():
                 "values": [250, 500, 750, 1000, 2000, 3000]
             },
             "batch_size": {
-                "values": [128, 512, 1024, 2048, 4096]
+                "values": [4096]
             }
         }
     }

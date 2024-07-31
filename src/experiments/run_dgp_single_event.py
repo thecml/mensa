@@ -63,7 +63,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--k_tau', type=float, default=0.25)
     parser.add_argument('--copula_name', type=str, default="clayton")
-    parser.add_argument('--linear', type=bool, default=True)
+    parser.add_argument('--linear', type=bool, default=False)
     
     args = parser.parse_args()
     seed = args.seed
@@ -165,12 +165,15 @@ if __name__ == "__main__":
                                             learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
-            n_epochs = config['n_epochs']
+            n_epochs = 100 #config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
+            layers = config['layers']
+            dropout = config['dropout']
             copula = Clayton2D(torch.tensor([2.0]).type(dtype), device, dtype)
-            model = MENSA(n_features=n_features, n_events=2, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=200, lr=0.005, batch_size=4096) #4096
+            model = MENSA(n_features=n_features, n_events=2, layers=layers,
+                          dropout=dropout, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
         elif model_name == "dgp":
             pass
         else:
@@ -201,7 +204,7 @@ if __name__ == "__main__":
         elif model_name == "dcsurvival":
             model_preds = predict_survival_function(model, test_dict['X'], time_bins).numpy()
         elif model_name == "mensa":
-            model_preds = model.predict(test_dict['X'], time_bins)[1] # use event preds
+            model_preds = model.predict(test_dict['X'], time_bins)[1].detach().numpy() # use event preds
         elif model_name == "dgp":
             model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
