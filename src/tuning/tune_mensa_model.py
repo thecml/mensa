@@ -3,7 +3,6 @@ import os
 import argparse
 import pandas as pd
 import config as cfg
-from pycox.evaluation import EvalSurv
 import torch
 from utility.tuning import get_mensa_sweep_cfg
 from utility.data import dotdict
@@ -67,7 +66,7 @@ def train_mensa_model():
     # Make time bins
     min_time = dl.get_data()[1].min()
     max_time = dl.get_data()[1].max()
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
     time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
                               time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
     
