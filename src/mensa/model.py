@@ -27,7 +27,7 @@ from mensa.utility import *
 
 from torch.utils.data import TensorDataset, DataLoader
 
-MAX_PATIENCE = 100
+MAX_PATIENCE = 200
 
 """
 From: https://github.com/aligharari96/mensa_mine/blob/main/new_model.py
@@ -159,14 +159,15 @@ class MENSA:
                 optimizer.step()
                 
                 if self.copula is not None:
-                    for p in self.copula.parameters(): #TODO: Add [:-2] using nested cop
+                    for p in self.copula.parameters()[:-2]: #TODO: Add [:-2] using nested cop
                         if p < 0.01:
                             with torch.no_grad():
                                 p[:] = torch.clamp(p, 0.01, 100)
             
             self.train_loss.append(np.mean(batch_loss))
-            self.thetas.append(tuple([float(tensor.cpu().detach().numpy())
-                                      for tensor in self.copula.parameters()]))
+            if self.copula is not None:
+                self.thetas.append(tuple([float(tensor.cpu().detach().numpy())
+                                        for tensor in self.copula.parameters()[:-2]]))
                 
             with torch.no_grad():
                 self.model.eval()
@@ -201,11 +202,14 @@ class MENSA:
             if (itr % 100 == 0):
                 if self.copula is not None:
                     if self.n_events == 2:
-                        print(f"{min_val_loss} - {self.copula.parameters()}")
+                        pass
+                        #print(f"{min_val_loss} - {self.copula.parameters()}")
                     else:
-                        print(f"{min_val_loss} - {self.copula.parameters()}")
+                        pass
+                        #print(f"{min_val_loss} - {self.copula.parameters()}")
                 else:
-                    print(f"{min_val_loss}")
+                    pass
+                    #print(f"{min_val_loss}")
                     
     def predict(self, x_test, time_bins):
         filename = f"{cfg.MODELS_DIR}/mensa.pt"
@@ -214,18 +218,18 @@ class MENSA:
         
         if self.n_events == 2:
             k1, k2, lam1, lam2 = self.model(x_test.to(self.device))
-            k1 = k1.to('cpu')
-            lam1 = lam1.to('cpu')
+            k1 = k1.to(self.device)
+            lam1 = lam1.to(self.device)
             k = [k1, k2]
             lam = [lam1, lam2]
         elif self.n_events == 3:
             k1, k2, k3, lam1, lam2, lam3 = self.model(x_test.to(self.device))
-            k1 = k1.to('cpu')
-            lam1 = lam1.to('cpu')
-            k2 = k2.to('cpu')
-            lam2 = lam2.to('cpu')
-            k3 = k3.to('cpu')
-            lam3 = lam3.to('cpu')
+            k1 = k1.to(self.device)
+            lam1 = lam1.to(self.device)
+            k2 = k2.to(self.device)
+            lam2 = lam2.to(self.device)
+            k3 = k3.to(self.device)
+            lam3 = lam3.to(self.device)
             k = [k1, k2, k3]
             lam = [lam1, lam2, lam3]
         else:

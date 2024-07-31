@@ -237,3 +237,5 @@ results/synthetic_se_event.csv
 data/seer.csv
 data/support.feather
 mensa_data.zip
+configs/dgp/.synthetic_se.yaml.swp
+src/tuning/.tune_mensa_model.py.swp
