@@ -115,12 +115,12 @@ if __name__ == "__main__":
         elif model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
             model = DeepSurv(in_features=n_features, config=config)
-            data_train = pd.DataFrame(train_dict['X'])
-            data_train['time'] = train_dict['T']
-            data_train['event'] = train_dict['E']
-            data_valid = pd.DataFrame(valid_dict['X'])
-            data_valid['time'] = valid_dict['T']
-            data_valid['event'] = valid_dict['E']
+            data_train = pd.DataFrame(train_dict['X'].cpu().numpy())
+            data_train['time'] = train_dict['T'].cpu().numpy()
+            data_train['event'] = train_dict['E'].cpu().numpy()
+            data_valid = pd.DataFrame(valid_dict['X'].cpu().numpy())
+            data_valid['time'] = valid_dict['T'].cpu().numpy()
+            data_valid['event'] = valid_dict['E'].cpu().numpy()
             model = train_deepsurv_model(model, data_train, data_valid, time_bins, config=config,
                                          random_state=0, reset_model=True, device=device, dtype=dtype)
         elif model_name == "deephit":
