@@ -134,7 +134,7 @@ class MENSA:
         optimizer = torch.optim.Adam(params)
         
         min_val_loss = 1000
-        patience = 100
+        patience = 5000
         for itr in range(n_epochs):
             self.model.train()
             batch_loss = list()
@@ -184,13 +184,14 @@ class MENSA:
                 
                 if use_wandb:
                     theta = float(self.copula.parameters()[0].cpu().detach().numpy())
-                    wandb.log({"val_loss": val_loss, "theta": theta})
+                    val_loss_norm = val_loss / batch_size
+                    wandb.log({"val_loss": val_loss_norm, "theta": theta})
                 
                 if val_loss  < min_val_loss:
                     min_val_loss = val_loss
                     filename = f"{cfg.MODELS_DIR}/mensa.pt"
                     torch.save(self.model.state_dict(), filename)
-                    patience = 1000
+                    patience = 5000
                 else:
                     patience = patience - 1
             if patience == 0:
