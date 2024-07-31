@@ -219,7 +219,7 @@ if __name__ == "__main__":
         d_calib = lifelines_eval.d_calibration()[0]
         
         metrics = [ci, ibs, mae_margin, mae_pseudo, mae_hinge, d_calib]
-        print(f'{model_name}: ' + metrics)
+        print(f'{model_name}: ' + f'{metrics}')
         metrics = [ci, ibs, mae_margin]
         res_sr = pd.Series([model_name, dataset_name, seed] + metrics,
                             index=["ModelName", "DatasetName", "Seed", "CI", "IBS", "MAEM"])
