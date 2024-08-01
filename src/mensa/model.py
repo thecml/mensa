@@ -34,7 +34,7 @@ From: https://github.com/aligharari96/mensa_mine/blob/main/new_model.py
 """
 class Net(torch.nn.Module):
     def __init__(self, nf, n_events, shared_layers, event_layers,
-                 dropout=0.5, activation=nn.ReLU, use_batchnorm=True):
+                 dropout=0.5, activation_fn=nn.ReLU):
         super(Net, self).__init__()
         
         d_in = nf
@@ -43,7 +43,7 @@ class Net(torch.nn.Module):
             d_out = l
             self.layers_.append(torch.nn.Linear(d_in, d_out))
             self.layers_.append(torch.nn.Dropout(dropout))
-            self.layers_.append(activation())
+            self.layers_.append(activation_fn())
             d_in = d_out
             
         self.layers_.append(nn.Linear(d_in, d_in)) # Skip connection
@@ -56,7 +56,7 @@ class Net(torch.nn.Module):
             d_in_event = d_in + nf  # Initial input dimension for event-specific layers
             for size in event_layers:
                 event_specific_layers.append(nn.Linear(d_in_event, size))
-                event_specific_layers.append(activation())
+                event_specific_layers.append(activation_fn())
                 event_specific_layers.append(nn.Dropout(dropout))
                 d_in_event = size
             self.event_layers.append(nn.Sequential(*event_specific_layers))
@@ -118,7 +118,8 @@ class MENSA:
     Implements MENSA model
     """
     def __init__(self, n_features, n_events, shared_layers=[64, 64], event_layers=[32],
-                 dropout=0.25, copula=None, device="cpu", dtype=torch.float64, config=None):
+                 dropout=0.25, activation_fn="relu", copula=None, device="cpu",
+                 dtype=torch.float64, config=None):
         self.config = config
         self.n_features = n_features
         self.copula = copula
@@ -128,9 +129,18 @@ class MENSA:
         self.dtype = dtype
         
         self.train_loss, self.valid_loss = list(), list()
-        self.thetas = list() 
+        self.thetas = list()
         
-        self.model = Net(n_features, self.n_events, shared_layers, event_layers, dropout).to(device)
+        if activation_fn == "relu":
+            activation_fn = nn.ReLU
+        elif activation_fn == "leakyrelu":
+            activation_fn = nn.LeakyReLU
+        elif activation_fn == "elu":
+            activation_fn = nn.ELU
+        else:
+            raise NotImplementedError("Not supported activation fn")
+            
+        self.model = Net(n_features, self.n_events, shared_layers, event_layers, dropout, activation_fn).to(device)
             
     def get_model(self):
         return self.model

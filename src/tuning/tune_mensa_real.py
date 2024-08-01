@@ -28,7 +28,7 @@ random.seed(0)
 os.environ["WANDB_SILENT"] = "true"
 import wandb
 
-N_RUNS = 1
+N_RUNS = 100
 PROJECT_NAME = "mensa"
 
 # Setup precision
@@ -74,15 +74,18 @@ def train_mensa_model():
     n_features = train_dict['X'].shape[1]
 
     # Train model
-    layers = config['layers']
+    shared_layers = config['shared_layers']
+    event_layers = config['event_layers']
     dropout = config['dropout']
     n_epochs = config['n_epochs']
     lr = config['lr']
     batch_size = config['batch_size']
-    copula = None
-    model = MENSA(n_features, n_events+1, layers=layers, dropout=dropout,
-                  copula=copula, device=device) # add censoring model
-    model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
+    activation_fn = config['activation_fn']
+    model = MENSA(n_features=n_features, n_events=n_events+1, shared_layers=shared_layers,
+                  event_layers=event_layers, dropout=dropout, activation_fn=activation_fn,
+                  copula=None, device=device)
+    model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr,
+              batch_size=batch_size, use_wandb=True)
     
 if __name__ == "__main__":
     main()

@@ -220,9 +220,11 @@ DCSURVIVAL_PARAMS = {
 }
 
 MENSA_PARAMS = {
-    'layers': [64, 64],
-    'lr': 0.005,
+    'shared_layers': [64, 64],
+    'event_layers': [32],
+    'lr': 0.01,
     'dropout': 0.25,
-    'batch_size': 1024,
-    'n_epochs': 100
+    'batch_size': 128,
+    'n_epochs': 100,
+    'activation_fn': "relu"
 }
