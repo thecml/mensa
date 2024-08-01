@@ -27,41 +27,60 @@ from mensa.utility import *
 
 from torch.utils.data import TensorDataset, DataLoader
 
-MAX_PATIENCE = 200
+MAX_PATIENCE = 100
 
 """
 From: https://github.com/aligharari96/mensa_mine/blob/main/new_model.py
 """
-class Net2(torch.nn.Module):
-    def __init__(self, nf, layers, dropout):
-        super().__init__()
+class Net(torch.nn.Module):
+    def __init__(self, nf, n_events, shared_layers, event_layers,
+                 dropout=0.5, activation=nn.ReLU, use_batchnorm=True):
+        super(Net, self).__init__()
         
         d_in = nf
         self.layers_ = []
-        for l in layers:
+        for l in shared_layers:
             d_out = l
             self.layers_.append(torch.nn.Linear(d_in, d_out))
             self.layers_.append(torch.nn.Dropout(dropout))
-            self.layers_.append(torch.nn.ReLU())
+            self.layers_.append(activation())
             d_in = d_out
-        self.out = torch.nn.Linear(d_in + nf, 4)
-        self.layers_.append(torch.nn.Dropout(dropout))
-        
+            
+        self.layers_.append(nn.Linear(d_in, d_in)) # Skip connection
         self.network = torch.nn.Sequential(*self.layers_)
-    
+        
+        # Creating an event and an output layer for each event
+        self.event_layers = nn.ModuleList()
+        for _ in range(n_events):
+            event_specific_layers = []
+            d_in_event = d_in + nf  # Initial input dimension for event-specific layers
+            for size in event_layers:
+                event_specific_layers.append(nn.Linear(d_in_event, size))
+                event_specific_layers.append(activation())
+                event_specific_layers.append(nn.Dropout(dropout))
+                d_in_event = size
+            self.event_layers.append(nn.Sequential(*event_specific_layers))
+        
+        self.out_layers = nn.ModuleList([nn.Linear(event_layers[-1], 2) for _ in range(n_events)])
+        
     def forward(self, x):
-
         tmp = self.network(x)
+        
         tmp = torch.cat([tmp, x], dim=1)
-        params = self.out(tmp)
-        k1 = torch.exp(params[:,0])
-        k2 = torch.exp(params[:,1])
         
-        lam1 = torch.exp(params[:,2])
-        lam2 = torch.exp(params[:,3])
+        event_params = []
+        for inter_layer, out_layer in zip(self.event_layers, self.out_layers):
+            intermediate_output = inter_layer(tmp)
+            intermediate_output = torch.relu(intermediate_output) # use relu
+            params = out_layer(intermediate_output)
+            exp_params = torch.exp(params)
+            event_params.append(exp_params)
         
-        return k1, k2, lam1, lam2
-    
+        flat_params = [param for event in event_params for param in event.permute(1, 0)]
+        
+        return tuple(flat_params)
+
+"""
 class Net3(torch.nn.Module):
     def __init__(self, nf, layers, dropout):
         super().__init__()
@@ -92,13 +111,14 @@ class Net3(torch.nn.Module):
         lam2 = torch.exp(params[:,4])
         lam3 = torch.exp(params[:,5])
         return k1, k2, k3, lam1, lam2, lam3
+"""
 
 class MENSA:
     """
     Implements MENSA model
     """
-    def __init__(self, n_features, n_events, layers=[64, 64], dropout=0.25,
-                 copula=None, device="cpu", dtype=torch.float64, config=None):
+    def __init__(self, n_features, n_events, shared_layers=[64, 64], event_layers=[32],
+                 dropout=0.25, copula=None, device="cpu", dtype=torch.float64, config=None):
         self.config = config
         self.n_features = n_features
         self.copula = copula
@@ -110,12 +130,7 @@ class MENSA:
         self.train_loss, self.valid_loss = list(), list()
         self.thetas = list() 
         
-        if self.n_events == 2:
-            self.model = Net2(n_features, layers, dropout).to(device)
-        elif self.n_events == 3:
-            self.model = Net3(n_features, layers, dropout).to(device)
-        else:
-            raise NotImplementedError()
+        self.model = Net(n_features, self.n_events, shared_layers, event_layers, dropout).to(device)
             
     def get_model(self):
         return self.model
@@ -130,9 +145,10 @@ class MENSA:
         train_dataset = TensorDataset(train_dict['X'], train_dict['T'], train_dict['E'])
         train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     
-        params = [{"params": self.model.parameters(), "lr": lr}]
+        params = [{"params": self.model.parameters(), "lr": lr, "weight_decay":1e-4}]
         if self.copula is not None:
-            params.append({"params": self.copula.parameters(), "lr": lr})
+            params.append({"params": self.copula.parameters(), "lr": lr, "weight_decay":1e-4})
+            
         optimizer = torch.optim.Adam(params)
         
         min_val_loss = 1000
@@ -153,7 +169,7 @@ class MENSA:
                 else:
                     raise NotImplementedError()
                 
-                batch_loss.append(float(loss.cpu().detach().numpy()))
+                #batch_loss.append(float(loss.cpu().detach().numpy()))
             
                 loss.backward()
                 optimizer.step()
@@ -164,7 +180,7 @@ class MENSA:
                             with torch.no_grad():
                                 p[:] = torch.clamp(p, 0.01, 100)
             
-            self.train_loss.append(np.mean(batch_loss))
+            #self.train_loss.append(np.mean(batch_loss))
             if self.copula is not None:
                 self.thetas.append(tuple([float(tensor.cpu().detach().numpy())
                                         for tensor in self.copula.parameters()[:-2]]))
@@ -186,8 +202,10 @@ class MENSA:
                 self.valid_loss.append(val_loss)
                 
                 if use_wandb:
-                    theta = float(self.copula.parameters()[0].cpu().detach().numpy())
-                    wandb.log({"val_loss": val_loss, "theta": theta})
+                    pass
+                    #theta = float(self.copula.parameters()[0].cpu().detach().numpy())
+                    #wandb.log({"val_loss": val_loss, "theta": theta})
+                    wandb.log({"val_loss": val_loss})
                 
                 if val_loss  < min_val_loss:
                     min_val_loss = val_loss
@@ -196,9 +214,11 @@ class MENSA:
                     patience = MAX_PATIENCE
                 else:
                     patience = patience - 1
+                
             if patience == 0:
                 print("Early stopping...")
                 break
+            
             if (itr % 100 == 0):
                 if self.copula is not None:
                     if self.n_events == 2:

@@ -28,7 +28,7 @@ random.seed(0)
 os.environ["WANDB_SILENT"] = "true"
 import wandb
 
-N_RUNS = 100
+N_RUNS = 1
 PROJECT_NAME = "mensa"
 
 # Setup precision
@@ -41,7 +41,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def main():
     global dataset_name
     
-    dataset_name = "seer_se"
+    dataset_name = "seer_cr"
     sweep_config = get_mensa_sweep_cfg()
 
     sweep_id = wandb.sweep(sweep_config, project=f'{PROJECT_NAME}')
@@ -56,6 +56,7 @@ def train_mensa_model():
     # Load and split data
     dl = get_data_loader(dataset_name)
     dl = dl.load_data()
+    n_events = dl.n_events
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=0)
     
@@ -73,16 +74,15 @@ def train_mensa_model():
     n_features = train_dict['X'].shape[1]
 
     # Train model
-    n_epochs = config['n_epochs']
-    lr = config['lr']
     layers = config['layers']
     dropout = config['dropout']
+    n_epochs = config['n_epochs']
+    lr = config['lr']
     batch_size = config['batch_size']
-    copula = Clayton2D(torch.tensor([2.0]).type(dtype), device, dtype)
-    model = MENSA(n_features=n_features, n_events=2, layers=layers, dropout=dropout,
-                  copula=copula, device=device)
-    model.fit(train_dict, valid_dict, n_epochs=n_epochs,
-              lr=lr, batch_size=batch_size, use_wandb=True) # log to wandb
+    copula = None
+    model = MENSA(n_features, n_events+1, layers=layers, dropout=dropout,
+                  copula=copula, device=device) # add censoring model
+    model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
     
 if __name__ == "__main__":
     main()

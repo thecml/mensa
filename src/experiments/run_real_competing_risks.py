@@ -64,7 +64,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv', 'mensa-nocop']
+MODELS = ['mensa-nocop']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -177,19 +177,26 @@ if __name__ == "__main__":
             model.fit(X_train, pd.DataFrame(y_train), val_data=(X_valid, pd.DataFrame(y_valid)))
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
+            layers = config['layers']
+            dropout = config['dropout']
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
             copula = Convex_Nested(2, 2, 1e-3, 1e-3, device)
-            model = MENSA(n_features, n_events+1, copula=copula, device=device) # add censoring model
+            model = MENSA(n_features, n_events+1, layers=layers, dropout=dropout,
+                          copula=copula, device=device) # add censoring model
             model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
+            shared_layers = config['shared_layers']
+            event_layers = config['event_layers']
+            dropout = config['dropout']
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
-            copula = None
-            model = MENSA(n_features, n_events+1, copula=copula, device=device) # add censoring model
+            model = MENSA(n_features, n_events+1, shared_layers=shared_layers, # add censoring model
+                          event_layers=event_layers, dropout=dropout,
+                          copula=None, device=device)
             model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
         else:
             raise NotImplementedError()
