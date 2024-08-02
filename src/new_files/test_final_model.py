@@ -4,7 +4,6 @@ from utils import *
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-from eval import surv_diff
 from final_model import *
 from Copula_final import Nested_Convex_Copula, Clayton_Triple, Frank_Triple
 

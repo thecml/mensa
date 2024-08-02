@@ -63,7 +63,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--k_tau', type=float, default=0.25)
     parser.add_argument('--copula_name', type=str, default="clayton")
-    parser.add_argument('--linear', type=bool, default=False)
+    parser.add_argument('--linear', type=bool, default=True)
     
     args = parser.parse_args()
     seed = args.seed

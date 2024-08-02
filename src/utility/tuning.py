@@ -8,13 +8,10 @@ def get_mensa_sweep_cfg():
             "goal": "minimize"
         },
         "parameters": {
-            "shared_layers": {
-                "values": [[16], [32], [64], [32, 32], [32, 32, 32],
-                           [64, 64], [128], [128, 128]]
-            },
-            "event_layers": {
-                "values": [[16], [32], [64], [32, 32], [32, 32, 32],
-                           [64, 64], [128], [128, 128]]
+            "layers": {
+                "values": [[16], [32], [64], [64, 128], [32, 32],
+                           [32, 128], [32, 32, 32], [64, 64],
+                           [128], [128, 128]]
             },
             "lr": {
                 "values": [0.01, 0.005, 0.001, 0.0001]
@@ -29,7 +26,10 @@ def get_mensa_sweep_cfg():
                 "values": [128]
             },
             "activation_fn": {
-                "values": ["relu", "leakyrelu", "elu"]
+                "values": ["relu"]
             },
+            "optimizer": {
+                "values": ["adam", "adamw"]
+            }
         }
     }

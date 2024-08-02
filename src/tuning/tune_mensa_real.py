@@ -12,12 +12,12 @@ from utility.survival import make_time_bins, preprocess_data, convert_to_structu
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 from utility.evaluation import LifelinesEvaluator
 from data_loader import SingleEventSyntheticDataLoader
-from copula import Clayton2D
-from mensa.model import MENSA
 from utility.survival import compute_l1_difference
 import warnings
 import random
 from data_loader import get_data_loader
+
+from new_files.final_model import *
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -74,18 +74,19 @@ def train_mensa_model():
     n_features = train_dict['X'].shape[1]
 
     # Train model
-    shared_layers = config['shared_layers']
-    event_layers = config['event_layers']
+    layers = config['layers']
     dropout = config['dropout']
     n_epochs = config['n_epochs']
     lr = config['lr']
-    batch_size = config['batch_size']
     activation_fn = config['activation_fn']
-    model = MENSA(n_features=n_features, n_events=n_events+1, shared_layers=shared_layers,
-                  event_layers=event_layers, dropout=dropout, activation_fn=activation_fn,
-                  copula=None, device=device)
-    model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr,
-              batch_size=batch_size, use_wandb=True)
+    optimizer = config['optimizer']
+    
+    mensa = Mensa(n_features=n_features, n_risk=n_events+1,
+                  activation_func=activation_fn, dropout=dropout,
+                  hidden_layers=layers, copula=None, device = device)
+    lr_dict = {'network': lr, 'copula': 0.01}
+    paramnet, copula = mensa.fit(train_dict, valid_dict, n_epochs=n_epochs,
+                                 lr_dict=lr_dict, optimizer=optimizer)
     
 if __name__ == "__main__":
     main()

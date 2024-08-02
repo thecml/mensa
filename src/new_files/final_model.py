@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn 
 import numpy as np 
 from torch.nn.parameter import Parameter
-from Copula_final import Nested_Convex_Copula
+from new_files.Copula_final import Nested_Convex_Copula
 
 
 def safe_log(x):
@@ -163,7 +163,7 @@ class Mensa:
             copula_grad_multiplier=1.0,
             copula_grad_clip = 1.0,
             model_path='best.pth',
-            patience_tresh=1000,
+            patience_tresh=100,
             optimizer='adam',
             weight_decay=0.0,
             lr_dict={'network':0.004, 'copula':0.01},
@@ -233,8 +233,9 @@ class Mensa:
                     min_val_loss = val_loss
                     patience = 0
                     torch.save(self.paramnet.state_dict(), model_path)
-                    best_theta = [p.detach().clone().cpu() for p in self.copula.parameters()]
-                    print(best_theta)
+                    if self.copula is not None:
+                        best_theta = [p.detach().clone().cpu() for p in self.copula.parameters()]
+                        print(best_theta)
                 else:
                     patience += 1
                     if patience == patience_tresh:
@@ -249,8 +250,9 @@ class Mensa:
 
         self.paramnet.load_state_dict(torch.load(model_path))
         self.paramnet.eval()
-        self.copula.set_params(best_theta)
-        print(self.copula.parameters())
+        if self.copula is not None:
+            self.copula.set_params(best_theta)
+            print(self.copula.parameters())
         
         return self.paramnet.to('cpu'), self.copula
 

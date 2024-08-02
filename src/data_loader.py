@@ -78,8 +78,10 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         DGP1: Data generation process for event
         DGP2: Data generation process for censoring
         """
-        bl_e1 = data_config['bl_e1']
-        bl_e2 = data_config['bl_e2']
+        alpha_e1 = data_config['alpha_e1']
+        alpha_e2 = data_config['alpha_e2']
+        gamma_e1 = data_config['gamma_e1']
+        gamma_e2 = data_config['gamma_e2']
         n_hidden = data_config['n_hidden']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
@@ -87,11 +89,20 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
 
         if linear:
-            dgp1 = DGP_Exp_linear(n_features, baseline_hazard=bl_e1, device=device, dtype=dtype)
-            dgp2 = DGP_Exp_linear(n_features, baseline_hazard=bl_e2, device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
+                                 device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
+                                  device=device, dtype=dtype)
         else:
-            dgp1 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_e1, n_hidden=n_hidden, device=device, dtype=dtype)
-            dgp2 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_e2, n_hidden=n_hidden, device=device, dtype=dtype)
+            perturbation_range = (-0.5, 0.5)
+            alphas_e1 = [alpha_e1 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            alphas_e2 = [alpha_e2 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            gammas_e1 = [gamma_e1 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            gammas_e2 = [gamma_e2 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden, alpha=alphas_e1, gamma=gammas_e1,
+                                     risk_function=relu, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden, alpha=alphas_e2, gamma=gammas_e2,
+                                     risk_function=relu, device=device, dtype=dtype)
     
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -107,8 +118,6 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             
         t1_times = dgp1.rvs(X, uv[:,0].to(device)).detach().cpu()
         t2_times = dgp2.rvs(X, uv[:,1].to(device)).detach().cpu()
-        event_times = np.concatenate([t1_times.reshape(-1,1),
-                                      t2_times.reshape(-1,1)], axis=1)
         
         observed_times = np.minimum(t1_times, t2_times)
         event_indicators = (t1_times < t2_times).type(torch.int)
