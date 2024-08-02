@@ -21,3 +21,6 @@ pycox==0.2.2
 easydict==1.9
 auton-survival~=0.1.0
 survivaleval~=0.2.5
+pycop~=0.0.13
+einops~=0.8.0
+wandb~=0.17.5

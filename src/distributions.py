@@ -67,7 +67,7 @@ class LogNormal_linear:
 
 class LogNormal_nonlinear(LogNormal_linear):
     # Note this is the LogNormal nonlinear model
-    def __init__(self, n_features, n_hidden, risk_function=torch.nn.Tanh(),
+    def __init__(self, n_features, n_hidden, risk_function=torch.nn.ReLU(),
                  device="cpu", dtype=torch.float64) -> None:
         self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
         self.mu_coeff = torch.rand((n_hidden,), device=device).type(dtype)
@@ -169,7 +169,7 @@ class Exp_linear:
 
 class EXP_nonlinear(Exp_linear):
     # This is the exponential CoxPH model with a nonlinear risk function
-    def __init__(self, n_features, n_hidden, risk_function=torch.nn.Tanh(),
+    def __init__(self, n_features, n_hidden, risk_function=torch.nn.ReLU(),
                  device='cpu', dtype=torch.float64) -> None:
         self.bh = torch.rand(1, device=device).type(dtype)
         self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
@@ -189,7 +189,7 @@ class Weibull_linear:
     def PDF(self ,t ,x):
         return self.hazard(t, x) * self.survival(t,x)
     
-    def CDF(self ,t ,x):   
+    def CDF(self ,t ,x):
         return 1 - self.survival(t,x)
     
     def survival(self ,t ,x):
@@ -216,7 +216,7 @@ class Weibull_linear:
         return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
 
 class Weibull_nonlinear:
-    def __init__(self, n_features, n_hidden, risk_function=torch.nn.Tanh(),
+    def __init__(self, n_features, n_hidden, risk_function=torch.nn.ReLU(),
                  device='cpu', dtype=torch.float64):
         self.alpha = torch.rand((n_hidden,), device=device).type(dtype)
         self.gamma = torch.rand((n_hidden,), device=device).type(dtype)

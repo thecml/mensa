@@ -3,7 +3,6 @@ import os
 import argparse
 import pandas as pd
 import config as cfg
-from pycox.evaluation import EvalSurv
 import torch
 from utility.tuning import get_mensa_sweep_cfg
 from utility.data import dotdict
@@ -28,7 +27,7 @@ random.seed(0)
 os.environ["WANDB_SILENT"] = "true"
 import wandb
 
-N_RUNS = 10
+N_RUNS = 100
 PROJECT_NAME = "mensa"
 
 # Setup precision
@@ -54,7 +53,7 @@ def train_mensa_model():
     config = wandb.config
     
     # Load data
-    linear = True
+    linear = False
     k_tau = 0.25
     data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_se.yaml")
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config,
@@ -62,13 +61,11 @@ def train_mensa_model():
                                                     k_tau=k_tau, device=device, dtype=dtype)
     train_dict, valid_dict, _ = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
     n_features = train_dict['X'].shape[1]
-    n_events = data_config['n_events']
-    dgps = dl.dgps
 
     # Make time bins
     min_time = dl.get_data()[1].min()
     max_time = dl.get_data()[1].max()
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
     time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
                               time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
     
@@ -77,11 +74,12 @@ def train_mensa_model():
     lr = config['lr']
     layers = config['layers']
     dropout = config['dropout']
+    batch_size = config['batch_size']
     copula = Clayton2D(torch.tensor([2.0]).type(dtype), device, dtype)
     model = MENSA(n_features=n_features, n_events=2, layers=layers, dropout=dropout,
                   copula=copula, device=device)
     model.fit(train_dict, valid_dict, n_epochs=n_epochs,
-              lr=lr, batch_size=1024, use_wandb=True) # log to wandb
+              lr=lr, batch_size=batch_size, use_wandb=True) # log to wandb
     
 if __name__ == "__main__":
     main()
