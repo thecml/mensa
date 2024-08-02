@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np 
 from torch.nn.parameter import Parameter
 from new_files.Copula_final import Nested_Convex_Copula
-
+import wandb
 
 def safe_log(x):
     return torch.log(x+1e-6*(x<1e-6))
@@ -167,7 +167,8 @@ class Mensa:
             optimizer='adam',
             weight_decay=0.0,
             lr_dict={'network':0.004, 'copula':0.01},
-            betas=(0.9,0.999)
+            betas=(0.9,0.999),
+            use_wandb=False
             ):
         optim_dict = [{'params': self.paramnet.parameters(), 'lr':lr_dict['network']}]
         if self.copula is not None:
@@ -229,6 +230,8 @@ class Mensa:
             self.paramnet.eval()
             with torch.no_grad():
                 val_loss = triple_loss_(self.paramnet, val_dict['X'].to(self.device), val_dict['T'].to(self.device), val_dict['E'].to(self.device), self.copula)
+                if use_wandb:
+                    wandb.log({"val_loss": val_loss})
                 if val_loss < min_val_loss + 1e-6:
                     min_val_loss = val_loss
                     patience = 0

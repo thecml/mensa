@@ -86,7 +86,7 @@ def train_mensa_model():
                   hidden_layers=layers, copula=None, device = device)
     lr_dict = {'network': lr, 'copula': 0.01}
     paramnet, copula = mensa.fit(train_dict, valid_dict, n_epochs=n_epochs,
-                                 lr_dict=lr_dict, optimizer=optimizer)
+                                 lr_dict=lr_dict, optimizer=optimizer, use_wandb=True)
     
 if __name__ == "__main__":
     main()
