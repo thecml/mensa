@@ -24,4 +24,3 @@ survivaleval~=0.2.5
 pycop~=0.0.13
 einops~=0.8.0
 wandb~=0.17.5
-networkx~=3.3

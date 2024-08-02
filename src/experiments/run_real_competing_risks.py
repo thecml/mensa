@@ -64,7 +64,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv']
+MODELS = ['mensa-nocop']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -188,15 +188,13 @@ if __name__ == "__main__":
             model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
-            shared_layers = config['shared_layers']
-            event_layers = config['event_layers']
+            layers = config['layers']
             dropout = config['dropout']
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
-            model = MENSA(n_features, n_events+1, shared_layers=shared_layers, # add censoring model
-                          event_layers=event_layers, dropout=dropout,
-                          copula=None, device=device)
+            model = MENSA(n_features, n_events+1, layers=layers, # add censoring model
+                          dropout=dropout, copula=None, device=device)
             model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
         else:
             raise NotImplementedError()

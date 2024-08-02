@@ -1,5 +1,5 @@
-dropout: 0.5
-layers: [128, 128]
-lr: 0.01
-n_epochs: 3000
-batch_size: 4096
+dropout: 0.25
+layers: [32, 32]
+lr: 0.005
+n_epochs: 500
+batch_size: 128

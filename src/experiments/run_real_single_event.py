@@ -55,13 +55,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "mensa"]
+MODELS = ["mensa-nocop"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='mimic_se')
+    parser.add_argument('--dataset_name', type=str, default='seer_se')
     
     args = parser.parse_args()
     seed = args.seed
@@ -166,6 +166,13 @@ if __name__ == "__main__":
             copula = Clayton2D(torch.tensor([2.0]).type(dtype), device, dtype)
             model = MENSA(n_features=n_features, n_events=2, copula=copula, device=device)
             model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
+        elif model_name == "mensa-nocop":
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
+            n_epochs = config['n_epochs']
+            lr = config['lr']
+            batch_size = config['batch_size']
+            model = MENSA(n_features=n_features, n_events=2, copula=None, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
         else:
             raise NotImplementedError()
         
@@ -196,8 +203,10 @@ if __name__ == "__main__":
             model_preds = model.predict_surv(test_dict['X']).cpu().numpy()
         elif model_name == "dcsurvival":
             model_preds = predict_survival_function(model, test_dict['X'], time_bins.cpu().numpy()).numpy()
-        elif model_name == "mensa":
+        elif model_name in ['mensa', 'mensa-nocop']:
             model_preds = model.predict(test_dict['X'], time_bins)[1].detach().cpu().numpy() # use event preds
+        elif model_name == "nde":
+            model_preds = predict_survival_function(model, test_dict['X'], time_bins.cpu().numpy()).numpy()
         else:
             raise NotImplementedError()
         

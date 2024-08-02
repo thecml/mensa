@@ -1,6 +1,5 @@
 dropout: 0.25
-shared_layers: [32, 32, 32]
-event_layers: [32]
-lr: 0.01
-n_epochs: 200
+layers: [32, 32]
+lr: 0.005
+n_epochs: 500
 batch_size: 128

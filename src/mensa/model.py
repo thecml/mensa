@@ -33,57 +33,9 @@ MAX_PATIENCE = 100
 From: https://github.com/aligharari96/mensa_mine/blob/main/new_model.py
 """
 class Net(torch.nn.Module):
-    def __init__(self, nf, n_events, shared_layers, event_layers,
+    def __init__(self, nf, n_events, layers,
                  dropout=0.5, activation_fn=nn.ReLU):
         super(Net, self).__init__()
-        
-        d_in = nf
-        self.layers_ = []
-        for l in shared_layers:
-            d_out = l
-            self.layers_.append(torch.nn.Linear(d_in, d_out))
-            self.layers_.append(torch.nn.Dropout(dropout))
-            self.layers_.append(activation_fn())
-            d_in = d_out
-            
-        self.layers_.append(nn.Linear(d_in, d_in)) # Skip connection
-        self.network = torch.nn.Sequential(*self.layers_)
-        
-        # Creating an event and an output layer for each event
-        self.event_layers = nn.ModuleList()
-        for _ in range(n_events):
-            event_specific_layers = []
-            d_in_event = d_in + nf  # Initial input dimension for event-specific layers
-            for size in event_layers:
-                event_specific_layers.append(nn.Linear(d_in_event, size))
-                event_specific_layers.append(activation_fn())
-                event_specific_layers.append(nn.Dropout(dropout))
-                d_in_event = size
-            self.event_layers.append(nn.Sequential(*event_specific_layers))
-        
-        self.out_layers = nn.ModuleList([nn.Linear(event_layers[-1], 2) for _ in range(n_events)])
-        
-    def forward(self, x):
-        tmp = self.network(x)
-        
-        tmp = torch.cat([tmp, x], dim=1)
-        
-        event_params = []
-        for inter_layer, out_layer in zip(self.event_layers, self.out_layers):
-            intermediate_output = inter_layer(tmp)
-            intermediate_output = torch.relu(intermediate_output) # use relu
-            params = out_layer(intermediate_output)
-            exp_params = torch.exp(params)
-            event_params.append(exp_params)
-        
-        flat_params = [param for event in event_params for param in event.permute(1, 0)]
-        
-        return tuple(flat_params)
-
-"""
-class Net3(torch.nn.Module):
-    def __init__(self, nf, layers, dropout):
-        super().__init__()
         
         d_in = nf
         self.layers_ = []
@@ -91,34 +43,40 @@ class Net3(torch.nn.Module):
             d_out = l
             self.layers_.append(torch.nn.Linear(d_in, d_out))
             self.layers_.append(torch.nn.Dropout(dropout))
-            self.layers_.append(torch.nn.ReLU())
+            self.layers_.append(activation_fn())
             d_in = d_out
-        self.out = torch.nn.Linear(d_in + nf, 6)
-        self.layers_.append(torch.nn.Dropout(dropout))
+            
+        self.layers_.append(nn.Linear(d_in, d_in))  # Skip connection
+        self.network = nn.Sequential(*self.layers_)
         
-        self.network = torch.nn.Sequential(*self.layers_)
-    
+        self.out = nn.Linear(d_in + nf, n_events*2)
+        
+        #Initize weights with a small number
+        self._initialize_weights()
+        
+    def _initialize_weights(self):
+        small_value = 0.0001
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.uniform_(m.weight, -small_value, small_value)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+        
     def forward(self, x):
-
         tmp = self.network(x)
-        tmp = torch.cat([tmp, x], dim=1)
+        tmp = torch.cat([tmp, x], dim=1) # Skip connection
         params = self.out(tmp)
-        k1 = torch.exp(params[:,0])
-        k2 = torch.exp(params[:,1])
-        k3 = torch.exp(params[:,2])
         
-        lam1 = torch.exp(params[:,3])
-        lam2 = torch.exp(params[:,4])
-        lam3 = torch.exp(params[:,5])
-        return k1, k2, k3, lam1, lam2, lam3
-"""
+        exp_params = torch.exp(params)
+        
+        return tuple(exp_params[:, i] for i in range(exp_params.shape[1]))
 
 class MENSA:
     """
     Implements MENSA model
     """
-    def __init__(self, n_features, n_events, shared_layers=[64, 64], event_layers=[32],
-                 dropout=0.25, activation_fn="relu", copula=None, device="cpu",
+    def __init__(self, n_features, n_events, layers=[64, 64], dropout=0.25,
+                 activation_fn="relu", copula=None, device="cpu",
                  dtype=torch.float64, config=None):
         self.config = config
         self.n_features = n_features
@@ -140,7 +98,7 @@ class MENSA:
         else:
             raise NotImplementedError("Not supported activation fn")
             
-        self.model = Net(n_features, self.n_events, shared_layers, event_layers, dropout, activation_fn).to(device)
+        self.model = Net(n_features, self.n_events, layers, dropout, activation_fn).to(device)
             
     def get_model(self):
         return self.model
