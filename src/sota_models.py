@@ -4,7 +4,7 @@ from sksurv.ensemble import RandomSurvivalForest
 from pycox.models import DeepHitSingle
 import torchtuples as tt
 from pycox.models import DeepHit
-from auton_survival.estimators import SurvivalModel
+from auton_survival.models.dsm import DeepSurvivalMachines
 import torch
 import numpy as np
 import torch
@@ -135,25 +135,11 @@ def make_coxboost_model(config):
                                             subsample=subsample,
                                             random_state=0)
     return model
-
-def make_dcph_model(config):
-    layers = config['network_layers']
-    n_iter = config['n_iter']
-    learning_rate = config['learning_rate']
-    batch_size = config['batch_size']
-    return SurvivalModel('dcph', random_seed=0, iters=n_iter, layers=layers,
-                         learning_rate=learning_rate, batch_size=batch_size)
     
 def make_dsm_model(config):
     layers = config['network_layers']
-    n_iter = config['n_iter']
-    learning_rate = config['learning_rate']
-    batch_size = config['batch_size']
-    return SurvivalModel('dsm', random_seed=0, iters=n_iter,
-                         layers=layers, distribution='Weibull',
-                         max_features='sqrt', learning_rate=learning_rate,
-                         batch_size=batch_size)
-
+    return DeepSurvivalMachines(k=3, layers=layers)
+    
 def make_rsf_model(config):
     n_estimators = config['n_estimators']
     max_depth = config['max_depth']

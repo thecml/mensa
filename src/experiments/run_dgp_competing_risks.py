@@ -75,7 +75,7 @@ if __name__ == "__main__":
                                                       random_state=seed)
     n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
-    n_events = data_config['n_events']
+    n_events = dl.n_events
     dgps = dl.dgps
     
     # Make time bins
@@ -90,10 +90,10 @@ if __name__ == "__main__":
                 model = DeepSurv(in_features=n_features, config=config)
                 data_train = pd.DataFrame(train_dict['X'])
                 data_train['time'] = train_dict['T']
-                data_train['event'] = (train_dict['E'] == i)*1.0
+                data_train['event'] = (train_dict['E'] == i+1)*1.0
                 data_valid = pd.DataFrame(valid_dict['X'])
                 data_valid['time'] = valid_dict['T']
-                data_valid['event'] = (valid_dict['E'] == i)*1.0
+                data_valid['event'] = (valid_dict['E'] == i+1)*1.0
                 model = train_deepsurv_model(model, data_train, data_valid, time_bins,
                                              config=config, random_state=0,
                                              reset_model=True, device=device, dtype=dtype)
@@ -133,8 +133,8 @@ if __name__ == "__main__":
             train_events = train_dict['E'].type(torch.int64)
             valid_times = np.digitize(valid_dict['T'], bins=time_bins).astype(np.int64)
             valid_events = valid_dict['E'].type(torch.int64)
-            y_train = encode_mtlr_format_no_censoring(train_times, train_events + 1, time_bins)
-            y_valid = encode_mtlr_format_no_censoring(valid_times, valid_events + 1, time_bins)
+            y_train = encode_mtlr_format_no_censoring(train_times, train_events, time_bins)
+            y_valid = encode_mtlr_format_no_censoring(valid_times, valid_events, time_bins)
             num_time_bins = len(time_bins) + 1
             config = dotdict(cfg.MTLRCR_PARAMS)
             model = MTLRCR(in_features=n_features, num_time_bins=num_time_bins, num_events=n_events)
@@ -145,12 +145,13 @@ if __name__ == "__main__":
                                     early_stop=config['early_stop'], patience=config['patience'])
         elif model_name == "dsm":
             config = dotdict(cfg.DSM_PARAMS)
+            n_iter = config['n_iter']
+            learning_rate = config['learning_rate']
+            batch_size = config['batch_size']
             model = make_dsm_model(config)
-            X_train = pd.DataFrame(train_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-            X_valid = pd.DataFrame(valid_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-            y_train = pd.DataFrame({'event': train_dict['E'], 'time': train_dict['T']})
-            y_valid = pd.DataFrame({'event': valid_dict['E'], 'time': valid_dict['T']})
-            model.fit(X_train, pd.DataFrame(y_train), val_data=(X_valid, pd.DataFrame(y_valid)))
+            model.fit(train_dict['X'].numpy(), train_dict['T'].numpy(), train_dict['E'].numpy(),
+                      val_data=(valid_dict['X'].numpy(), valid_dict['T'].numpy(), valid_dict['T'].numpy()),
+                      learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
@@ -186,13 +187,12 @@ if __name__ == "__main__":
             for trained_model in trained_models:
                 preds, time_bins_model = make_deepsurv_prediction(trained_model, test_dict['X'].to(device),
                                                                   config=config, dtype=dtype)
-                spline = interp1d(time_bins_model.cpu().numpy(),
-                                  preds.cpu().numpy(),
+                spline = interp1d(time_bins_model.cpu().numpy(), preds.cpu().numpy(),
                                   kind='linear', fill_value='extrapolate')
                 preds = pd.DataFrame(spline(time_bins.cpu().numpy()), columns=time_bins.numpy())
                 all_preds.append(preds)
         elif model_name == "deephit":
-            cif = model.predict_cif(test_dict['X']).cpu().numpy()
+            cif = model.predict_cif(test_dict['X']).cpu().numpy() # TODO: Check output
             all_preds = []
             for i in range(n_events):
                 cif_df = pd.DataFrame((1-cif[i]).T, columns=time_bins_dh.cpu().numpy())
@@ -219,16 +219,18 @@ if __name__ == "__main__":
                 preds = pd.DataFrame(preds, columns=time_bins.numpy())
                 all_preds.append(preds)
         elif model_name == "dsm":
-            X_test = pd.DataFrame(test_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-            model_preds = model.predict_survival(X_test, times=list(time_bins.numpy()))
-            model_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
-            all_preds = [model_preds for _ in range(n_events)]
+            all_preds = []
+            for i in range(n_events):
+                model_pred = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.numpy()), risk=i+1)
+                model_pred = pd.DataFrame(model_pred, columns=time_bins.cpu().numpy())
+                all_preds.append(model_pred)
         elif model_name in ["mensa", "mensa-nocop"]:
             model_preds = model.predict(test_dict['X'], time_bins)
             all_preds = []
             for model_pred in model_preds:
                 model_pred = pd.DataFrame(model_pred.detach().cpu().numpy(), columns=time_bins.numpy())
                 all_preds.append(model_pred)
+            all_preds.pop(0) # remove censoring model
         elif model_name == "dgp":
             all_preds = []
             for model in dgps:
@@ -243,13 +245,10 @@ if __name__ == "__main__":
         
         # Calculate local and global CI
         y_test_time = np.stack([test_dict['T'] for _ in range(n_events)], axis=1)
-        y_test_event = np.stack([np.array((test_dict['E'] == i)*1.0) for i in range(n_events)], axis=1)
+        y_test_event = np.stack([np.array((test_dict['E'] == i+1)*1.0) for i in range(n_events)], axis=1)
         all_preds_arr = [df.to_numpy() for df in all_preds]
         global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
         local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
-        if model_name == "dsm": # TODO
-            global_ci = 0.5
-            local_ci = 0.5
         
         # Make evaluation for each event
         model_results = pd.DataFrame()
