@@ -196,7 +196,6 @@ if __name__ == "__main__":
                               kind='linear', fill_value='extrapolate')
             model_preds = spline(time_bins.cpu().numpy())
         elif model_name == "mtlr":
-            time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
             data_test = X_test.copy()
             data_test["time"] = pd.Series(y_test['time'])
             data_test["event"] = pd.Series(y_test['event']).astype('int')
