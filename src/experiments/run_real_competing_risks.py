@@ -62,12 +62,11 @@ dtype = torch.float64
 torch.set_default_dtype(dtype)
 
 # Setup device
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = torch.device('cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
-MODELS = ['mensa-nocop']
+# MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
+MODELS = ['mensa-nocop', 'mtlrcr']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -150,7 +149,7 @@ if __name__ == "__main__":
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose)
         elif model_name == "mtlrcr":
-            # time_bins = np.insert(time_bins, 0, 0) #Weijie: currently, I think this is better
+            time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
             train_times = np.digitize(train_dict['T'],
                                       bins=time_bins.cpu().numpy()).astype(np.int64)
             train_events = train_dict['E'].type(torch.int64).cpu().numpy()

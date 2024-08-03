@@ -4,7 +4,8 @@ run_real_single_event.py
 Datasets: seer_se, support_se, mimic_se
 Models: ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa"]
 """
-
+import sys, os
+sys.path.append(os.path.abspath('../'))
 # 3rd party
 import pandas as pd
 import numpy as np
@@ -87,7 +88,7 @@ if __name__ == "__main__":
     n_samples = train_dict['X'].shape[0]
 
     # Make time bins
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
+    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device) #Weijie: event=None or event=train_dict['E']
 
     # Format data to work easier with sksurv API
     n_features = train_dict['X'].shape[1]
@@ -132,6 +133,7 @@ if __name__ == "__main__":
             model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
                                         (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
         elif model_name == "mtlr":
+            time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
             data_train = X_train.copy()
             data_train["time"] = pd.Series(y_train['time'])
             data_train["event"] = pd.Series(y_train['event']).astype(int)
