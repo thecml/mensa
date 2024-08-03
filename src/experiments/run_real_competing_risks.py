@@ -171,7 +171,7 @@ if __name__ == "__main__":
                                           dtype=dtype, device=device)
             model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
                           dropout=dropout, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100,
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs,
                       lr_dict={'network': lr, 'copula': 0.01})
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
@@ -182,7 +182,7 @@ if __name__ == "__main__":
             dropout = config['dropout']
             model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
                           dropout=dropout, copula=None, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100, lr_dict={'network': lr})
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict={'network': lr})
         else:
             raise NotImplementedError()
         

@@ -2,7 +2,7 @@
 run_real_single_event.py
 ====================================
 Datasets: seer_se, support_se, mimic_se
-Models: ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa"]
+Models: ["deepsurv", "deephit", "mtlr", "dsm", "mensa"]
 """
 
 # 3rd party
@@ -50,7 +50,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "dsm", "dcsurvival", "mensa", "mensa-nocop"]
+MODELS = ["deepsurv", "deephit", "dsm", "mensa", "mensa-nocop"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -164,7 +164,7 @@ if __name__ == "__main__":
             copula = Convex_bivariate(copulas=['cl'], dtype=dtype, device=device)
             model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
                           dropout=dropout, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100,
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs,
                       lr_dict={'network': lr, 'copula': 0.01})
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
@@ -175,7 +175,7 @@ if __name__ == "__main__":
             dropout = config['dropout']
             model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
                           dropout=dropout, copula=None, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100, lr_dict={'network': lr})
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict={'network': lr})
         else:
             raise NotImplementedError()
         
