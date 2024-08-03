@@ -19,9 +19,9 @@ def LOG(x):
 
 class DGP_LogNormal_linear:
     # Note this is the LogNormal model, not the LogNormal CoxPH model
-    def __init__(self, n_features, mu: float, sigma: float, device='cpu', dtype=torch.float64) -> None:
-        self.mu_coeff = torch.tensor([mu], device=device).type(dtype)
-        self.sigma_coeff = torch.tensor([sigma], device=device).type(dtype)
+    def __init__(self, mu: List[float], sigma: List[float], device='cpu', dtype=torch.float64) -> None:
+        self.mu_coeff = torch.tensor(mu, device=device).type(dtype)
+        self.sigma_coeff = torch.tensor(sigma, device=device).type(dtype)
         self.device = device
 
     def hazard(self, t, x):

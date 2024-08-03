@@ -3,7 +3,7 @@ run_synthetic_se_event.py
 ====================================
 Experiment 1.1
 
-Models: ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "mensa-nocop", "dgp"]
+Models: ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa-nocop", "mensa", "dgp"]
 """
 
 # 3rd party
@@ -51,15 +51,15 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "mensa-nocop", "dgp"]
+MODELS = ["deepsurv", "mensa", "mensa-nocop", "dgp"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.25)
+    parser.add_argument('--k_tau', type=float, default=0.3)
     parser.add_argument('--copula_name', type=str, default="clayton")
-    parser.add_argument('--linear', type=bool, default=True)
+    parser.add_argument('--linear', type=bool, default=False)
     
     args = parser.parse_args()
     seed = args.seed
@@ -82,6 +82,7 @@ if __name__ == "__main__":
     min_time = dl.get_data()[1].min()
     max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
+    time_bins = torch.concat([torch.tensor([0], dtype=dtype, device=device), time_bins], dim=0)
 
     # Format data to work easier with sksurv API
     X_train = pd.DataFrame(train_dict['X'], columns=[f'X{i}' for i in range(n_features)])
@@ -250,7 +251,7 @@ if __name__ == "__main__":
         mae = lifelines_eval.mae(method='Uncensored')
         
         metrics = [ci, ibs, mae, l1_e]
-        print(metrics)
+        print(f'{model_name}: ' + f'{metrics}')
         result_row = pd.Series([model_name, seed, linear, copula_name, k_tau] + metrics,
                                index=["ModelName", "Seed", "Linear", "Copula", "KTau",
                                       "CI", "IBS", "MAE", "L1"])

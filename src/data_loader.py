@@ -79,32 +79,32 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         DGP1: Data generation process for event
         DGP2: Data generation process for censoring
         """
-        alpha_e1 = data_config['alpha_e1']
-        alpha_e2 = data_config['alpha_e2']
-        gamma_e1 = data_config['gamma_e1']
-        gamma_e2 = data_config['gamma_e2']
+        mu_e1 = data_config['mu_e1']
+        mu_e2 = data_config['mu_e2']
+        sigma_e1 = data_config['sigma_e1']
+        sigma_e2 = data_config['sigma_e2']
         n_hidden = data_config['n_hidden']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
 
+        perturbation_range = (-0.05, 0.05)
         if linear:
-            dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                                 device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                                  device=device, dtype=dtype)
+            mu_e1 = [mu_e1 + random.uniform(*perturbation_range) for _ in range(n_features)]
+            mu_e2 = [mu_e2 + random.uniform(*perturbation_range) for _ in range(n_features)]
+            sigma_e1 = [sigma_e1 + random.uniform(*perturbation_range) for _ in range(n_features)]
+            sigma_e2 = [sigma_e2 + random.uniform(*perturbation_range) for _ in range(n_features)]
+            dgp1 = DGP_LogNormal_linear(mu=mu_e1, sigma=sigma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_LogNormal_linear(mu=mu_e2, sigma=sigma_e2, device=device, dtype=dtype)
         else:
-            perturbation_range = (-0.5, 0.5)
-            alphas_e1 = [alpha_e1 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            alphas_e2 = [alpha_e2 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            gammas_e1 = [gamma_e1 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            gammas_e2 = [gamma_e2 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden, alpha=alphas_e1, gamma=gammas_e1,
-                                         risk_function=relu, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden, alpha=alphas_e2, gamma=gammas_e2,
-                                         risk_function=relu, device=device, dtype=dtype)
-    
+            mu_e1 = [mu_e1/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            mu_e2 = [mu_e2/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            sigma_e1 = [sigma_e1/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            sigma_e2 = [sigma_e2/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            dgp1 = DGP_LogNormal_nonlinear(n_features, n_hidden, mu=mu_e1, sigma=sigma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_LogNormal_nonlinear(n_features, n_hidden, mu=mu_e2, sigma=sigma_e2, device=device, dtype=dtype)
+            
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
             u = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
@@ -112,7 +112,7 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             uv = torch.stack([u, v], dim=1)
         else:
             theta = kendall_tau_to_theta(copula_name, k_tau)
-            u,v = simulation.simu_archimedean(copula_name, 2, X.shape[0], theta=theta)
+            u, v = simulation.simu_archimedean(copula_name, 2, X.shape[0], theta=theta)
             u = torch.from_numpy(u).type(dtype).reshape(-1,1)
             v = torch.from_numpy(v).type(dtype).reshape(-1,1)
             uv = torch.cat([u, v], axis=1)
@@ -162,39 +162,39 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         DGP2: Data generation process for event 2
         DGP3: Data generation process for censoring
         """
-        alpha_e1 = data_config['alpha_e1']
-        alpha_e2 = data_config['alpha_e2']
-        alpha_e3 = data_config['alpha_e3']
-        gamma_e1 = data_config['gamma_e1']
-        gamma_e2 = data_config['gamma_e2']
-        gamma_e3 = data_config['gamma_e3']
+        mu_e1 = data_config['mu_e1']
+        mu_e2 = data_config['mu_e2']
+        mu_e3 = data_config['mu_e3']
+        sigma_e1 = data_config['sigma_e1']
+        sigma_e2 = data_config['sigma_e2']
+        sigma_e3 = data_config['sigma_e3']
         n_hidden = data_config['n_hidden']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
         
+        perturbation_range = (-0.05, 0.05)
         if linear:
-            dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                                      device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                                      device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3,
-                                      device=device, dtype=dtype)
+            mu_e1 = [mu_e1 + random.uniform(*perturbation_range) for _ in range(n_features)]
+            mu_e2 = [mu_e2 + random.uniform(*perturbation_range) for _ in range(n_features)]
+            mu_e3 = [mu_e3 + random.uniform(*perturbation_range) for _ in range(n_features)]
+            sigma_e1 = [sigma_e1 + random.uniform(*perturbation_range) for _ in range(n_features)]
+            sigma_e2 = [sigma_e2 + random.uniform(*perturbation_range) for _ in range(n_features)]
+            sigma_e3 = [sigma_e3 + random.uniform(*perturbation_range) for _ in range(n_features)]
+            dgp1 = DGP_LogNormal_linear(mu=mu_e1, sigma=sigma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_LogNormal_linear(mu=mu_e2, sigma=sigma_e2, device=device, dtype=dtype)
+            dgp3 = DGP_LogNormal_linear(mu=mu_e3, sigma=sigma_e3, device=device, dtype=dtype)
         else:
-            perturbation_range = (-0.5, 0.5)
-            alphas_e1 = [alpha_e1 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            alphas_e2 = [alpha_e2 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            alphas_e3 = [alpha_e3 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            gammas_e1 = [gamma_e1 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            gammas_e2 = [gamma_e2 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            gammas_e3 = [gamma_e3 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden, alpha=alphas_e1, gamma=gammas_e1,
-                                         risk_function=relu, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden, alpha=alphas_e2, gamma=gammas_e2,
-                                         risk_function=relu, device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden, alpha=alphas_e3, gamma=gammas_e3,
-                                         risk_function=relu, device=device, dtype=dtype)
+            mu_e1 = [mu_e1/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            mu_e2 = [mu_e2/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            mu_e3 = [mu_e3/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            sigma_e1 = [sigma_e1/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            sigma_e2 = [sigma_e2/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            sigma_e3 = [sigma_e3/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
+            dgp1 = DGP_LogNormal_nonlinear(n_features, n_hidden, mu=mu_e1, sigma=sigma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_LogNormal_nonlinear(n_features, n_hidden, mu=mu_e2, sigma=sigma_e2, device=device, dtype=dtype)
+            dgp3 = DGP_LogNormal_nonlinear(n_features, n_hidden, mu=mu_e3, sigma=sigma_e3, device=device, dtype=dtype)
         
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)

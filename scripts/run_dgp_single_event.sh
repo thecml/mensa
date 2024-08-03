@@ -14,16 +14,16 @@ if [ -f "$results_path" ]; then
 fi
 
 copula_names=("clayton" "frank" "gumbel")
-linearities=("True" "False")
+linear=("True" "False")
 k_taus=(0.0 0.2 0.4 0.6 0.8)
 seeds=(0 1 2 3 4)
 
 for copula_name in "${copula_names[@]}"; do
-    for linearity in "${linearities[@]}"; do
+    for lin in "${linear[@]}"; do
         for k_tau in "${k_taus[@]}"; do
             for seed in "${seeds[@]}"; do
-                echo "Running with seed=$seed, k_tau=$k_tau, copula_name=$copula_name, linearity=$linearity"
-                python3 $base_path/../src/experiments/run_dgp_single_event.py --seed "$seed" --k_tau "$k_tau" --copula_name "$copula_name" --linear "$linearity"
+                echo "Running with seed=$seed, k_tau=$k_tau, copula_name=$copula_name, linear=$lin"
+                python3 $base_path/../src/experiments/run_dgp_single_event.py --seed "$seed" --k_tau "$k_tau" --copula_name "$copula_name" --linear "$lin"
             done
         done
     done

@@ -51,15 +51,15 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-cop', 'dgp']
+MODELS = ['deepsurv', 'mensa', 'mensa-nocop', 'dgp']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.25)
+    parser.add_argument('--k_tau', type=float, default=0.5)
     parser.add_argument('--copula_name', type=str, default="clayton")
-    parser.add_argument('--linear', type=bool, default=True)
+    parser.add_argument('--linear', type=bool, default=False)
     
     args = parser.parse_args()
     seed = args.seed
@@ -159,12 +159,12 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             dropout = config['dropout']
-            copula = Nested_Convex_Copula(['cl', 'cl'], ['cl'], [1, 1], [1], 1e-3,
+            copula = Nested_Convex_Copula(['cl'], ['cl'], [1, 1], [1], 1e-3,
                                           dtype=dtype, device=device)
-            model = MENSA(n_features=n_features, n_events=n_events, hidden_layers=layers,
+            model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers,
                           dropout=dropout, copula=copula, device=device)
             model.fit(train_dict, valid_dict, n_epochs=n_epochs,
-                      lr_dict={'network': lr, 'copula': 0.01})
+                      lr_dict={'network': lr, 'copula': 0.01}, verbose=True)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
@@ -172,7 +172,7 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             dropout = config['dropout']
-            model = MENSA(n_features=n_features, n_events=n_events, hidden_layers=layers,
+            model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers,
                           dropout=dropout, copula=None, device=device)
             model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict={'network': lr})
         elif model_name == "dgp":
@@ -240,6 +240,7 @@ if __name__ == "__main__":
                 preds = preds.cpu().numpy()
                 preds_df = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
                 all_preds.append(preds_df)
+            all_preds.pop(0) # remove censoring model
         else:
             raise NotImplementedError()
         
