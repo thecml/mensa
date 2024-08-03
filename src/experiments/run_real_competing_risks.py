@@ -149,20 +149,20 @@ if __name__ == "__main__":
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose)
         elif model_name == "mtlrcr":
-            time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
+            mtlr_time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
             train_times = np.digitize(train_dict['T'],
-                                      bins=time_bins.cpu().numpy()).astype(np.int64)
+                                      bins=mtlr_time_bins.cpu().numpy()).astype(np.int64)
             train_events = train_dict['E'].type(torch.int64).cpu().numpy()
             valid_times = np.digitize(valid_dict['T'],
-                                      bins=time_bins.cpu().numpy()).astype(np.int64)
+                                      bins=mtlr_time_bins.cpu().numpy()).astype(np.int64)
             valid_events = valid_dict['E'].type(torch.int64).cpu().numpy()
-            y_train = encode_mtlr_format(train_times, train_events, time_bins.cpu().numpy())
-            y_valid = encode_mtlr_format(valid_times, valid_events, time_bins.cpu().numpy())
-            num_time_bins = len(time_bins.cpu().numpy()) + 1
+            y_train = encode_mtlr_format(train_times, train_events, mtlr_time_bins.cpu().numpy())
+            y_valid = encode_mtlr_format(valid_times, valid_events, mtlr_time_bins.cpu().numpy())
+            num_time_bins = len(mtlr_time_bins.cpu().numpy()) + 1
             config = dotdict(cfg.MTLRCR_PARAMS)
             model = MTLRCR(in_features=n_features, num_time_bins=num_time_bins, num_events=n_events)
             model = train_mtlr_cr(train_dict['X'], y_train, valid_dict['X'], y_valid,
-                                  model, time_bins, num_epochs=config['num_epochs'],
+                                  model, mtlr_time_bins, num_epochs=config['num_epochs'],
                                   lr=config['lr'], batch_size=config['batch_size'],
                                   verbose=True, device=device, C1=config['c1'],
                                   early_stop=config['early_stop'], patience=config['patience'])

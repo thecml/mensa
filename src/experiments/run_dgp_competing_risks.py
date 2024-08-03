@@ -147,17 +147,18 @@ if __name__ == "__main__":
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose)
         elif model_name == "mtlrcr":
-            train_times = np.digitize(train_dict['T'], bins=time_bins).astype(np.int64)
+            mtlr_time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
+            train_times = np.digitize(train_dict['T'], bins=mtlr_time_bins).astype(np.int64)
             train_events = train_dict['E'].type(torch.int64)
-            valid_times = np.digitize(valid_dict['T'], bins=time_bins).astype(np.int64)
+            valid_times = np.digitize(valid_dict['T'], bins=mtlr_time_bins).astype(np.int64)
             valid_events = valid_dict['E'].type(torch.int64)
-            y_train = encode_mtlr_format_no_censoring(train_times, train_events + 1, time_bins)
-            y_valid = encode_mtlr_format_no_censoring(valid_times, valid_events + 1, time_bins)
-            num_time_bins = len(time_bins) + 1
+            y_train = encode_mtlr_format_no_censoring(train_times, train_events + 1, mtlr_time_bins)
+            y_valid = encode_mtlr_format_no_censoring(valid_times, valid_events + 1, mtlr_time_bins)
+            num_time_bins = len(mtlr_time_bins) + 1
             config = dotdict(cfg.MTLRCR_PARAMS)
             model = MTLRCR(in_features=n_features, num_time_bins=num_time_bins, num_events=n_events)
             model = train_mtlr_cr(train_dict['X'], y_train, valid_dict['X'], y_valid,
-                                    model, time_bins, num_epochs=config['num_epochs'],
+                                    model, mtlr_time_bins, num_epochs=config['num_epochs'],
                                     lr=config['lr'], batch_size=config['batch_size'],
                                     verbose=True, device=device, C1=config['c1'],
                                     early_stop=config['early_stop'], patience=config['patience'])

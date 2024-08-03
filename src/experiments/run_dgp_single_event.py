@@ -137,6 +137,7 @@ if __name__ == "__main__":
             model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
                                         (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
         elif model_name == "mtlr":
+            mtlr_time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
             data_train = X_train.copy()
             data_train["time"] = pd.Series(y_train['time'])
             data_train["event"] = pd.Series(y_train['event']).astype(int)
@@ -144,9 +145,9 @@ if __name__ == "__main__":
             data_valid["time"] = pd.Series(y_valid['time'])
             data_valid["event"] = pd.Series(y_valid['event']).astype(int)
             config = dotdict(cfg.MTLR_PARAMS)
-            num_time_bins = len(time_bins)
+            num_time_bins = len(mtlr_time_bins)
             model = mtlr(in_features=n_features, num_time_bins=num_time_bins, config=config)
-            model = train_mtlr_model(model, data_train, data_valid, time_bins,
+            model = train_mtlr_model(model, data_train, data_valid, mtlr_time_bins,
                                      config, random_state=0, dtype=dtype,
                                      reset_model=True, device=device)
         elif model_name == "dcsurvival":
