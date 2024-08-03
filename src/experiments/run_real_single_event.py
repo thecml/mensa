@@ -2,7 +2,7 @@
 run_real_single_event.py
 ====================================
 Datasets: seer_se, support_se, mimic_se
-Models: ["deepsurv", "deephit", "mtlr", "dsm", "mensa"]
+Models: ["deepsurv", "deephit", "dsm", "mtlr", "dcsurvival", "mensa", "mensa-nocop"]
 """
 
 # 3rd party
@@ -50,7 +50,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "dsm", "mensa", "mensa-nocop"]
+MODELS = ["deepsurv", "deephit", "dsm", "mtlr", "dcsurvival", "mensa", "mensa-nocop"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -152,8 +152,7 @@ if __name__ == "__main__":
             model = train_dcsurvival_model(model, train_dict['X'], valid_dict['X'],
                                            train_dict['T'], train_dict['E'],
                                            valid_dict['T'], valid_dict['E'],
-                                           num_epochs=1, batch_size=32,
-                                           learning_rate=learning_rate, device=device)
+                                           num_epochs=1000, learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
             n_epochs = config['n_epochs']

@@ -3,7 +3,7 @@ run_synthetic_se_event.py
 ====================================
 Experiment 1.1
 
-Models: ["deepsurv", "deephit", "mtlr", "dsm", "mensa", "mensa-nocop", "dgp"]
+Models: ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "mensa-nocop", "dgp"]
 """
 
 # 3rd party
@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "dsm", "mensa", "mensa-nocop", "dgp"]
+MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "mensa-nocop", "dgp"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     X_valid = pd.DataFrame(valid_dict['X'], columns=[f'X{i}' for i in range(n_features)])
     X_test = pd.DataFrame(test_dict['X'], columns=[f'X{i}' for i in range(n_features)])
     y_train = convert_to_structured(train_dict['T'], train_dict['E'])
-    y_valid = convert_to_structured(valid_dict['T'], valid_dict['E']) 
+    y_valid = convert_to_structured(valid_dict['T'], valid_dict['E'])
     y_test = convert_to_structured(test_dict['T'], test_dict['E'])
     
     # Evaluate each model
@@ -157,8 +157,7 @@ if __name__ == "__main__":
             model = train_dcsurvival_model(model, train_dict['X'], valid_dict['X'],
                                            train_dict['T'], train_dict['E'],
                                            valid_dict['T'], valid_dict['E'],
-                                           num_epochs=1, batch_size=32,
-                                           learning_rate=learning_rate, device=device)
+                                           num_epochs=1000, learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
