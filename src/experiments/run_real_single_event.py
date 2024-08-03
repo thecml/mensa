@@ -50,7 +50,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "mensa-nocop"]
+MODELS = ["deepsurv", "deephit", "dsm", "dcsurvival", "mensa", "mensa-nocop"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

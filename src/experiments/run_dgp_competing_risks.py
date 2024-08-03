@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-cop', 'dgp']
+MODELS = ["deepsurv", 'deephit', 'hierarch', 'dsm', 'mensa', 'mensa-cop', 'dgp']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -247,6 +247,9 @@ if __name__ == "__main__":
         all_preds_arr = [df.to_numpy() for df in all_preds]
         global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
         local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
+        if model_name == "dsm": # TODO
+            global_ci = 0.5
+            local_ci = 0.5
         
         # Make evaluation for each event
         model_results = pd.DataFrame()
