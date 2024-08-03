@@ -107,7 +107,7 @@ DEEPSURV_PARAMS = {
     'verbose': False,
     'lr': 0.005,
     'c1': 0.01,
-    'num_epochs': 100,
+    'num_epochs': 1000,
     'dropout': 0.25,
     'n_samples_train': 10,
     'n_samples_test': 100,
@@ -147,7 +147,7 @@ RSF_PARAMS = {
 DSM_PARAMS = {
     'network_layers': [32],
     'learning_rate': 0.001,
-    'n_iter': 1000,
+    'n_iter': 10000,
     'batch_size': 32
 }
 
@@ -165,7 +165,7 @@ DEEPHIT_PARAMS = {
     'eta_multiplier': 0.8,
     'epochs': 1000,
     'early_stop': True,
-    'patience': 100,
+    'patience': 10,
 }
 
 MTLRCR_PARAMS = {
@@ -179,37 +179,12 @@ MTLRCR_PARAMS = {
     'lr': 1e-3,
     'c1': 0.01,
     'num_epochs': 1000,
-    'dropout': 0.5,
+    'dropout': 0.25,
     'n_samples_train': 10,
     'n_samples_test': 100,
     'batch_size': 32,
     'early_stop': True,
     'patience': 10
-}
-
-SURVTRACE_PARAMS = {
-    "num_hidden_layers": 1,
-    "hidden_size": 32,
-    "intermediate_size": 32,
-    "num_attention_heads": 2,
-    "initializer_range": .02,
-    "batch_size": 128,
-    "weight_decay": 0,
-    "learning_rate": 1e-4,
-    "epochs": 100,
-    "early_stop_patience": 10,
-    "hidden_dropout_prob": 0.25,
-    "seed": 0,
-    "hidden_act": "gelu",
-    "attention_probs_dropout_prob": 0.25,
-    "layer_norm_eps": 1000000000000,
-    "checkpoint": "./checkpoints/survtrace.pt",
-    "max_position_embeddings": 512,
-    "chunk_size_feed_forward": 0,
-    "output_attentions": False,
-    "output_hidden_states": False,
-    "tie_word_embeddings": True,
-    "pruned_heads": {}
 }
 
 DCSURVIVAL_PARAMS = {
@@ -220,11 +195,11 @@ DCSURVIVAL_PARAMS = {
 }
 
 MENSA_PARAMS = {
-    'layers': [64, 64],
-    'lr': 0.01,
+    'layers': [32, 32],
+    'lr': 0.005,
     'dropout': 0.25,
-    'batch_size': 128,
-    'n_epochs': 100,
+    'batch_size': 10000,
+    'n_epochs': 10000,
     'activation_fn': "relu",
-    'optimizer': "adam"
+    'optimizer': "adamw"
 }

@@ -1,5 +1,4 @@
 dropout: 0.25
 layers: [32, 32]
 lr: 0.005
-n_epochs: 500
-batch_size: 128
+n_epochs: 10000

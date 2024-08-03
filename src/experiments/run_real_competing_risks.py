@@ -9,46 +9,31 @@ import pandas as pd
 import numpy as np
 import config as cfg
 import torch
-import torch.optim as optim
-import torch.nn as nn
 import random
 import warnings
-import copy
-import tqdm
-import math
 import argparse
 import os
 from scipy.interpolate import interp1d
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
-from copula import Clayton2D, Frank2D, NestedClayton
-from utility.survival import (make_time_bins, preprocess_data, convert_to_structured,
-                              risk_fn, compute_l1_difference, predict_survival_function,
-                              make_times_hierarchical)
-from utility.data import (dotdict, format_data, format_data_as_dict_single)
+from utility.survival import (make_time_bins, preprocess_data)
+from utility.data import dotdict
 from utility.config import load_config
-from utility.loss import triple_loss
-from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch,
-                          format_survtrace_data, format_data_as_dict_single)
+from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch)
 from utility.evaluation import global_C_index, local_C_index
 from data_loader import get_data_loader
 from mensa.model import MENSA
-from Copula2 import Convex_Nested
+from copula import Nested_Convex_Copula
 
 # SOTA
 from sota_models import (make_deephit_cr, make_dsm_model, train_deepsurv_model,
                          make_deepsurv_prediction, DeepSurv, make_deephit_cr, train_deephit_model)
-from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction, train_mtlr_cr
-from trainer import independent_train_loop_linear, dependent_train_loop_linear, loss_function
-from hierarchical.data_settings import synthetic_cr_settings
+from utility.mtlr import train_mtlr_cr
 from hierarchical import util
 from hierarchical.helper import format_hierarchical_hyperparams
-from torchmtlr.utils import encode_mtlr_format, reset_parameters, encode_mtlr_format_no_censoring
-from torchmtlr.model import MTLRCR, mtlr_neg_log_likelihood, mtlr_risk, mtlr_survival
-from utility.data import calculate_vocab_size
-from utility.data import calculate_vocab_size
-from pycox.models import DeepHit
+from torchmtlr.utils import encode_mtlr_format
+from torchmtlr.model import MTLRCR, mtlr_survival
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -64,7 +49,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['mensa-nocop']
+MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-nocop']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -132,7 +117,7 @@ if __name__ == "__main__":
                                         (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
         elif model_name == "hierarch":
             config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"{dataset_name}.yaml")
-            n_time_bins = len(time_bins.cpu().numpy())
+            n_time_bins = len(time_bins)
             train_data, valid_data, test_data = format_hierarchical_data_cr(train_dict, valid_dict, test_dict,
                                                                             n_time_bins, n_events, censoring_event=False)
             config['min_time'] = int(train_data[1].min())
@@ -176,26 +161,28 @@ if __name__ == "__main__":
                                     'time': valid_dict['T'].cpu().numpy()})
             model.fit(X_train, pd.DataFrame(y_train), val_data=(X_valid, pd.DataFrame(y_valid)))
         elif model_name == "mensa":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
-            layers = config['layers']
-            dropout = config['dropout']
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
-            copula = Convex_Nested(2, 2, 1e-3, 1e-3, device)
-            model = MENSA(n_features, n_events+1, layers=layers, dropout=dropout,
-                          copula=copula, device=device) # add censoring model
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
+            layers = config['layers']
+            dropout = config['dropout']
+            copula = Nested_Convex_Copula(['cl', 'cl'], ['cl'], [1, 1], [1], 1e-3,
+                                          dtype=dtype, device=device)
+            model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
+                          dropout=dropout, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=100,
+                      lr_dict={'network': lr, 'copula': 0.01})
         elif model_name == "mensa-nocop":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
-            layers = config['layers']
-            dropout = config['dropout']
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
-            model = MENSA(n_features, n_events+1, layers=layers, # add censoring model
+            layers = config['layers']
+            dropout = config['dropout']
+            model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
                           dropout=dropout, copula=None, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
+            model.fit(train_dict, valid_dict, n_epochs=100, lr_dict={'network': lr})
         else:
             raise NotImplementedError()
         
@@ -203,8 +190,8 @@ if __name__ == "__main__":
         if model_name == "deepsurv":
             all_preds = []
             for trained_model in trained_models:
-                preds, time_bins_model, _ = make_deepsurv_prediction(trained_model, test_dict['X'],
-                                                                     config=config, dtype=dtype)
+                preds, time_bins_model = make_deepsurv_prediction(trained_model, test_dict['X'].to(device),
+                                                                  config=config, dtype=dtype)
                 spline = interp1d(time_bins_model.cpu().numpy(),
                                   preds.cpu().numpy(),
                                   kind='linear', fill_value='extrapolate')
@@ -218,7 +205,7 @@ if __name__ == "__main__":
                 preds = pd.DataFrame((1-cif[i]).T, columns=time_bins_dh.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "hierarch":
-            event_preds = util.get_surv_curves(test_data[0], model)
+            event_preds = util.get_surv_curves(torch.tensor(test_data[0], dtype=dtype), model)
             bin_locations = np.linspace(0, config['max_time'], event_preds[0].shape[1])
             all_preds = []
             for i in range(n_events):

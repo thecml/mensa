@@ -1,5 +1,4 @@
-n_epochs: 750
+dropout: 0.25
+layers: [32, 32]
 lr: 0.005
-batch_size: 1024
-layers: [32]
-dropout: 0.1
+n_epochs: 10000
