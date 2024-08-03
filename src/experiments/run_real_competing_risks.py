@@ -154,16 +154,13 @@ if __name__ == "__main__":
                                   early_stop=config['early_stop'], patience=config['patience'])
         elif model_name == "dsm":
             config = dotdict(cfg.DSM_PARAMS)
+            n_iter = config['n_iter']
+            learning_rate = config['learning_rate']
+            batch_size = config['batch_size']
             model = make_dsm_model(config)
-            X_train = pd.DataFrame(train_dict['X'].cpu().numpy(),
-                                   columns=[f'X{i}' for i in range(n_features)])
-            X_valid = pd.DataFrame(valid_dict['X'].cpu().numpy(),
-                                   columns=[f'X{i}' for i in range(n_features)])
-            y_train = pd.DataFrame({'event': train_dict['E'].cpu().numpy(),
-                                    'time': train_dict['T'].cpu().numpy()})
-            y_valid = pd.DataFrame({'event': valid_dict['E'].cpu().numpy(),
-                                    'time': valid_dict['T'].cpu().numpy()})
-            model.fit(X_train, pd.DataFrame(y_train), val_data=(X_valid, pd.DataFrame(y_valid)))
+            model.fit(train_dict['X'].numpy(), train_dict['T'].numpy(), train_dict['E'].numpy(),
+                      val_data=(valid_dict['X'].numpy(), valid_dict['T'].numpy(), valid_dict['T'].numpy()),
+                      learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
@@ -227,11 +224,11 @@ if __name__ == "__main__":
                 preds = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "dsm":
-            X_test = pd.DataFrame(test_dict['X'].cpu().numpy(),
-                                  columns=[f'X{i}' for i in range(n_features)])
-            model_preds = model.predict_survival(X_test, times=list(time_bins.cpu().numpy()))
-            model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-            all_preds = [model_preds for _ in range(n_events)]
+            all_preds = []
+            for i in range(n_events):
+                model_pred = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.numpy()), risk=i+1)
+                model_pred = pd.DataFrame(model_pred, columns=time_bins.cpu().numpy())
+                all_preds.append(model_pred)
         elif model_name in ['mensa', 'mensa-nocop']:
             model_preds = model.predict(test_dict['X'], time_bins)
             all_preds = []
@@ -249,9 +246,6 @@ if __name__ == "__main__":
         all_preds_arr = [df.to_numpy() for df in all_preds]
         global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
         local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
-        if model_name == "dsm": # TODO
-            global_ci = 0.5
-            local_ci = 0.5
             
         # Make evaluation for each event
         model_results = pd.DataFrame()

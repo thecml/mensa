@@ -114,8 +114,13 @@ if __name__ == "__main__":
             model.fit(X_train, y_train)
         elif model_name == "dsm":
             config = dotdict(cfg.DSM_PARAMS)
+            n_iter = config['n_iter']
+            learning_rate = config['learning_rate']
+            batch_size = config['batch_size']
             model = make_dsm_model(config)
-            model.fit(X_train, pd.DataFrame(y_train), val_data=(X_valid, pd.DataFrame(y_valid)))
+            model.fit(train_dict['X'].numpy(), train_dict['T'].numpy(), train_dict['E'].numpy(),
+                      val_data=(valid_dict['X'].numpy(), valid_dict['T'].numpy(), valid_dict['T'].numpy()),
+                      learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
             model = DeepSurv(in_features=n_features, config=config)
@@ -195,7 +200,8 @@ if __name__ == "__main__":
             model_preds = model.predict_survival_function(X_test)
             model_preds = np.row_stack([fn(time_bins) for fn in model_preds])
         elif model_name == 'dsm':
-            model_preds = model.predict_survival(X_test, times=list(time_bins.cpu().numpy()))
+            model_preds = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.numpy()))
+            model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
         elif model_name == "deepsurv":
             model_preds, time_bins_deepsurv = make_deepsurv_prediction(model, test_dict['X'].to(device),
                                                                        config=config, dtype=dtype)

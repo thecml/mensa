@@ -128,6 +128,7 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         self.y_e = event_indicators
         self.y_t = observed_times
         self.dgps = [dgp1, dgp2]
+        self.n_events = 1
         
         return self
     
@@ -225,6 +226,8 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         self.y_t1 = t1_times
         self.y_t2 = t2_times
         self.y_t3 = t3_times
+        
+        self.n_events = 2
         self.dgps = [dgp1, dgp2, dgp3]
         
         return self
@@ -332,6 +335,7 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         self.y_t = event_times
         self.y_e = event_indicators
         self.dgps = [dgp1, dgp2, dgp3]
+        self.n_events = 3
         
         return self
     
