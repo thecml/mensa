@@ -20,6 +20,7 @@ from utility.survival import make_stratified_split
 from dgp import *
 import torch
 import random
+from data import mimic_feature_selection 
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -401,7 +402,8 @@ class MimicMultiDataLoader(BaseDataLoader):
         t and e order, followed by arf, shock, death
         '''
         df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, 'mimic.csv.gz'), compression='gzip', index_col=0)
-            
+        df = df[mimic_feature_selection.selected_features]
+
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
             
@@ -515,7 +517,8 @@ class MimicSingleDataLoader(BaseDataLoader):
         t and e order, followed by death
         '''
         df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, 'mimic.csv.gz'), compression='gzip', index_col=0)
-            
+        df = df[mimic_feature_selection.selected_features]
+        
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
             
