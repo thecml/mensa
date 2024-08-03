@@ -1,7 +1,7 @@
-alpha_e1: 18
-alpha_e2: 17
-gamma_e1: 3
-gamma_e2: 3
-n_events: 2
-n_samples: 1000
+alpha_e1: 16
+alpha_e2: 14
+gamma_e1: 4
+gamma_e2: 4
+n_hidden: 32
+n_samples: 20000
 n_features: 10

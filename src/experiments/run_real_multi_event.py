@@ -71,13 +71,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['mensa']
+MODELS = ["deepsurv"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='mimic')
+    parser.add_argument('--dataset_name', type=str, default='als_me')
     
     args = parser.parse_args()
     seed = args.seed
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     
     # Load and split data
     dl = get_data_loader(dataset_name)
-    dl = dl.load_data(n_samples=1000)
+    dl = dl.load_data()
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=seed)
     n_events = dl.n_events
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     n_features = train_dict['X'].shape[1]
     
     # Make time bins
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
     
     # Evaluate models
     for model_name in MODELS:
@@ -123,18 +123,18 @@ if __name__ == "__main__":
             trained_models = []
             for i in range(n_events):
                 model = DeepSurv(in_features=n_features, config=config)
-                data_train = pd.DataFrame(train_dict['X'])
-                data_train['time'] = train_dict['T'][:,i]
-                data_train['event'] = train_dict['E'][:,i]
-                data_valid = pd.DataFrame(valid_dict['X'])
-                data_valid['time'] = valid_dict['T'][:,i]
-                data_valid['event'] = valid_dict['E'][:,i]
+                data_train = pd.DataFrame(train_dict['X'].cpu().numpy())
+                data_train['time'] = train_dict['T'][:,i].cpu().numpy()
+                data_train['event'] = train_dict['E'][:,i].cpu().numpy()
+                data_valid = pd.DataFrame(valid_dict['X'].cpu().numpy())
+                data_valid['time'] = valid_dict['T'][:,i].cpu().numpy()
+                data_valid['event'] = valid_dict['E'][:,i].cpu().numpy()
                 model = train_deepsurv_model(model, data_train, data_valid, time_bins, config=config,
                                              random_state=0, reset_model=True, device=device, dtype=dtype)
                 trained_models.append(model)
         elif model_name == "hierarch":
             config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"{dataset_name}.yaml")
-            n_time_bins = len(time_bins)
+            n_time_bins = len(time_bins.cpu().numpy())
             train_data, valid_data, test_data = format_hierarchical_data_me(train_dict, valid_dict, test_dict, n_time_bins)
             config['min_time'] = int(train_data[1].min())
             config['max_time'] = int(train_data[1].max())
@@ -159,14 +159,16 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Compute survival function
-        n_samples = test_dict['X'].shape[0]
         if model_name == "deepsurv":
             all_preds = []
             for trained_model in trained_models:
                 preds, time_bins_model, _ = make_deepsurv_prediction(trained_model, test_dict['X'],
                                                                      config=config, dtype=dtype)
-                spline = interp1d(time_bins_model, preds, kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins), columns=time_bins.numpy())
+                spline = interp1d(time_bins_model.cpu().numpy(),
+                                  preds.cpu().numpy(),
+                                  kind='linear', fill_value='extrapolate')
+                preds = pd.DataFrame(spline(time_bins.cpu().numpy()),
+                                     columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "hierarch":
             event_preds = util.get_surv_curves(test_data[0], model)
@@ -176,23 +178,25 @@ if __name__ == "__main__":
                 preds = pd.DataFrame(event_preds[i], columns=bin_locations)
                 all_preds.append(preds)
         elif model_name == "mensa":
-            model_preds = model.predict(test_dict['X'], time_bins.numpy())
+            model_preds = model.predict(test_dict['X'], time_bins)
             all_preds = []
             for model_pred in model_preds:
-                model_pred = pd.DataFrame(model_pred.detach().numpy(), columns=time_bins.numpy())
+                model_pred = pd.DataFrame(model_pred.detach().cpu().numpy(),
+                                          columns=time_bins.cpu().numpy())
                 all_preds.append(model_pred)
         else:
             raise NotImplementedError()
         
         # Test local and global CI
         all_preds_arr = [df.to_numpy() for df in all_preds]
-        global_ci = global_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy())
-        local_ci = local_C_index(all_preds_arr, test_dict['T'].numpy(), test_dict['E'].numpy())
+        global_ci = global_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
+                                   test_dict['E'].cpu().numpy())
+        local_ci = local_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
+                                 test_dict['E'].cpu().numpy())
                 
         # Make evaluation for each event
         model_results = pd.DataFrame()
         for event_id, surv_pred in enumerate(all_preds):
-            #surv_preds_df = pd.DataFrame(surv_preds, columns=time_bins.numpy())
             n_train_samples = len(train_dict['X'])
             n_test_samples= len(test_dict['X'])
             y_train_time = train_dict['T'][:,event_id]

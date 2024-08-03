@@ -55,7 +55,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa"] 
+MODELS = ["mensa-nocop"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     
     # Load and split data
     dl = get_data_loader(dataset_name)
-    dl = dl.load_data(n_samples=1000)
+    dl = dl.load_data()
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=seed)
     
@@ -87,16 +87,16 @@ if __name__ == "__main__":
     n_samples = train_dict['X'].shape[0]
 
     # Make time bins
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
 
     # Format data to work easier with sksurv API
     n_features = train_dict['X'].shape[1]
-    X_train = pd.DataFrame(train_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-    X_valid = pd.DataFrame(valid_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-    X_test = pd.DataFrame(test_dict['X'], columns=[f'X{i}' for i in range(n_features)])
-    y_train = convert_to_structured(train_dict['T'], train_dict['E'])
-    y_valid = convert_to_structured(valid_dict['T'], valid_dict['E'])
-    y_test = convert_to_structured(test_dict['T'], test_dict['E'])
+    X_train = pd.DataFrame(train_dict['X'].cpu().numpy(), columns=[f'X{i}' for i in range(n_features)])
+    X_valid = pd.DataFrame(valid_dict['X'].cpu().numpy(), columns=[f'X{i}' for i in range(n_features)])
+    X_test = pd.DataFrame(test_dict['X'].cpu().numpy(), columns=[f'X{i}' for i in range(n_features)])
+    y_train = convert_to_structured(train_dict['T'].cpu().numpy(), train_dict['E'].cpu().numpy())
+    y_valid = convert_to_structured(valid_dict['T'].cpu().numpy(), valid_dict['E'].cpu().numpy())
+    y_test = convert_to_structured(test_dict['T'].cpu().numpy(), test_dict['E'].cpu().numpy())
     
     # Evaluate each model
     for model_name in MODELS:
@@ -115,18 +115,18 @@ if __name__ == "__main__":
         elif model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
             model = DeepSurv(in_features=n_features, config=config)
-            data_train = pd.DataFrame(train_dict['X'])
-            data_train['time'] = train_dict['T']
-            data_train['event'] = train_dict['E']
-            data_valid = pd.DataFrame(valid_dict['X'])
-            data_valid['time'] = valid_dict['T']
-            data_valid['event'] = valid_dict['E']
+            data_train = pd.DataFrame(train_dict['X'].cpu().numpy())
+            data_train['time'] = train_dict['T'].cpu().numpy()
+            data_train['event'] = train_dict['E'].cpu().numpy()
+            data_valid = pd.DataFrame(valid_dict['X'].cpu().numpy())
+            data_valid['time'] = valid_dict['T'].cpu().numpy()
+            data_valid['event'] = valid_dict['E'].cpu().numpy()
             model = train_deepsurv_model(model, data_train, data_valid, time_bins, config=config,
                                          random_state=0, reset_model=True, device=device, dtype=dtype)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
             model = make_deephit_single(in_features=n_features, out_features=len(time_bins),
-                                        time_bins=time_bins.numpy(), device=device, config=config)
+                                        time_bins=time_bins.cpu().numpy(), device=device, config=config)
             labtrans = model.label_transform
             train_data, valid_data, out_features, duration_index = format_data_deephit_single(train_dict, valid_dict, labtrans)
             model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
@@ -141,7 +141,7 @@ if __name__ == "__main__":
             config = dotdict(cfg.MTLR_PARAMS)
             num_time_bins = len(time_bins)
             model = mtlr(in_features=n_features, num_time_bins=num_time_bins, config=config)
-            model = train_mtlr_model(model, data_train, data_valid, time_bins,
+            model = train_mtlr_model(model, data_train, data_valid, time_bins.cpu().numpy(),
                                      config, random_state=0, dtype=dtype,
                                      reset_model=True, device=device)
         elif model_name == "dcsurvival":
@@ -159,13 +159,20 @@ if __name__ == "__main__":
                                            num_epochs=10, batch_size=32,
                                            learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
             copula = Clayton2D(torch.tensor([2.0]).type(dtype), device, dtype)
             model = MENSA(n_features=n_features, n_events=2, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100, lr=0.005, batch_size=128) #4096
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
+        elif model_name == "mensa-nocop":
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
+            n_epochs = config['n_epochs']
+            lr = config['lr']
+            batch_size = config['batch_size']
+            model = MENSA(n_features=n_features, n_events=2, copula=None, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
         else:
             raise NotImplementedError()
         
@@ -173,34 +180,39 @@ if __name__ == "__main__":
         n_samples = test_dict['X'].shape[0]
         if model_name in ['cox']:
             model_preds = model.predict_survival_function(X_test)
-            model_preds = np.row_stack([fn(time_bins) for fn in model_preds])
+            model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
         elif model_name == 'dsm':
-            model_preds = model.predict_survival(X_test, times=list(time_bins.numpy()))
+            model_preds = model.predict_survival(X_test, times=list(time_bins.cpu().numpy()))
         elif model_name == "deepsurv":
             model_preds, time_bins_deepsurv, _ = make_deepsurv_prediction(model, test_dict['X'],
                                                                           config=config, dtype=dtype)
-            spline = interp1d(time_bins_deepsurv, model_preds, kind='linear', fill_value='extrapolate')
-            model_preds = spline(time_bins)
+            
+            spline = interp1d(time_bins_deepsurv.cpu().numpy(),
+                              model_preds.cpu().numpy(),
+                              kind='linear', fill_value='extrapolate')
+            model_preds = spline(time_bins.cpu().numpy())
         elif model_name == "mtlr":
             data_test = X_test.copy()
             data_test["time"] = pd.Series(y_test['time'])
             data_test["event"] = pd.Series(y_test['event']).astype('int')
             mtlr_test_data = torch.tensor(data_test.drop(["time", "event"], axis=1).values,
                                           dtype=dtype, device=device)
-            survival_outputs, _, _ = make_mtlr_prediction(model, mtlr_test_data, time_bins, config)
-            model_preds = survival_outputs[:, 1:].numpy()
+            survival_outputs, _, _ = make_mtlr_prediction(model, mtlr_test_data, time_bins.cpu(), config)
+            model_preds = survival_outputs[:, 1:].cpu().numpy()
         elif model_name == "deephit":
-            model_preds = model.predict_surv(test_dict['X'])
+            model_preds = model.predict_surv(test_dict['X']).cpu().numpy()
         elif model_name == "dcsurvival":
-            model_preds = predict_survival_function(model, test_dict['X'], time_bins).numpy()
-        elif model_name == "mensa":
-            model_preds = model.predict(test_dict['X'], time_bins)[1].detach().numpy() # use event preds
+            model_preds = predict_survival_function(model, test_dict['X'], time_bins.cpu().numpy()).numpy()
+        elif model_name in ['mensa', 'mensa-nocop']:
+            model_preds = model.predict(test_dict['X'], time_bins)[1].detach().cpu().numpy() # use event preds
+        elif model_name == "nde":
+            model_preds = predict_survival_function(model, test_dict['X'], time_bins.cpu().numpy()).numpy()
         else:
             raise NotImplementedError()
         
         # Make evaluation
         model_results = pd.DataFrame()
-        surv_preds = pd.DataFrame(model_preds, columns=time_bins.numpy())
+        surv_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
         
         y_train_time = train_dict['T']
         y_train_event = (train_dict['E'])*1.0
@@ -212,9 +224,13 @@ if __name__ == "__main__":
         ci = lifelines_eval.concordance()[0]
         ibs = lifelines_eval.integrated_brier_score()
         mae_margin = lifelines_eval.mae(method="Margin")
+        mae_pseudo = lifelines_eval.mae(method="Pseudo_obs")
+        mae_hinge = lifelines_eval.mae(method="Hinge")
+        d_calib = lifelines_eval.d_calibration()[0]
         
+        metrics = [ci, ibs, mae_margin, mae_pseudo, mae_hinge, d_calib]
+        print(f'{model_name}: ' + f'{metrics}')
         metrics = [ci, ibs, mae_margin]
-        print(metrics)
         res_sr = pd.Series([model_name, dataset_name, seed] + metrics,
                             index=["ModelName", "DatasetName", "Seed", "CI", "IBS", "MAEM"])
         model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)

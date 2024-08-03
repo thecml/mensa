@@ -19,7 +19,7 @@ def LOG(x):
 
 class DGP_LogNormal_linear:
     # Note this is the LogNormal model, not the LogNormal CoxPH model
-    def __init__(self, n_features, mu, sigma, device='cpu', dtype=torch.float64) -> None:
+    def __init__(self, n_features, mu: float, sigma: float, device='cpu', dtype=torch.float64) -> None:
         self.mu_coeff = torch.tensor([mu], device=device).type(dtype)
         self.sigma_coeff = torch.tensor([sigma], device=device).type(dtype)
         self.device = device
@@ -63,11 +63,11 @@ class DGP_LogNormal_linear:
 
 class DGP_LogNormal_nonlinear(DGP_LogNormal_linear):
     # Note this is the LogNormal nonlinear model
-    def __init__(self, n_features, n_hidden, mu, sigma, risk_function=torch.nn.ReLU(),
+    def __init__(self, n_features, n_hidden, mu: List[float], sigma: List[float], risk_function=torch.nn.ReLU(),
                  device='cpu', dtype=torch.float64) -> None:
         self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
-        self.mu_coeff = torch.tensor([mu]*n_hidden, device=device).type(dtype)
-        self.sigma_coeff = torch.tensor([sigma]*n_hidden, device=device).type(dtype)
+        self.mu_coeff = torch.tensor(mu, device=device).type(dtype)
+        self.sigma_coeff = torch.tensor(sigma, device=device).type(dtype)
         self.hidden_layer = risk_function
         self.device = device
 
@@ -81,7 +81,7 @@ class DGP_LogNormal_nonlinear(DGP_LogNormal_linear):
         return mu, sigma
 
 class DGP_LogNormalCox_linear:
-    def __init__(self, n_features, mu, sigma, device="cpu", dtype=torch.float64) -> None:
+    def __init__(self, n_features, mu: float, sigma: float, device="cpu", dtype=torch.float64) -> None:
         self.mu = torch.tensor([mu]).type(dtype).to(device)
         self.sigma = torch.tensor([sigma]).type(dtype).to(device)
         self.coeff = torch.rand((n_features,)).to(device)
@@ -124,7 +124,7 @@ class DGP_LogNormalCox_linear:
         raise NotImplementedError
 
 class DGP_Exp_linear:
-    def __init__(self, n_features, baseline_hazard, device="cpu", dtype=torch.float64) -> None:
+    def __init__(self, n_features, baseline_hazard: float, device="cpu", dtype=torch.float64) -> None:
         self.bh = torch.tensor([baseline_hazard]).type(dtype).to(device)
         self.coeff = torch.rand((n_features,)).to(device)
     
@@ -151,7 +151,7 @@ class DGP_Exp_linear:
 
 class DGP_EXP_nonlinear(DGP_Exp_linear):
     # This is the exponential CoxPH model with a nonlinear risk function
-    def __init__(self, n_features, baseline_hazard, n_hidden, risk_function=torch.nn.ReLU(),
+    def __init__(self, n_features, baseline_hazard: float, n_hidden, risk_function=torch.nn.ReLU(),
                  device='cpu', dtype=torch.float64) -> None:
         self.bh = torch.tensor([baseline_hazard], device=device).type(dtype)
         self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
@@ -163,7 +163,7 @@ class DGP_EXP_nonlinear(DGP_Exp_linear):
         return self.bh * torch.exp(risks)
 
 class DGP_Weibull_linear:
-    def __init__(self, n_features, alpha, gamma, device="cpu", dtype=torch.float64):
+    def __init__(self, n_features, alpha: float, gamma: float, device="cpu", dtype=torch.float64):
         self.alpha = torch.tensor([alpha], device=device).type(dtype)
         self.gamma = torch.tensor([gamma], device=device).type(dtype)
         self.coeff = torch.rand((n_features,), device=device).type(dtype)
@@ -190,10 +190,10 @@ class DGP_Weibull_linear:
         return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
 
 class DGP_Weibull_nonlinear:
-    def __init__(self, n_features, n_hidden, alpha, gamma, risk_function=torch.nn.ReLU(),
-                 device='cpu', dtype=torch.float64):
-        self.alpha = torch.tensor([alpha]*n_hidden, device=device).type(dtype)
-        self.gamma = torch.tensor([gamma]*n_hidden, device=device).type(dtype)
+    def __init__(self, n_features, n_hidden, alpha: List[float], gamma: List[float],
+                 risk_function=torch.nn.ReLU(), device='cpu', dtype=torch.float64):
+        self.alpha = torch.tensor(alpha, device=device).type(dtype)
+        self.gamma = torch.tensor(gamma, device=device).type(dtype)
         self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
         self.hidden_layer = risk_function
         

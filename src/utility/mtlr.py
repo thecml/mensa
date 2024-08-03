@@ -214,8 +214,8 @@ def train_mtlr_cr(x_train, y_train, x_valid, y_valid, model, time_bins,
             loss.backward()
             optimizer.step()
             
-        logits_outputs = model.forward(x_valid)
-        eval_nll = mtlr_neg_log_likelihood(logits_outputs, y_valid, model, C1, average=True)
+        logits_outputs = model.forward(x_valid.to(device))
+        eval_nll = mtlr_neg_log_likelihood(logits_outputs, y_valid.to(device), model, C1, average=True)
         
         pbar.set_description(f"[epoch {i+1: 4}/{num_epochs}]")
         pbar.set_postfix_str(f"loss = {loss.item():.4f}")
