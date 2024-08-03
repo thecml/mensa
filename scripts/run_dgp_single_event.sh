@@ -1,11 +1,16 @@
 #!/bin/bash
 
-file_path="../results/synthetic_se.csv"
+base_path=$(dirname "$0")            # relative
+base_path=$(cd "$MY_PATH" && pwd)    # absolutized and normalized
+if [[ -z "$base_path" ]] ; then  # error; for some reason, the path is not accessible
+  # to the script (e.g. permissions re-evaled after suid)
+  exit 1  # fail
+fi
+echo "$base_path"
 
-if [ -f "$file_path" ]; then
-  rm "$file_path"
-else
-  echo "File $file_path does not exist."
+results_path=$base_path/../results/synthetic_se.csv
+if [ -f "$results_path" ]; then
+  rm $results_path
 fi
 
 copula_names=("clayton" "frank" "gumbel")
@@ -18,7 +23,7 @@ for copula_name in "${copula_names[@]}"; do
         for k_tau in "${k_taus[@]}"; do
             for seed in "${seeds[@]}"; do
                 echo "Running with seed=$seed, k_tau=$k_tau, copula_name=$copula_name, linearity=$linearity"
-                python3 run_dgp_single_event.py --seed "$seed" --k_tau "$k_tau" --copula_name "$copula_name" --linear "$linearity"
+                python3 $base_path/../src/experiments/run_dgp_single_event.py --seed "$seed" --k_tau "$k_tau" --copula_name "$copula_name" --linear "$linearity"
             done
         done
     done

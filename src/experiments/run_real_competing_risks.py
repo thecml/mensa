@@ -171,7 +171,7 @@ if __name__ == "__main__":
                                           dtype=dtype, device=device)
             model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
                           dropout=dropout, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100,
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs,
                       lr_dict={'network': lr, 'copula': 0.01})
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
@@ -182,7 +182,7 @@ if __name__ == "__main__":
             dropout = config['dropout']
             model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
                           dropout=dropout, copula=None, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100, lr_dict={'network': lr})
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict={'network': lr})
         else:
             raise NotImplementedError()
         
@@ -244,7 +244,10 @@ if __name__ == "__main__":
         all_preds_arr = [df.to_numpy() for df in all_preds]
         global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
         local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
-        
+        if model_name == "dsm": # TODO
+            global_ci = 0.5
+            local_ci = 0.5
+            
         # Make evaluation for each event
         model_results = pd.DataFrame()
         for event_id, surv_preds in enumerate(all_preds):

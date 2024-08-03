@@ -88,7 +88,7 @@ if __name__ == "__main__":
     X_valid = pd.DataFrame(valid_dict['X'], columns=[f'X{i}' for i in range(n_features)])
     X_test = pd.DataFrame(test_dict['X'], columns=[f'X{i}' for i in range(n_features)])
     y_train = convert_to_structured(train_dict['T'], train_dict['E'])
-    y_valid = convert_to_structured(valid_dict['T'], valid_dict['E']) 
+    y_valid = convert_to_structured(valid_dict['T'], valid_dict['E'])
     y_test = convert_to_structured(test_dict['T'], test_dict['E'])
     
     # Evaluate each model
@@ -157,8 +157,7 @@ if __name__ == "__main__":
             model = train_dcsurvival_model(model, train_dict['X'], valid_dict['X'],
                                            train_dict['T'], train_dict['E'],
                                            valid_dict['T'], valid_dict['E'],
-                                           num_epochs=1, batch_size=32,
-                                           learning_rate=learning_rate, device=device)
+                                           num_epochs=1000, learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
@@ -169,7 +168,7 @@ if __name__ == "__main__":
             copula = Convex_bivariate(copulas=['cl'], dtype=dtype, device=device)
             model = MENSA(n_features=n_features, n_events=2, hidden_layers=layers,
                           dropout=dropout, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100,
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs,
                       lr_dict={'network': lr, 'copula': 0.01})
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
@@ -180,7 +179,7 @@ if __name__ == "__main__":
             dropout = config['dropout']
             model = MENSA(n_features=n_features, n_events=2, hidden_layers=layers,
                           dropout=dropout, copula=None, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=100, lr_dict={'network': lr})
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict={'network': lr})
         elif model_name == "dgp":
             pass
         else:

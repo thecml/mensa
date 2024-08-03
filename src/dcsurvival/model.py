@@ -20,7 +20,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 early_stop_epochs = 10
 
 def train_dcsurvival_model(model, X_train, X_valid, times_train, events_train,
-                           times_valid, events_valid, num_epochs, batch_size,
+                           times_valid, events_valid, num_epochs,
                            learning_rate, device):
     # Format data
     times_tensor_train = torch.tensor(times_train).to(device)
