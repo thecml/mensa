@@ -81,7 +81,7 @@ def train_mensa_model():
     activation_fn = config['activation_fn']
     optimizer = config['optimizer']
     
-    mensa = Mensa(n_features=n_features, n_risk=n_events+1,
+    mensa = Mensa(n_features=n_features, n_events=n_events+1,
                   activation_func=activation_fn, dropout=dropout,
                   hidden_layers=layers, copula=None, device = device)
     lr_dict = {'network': lr, 'copula': 0.01}
