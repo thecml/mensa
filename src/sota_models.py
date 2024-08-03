@@ -283,7 +283,7 @@ def make_deepsurv_prediction(
         survival_curves = survival_curves.squeeze()
 
     time_bins = model.time_bins
-    return survival_curves, time_bins, survival_curves.unsqueeze(0).repeat(config.n_samples_test, 1, 1)
+    return survival_curves, time_bins
     
 def make_deephit_single(in_features, out_features, time_bins, device, config):
     num_nodes = config['num_nodes_shared']

@@ -3,7 +3,7 @@ run_synthetic_se_event.py
 ====================================
 Experiment 1.1
 
-Models: ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "dgp"]
+Models: ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "mensa-nocop", "dgp"]
 """
 
 # 3rd party
@@ -11,8 +11,6 @@ import pandas as pd
 import numpy as np
 import config as cfg
 import torch
-import torch.optim as optim
-import torch.nn as nn
 import random
 import warnings
 import argparse
@@ -22,24 +20,22 @@ from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
 from data_loader import SingleEventSyntheticDataLoader
-from utility.survival import (make_time_bins, preprocess_data, convert_to_structured,
-                              risk_fn, compute_l1_difference, predict_survival_function)
-from utility.data import (dotdict, format_data, format_data_as_dict_single)
+from utility.survival import (make_time_bins, convert_to_structured,
+                              compute_l1_difference, predict_survival_function)
+from utility.data import dotdict
 from utility.config import load_config
 from mensa.model import MENSA
 from utility.data import format_data_deephit_single
-from copula import Clayton2D
-from Copula2 import Convex_Nested
+from copula import Convex_bivariate
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival
 from dcsurvival.model import train_dcsurvival_model
-from sota_models import (make_cox_model, make_coxnet_model, make_coxboost_model, make_dcph_model,
-                         make_deephit_cr, make_dsm_model, make_rsf_model, train_deepsurv_model,
+from sota_models import (make_cox_model, make_coxnet_model, make_coxboost_model,
+                         make_dsm_model, make_rsf_model, train_deepsurv_model,
                          make_deepsurv_prediction, DeepSurv, make_deephit_single, train_deephit_model)
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from trainer import independent_train_loop_linear, dependent_train_loop_linear, loss_function
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -55,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["mensa"]
+MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "mensa-nocop", "dgp"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -85,7 +81,7 @@ if __name__ == "__main__":
     # Make time bins    
     min_time = dl.get_data()[1].min()
     max_time = dl.get_data()[1].max()
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
 
     # Format data to work easier with sksurv API
     X_train = pd.DataFrame(train_dict['X'], columns=[f'X{i}' for i in range(n_features)])
@@ -131,7 +127,7 @@ if __name__ == "__main__":
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
             model = make_deephit_single(in_features=n_features, out_features=len(time_bins),
-                                        time_bins=time_bins.numpy(), device=device, config=config)
+                                        time_bins=time_bins.cpu().numpy(), device=device, config=config)
             labtrans = model.label_transform
             train_data, valid_data, out_features, duration_index = format_data_deephit_single(train_dict, valid_dict, labtrans)
             model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
@@ -155,25 +151,36 @@ if __name__ == "__main__":
             widths = config['widths']
             lc_w_range = config['lc_w_range']
             shift_w_range = config['shift_w_range']
-            learning_rate = 1e-4 # use 1e-4 for synthetic
+            learning_rate = 1e-4
             phi = DiracPhi(depth, widths, lc_w_range, shift_w_range, device, tol=1e-14).to(device)
             model = DCSurvival(phi, device, num_features=n_features, tol=1e-14).to(device)
             model = train_dcsurvival_model(model, train_dict['X'], valid_dict['X'],
-                                            train_dict['T'], train_dict['E'],
-                                            valid_dict['T'], valid_dict['E'],
-                                            num_epochs=10, batch_size=32,
-                                            learning_rate=learning_rate, device=device)
+                                           train_dict['T'], train_dict['E'],
+                                           valid_dict['T'], valid_dict['E'],
+                                           num_epochs=1, batch_size=32,
+                                           learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
-            n_epochs = 100 #config['n_epochs']
+            n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
             dropout = config['dropout']
-            copula = Clayton2D(torch.tensor([2.0]).type(dtype), device, dtype)
-            model = MENSA(n_features=n_features, n_events=2, layers=layers,
+            copula = Convex_bivariate(copulas=['cl'], dtype=dtype, device=device)
+            model = MENSA(n_features=n_features, n_events=2, hidden_layers=layers,
                           dropout=dropout, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=batch_size)
+            model.fit(train_dict, valid_dict, n_epochs=100,
+                      lr_dict={'network': lr, 'copula': 0.01})
+        elif model_name == "mensa-nocop":
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
+            n_epochs = config['n_epochs']
+            lr = config['lr']
+            batch_size = config['batch_size']
+            layers = config['layers']
+            dropout = config['dropout']
+            model = MENSA(n_features=n_features, n_events=2, hidden_layers=layers,
+                          dropout=dropout, copula=None, device=device)
+            model.fit(train_dict, valid_dict, n_epochs=100, lr_dict={'network': lr})
         elif model_name == "dgp":
             pass
         else:
@@ -185,12 +192,13 @@ if __name__ == "__main__":
             model_preds = model.predict_survival_function(X_test)
             model_preds = np.row_stack([fn(time_bins) for fn in model_preds])
         elif model_name == 'dsm':
-            model_preds = model.predict_survival(X_test, times=list(time_bins.numpy()))
+            model_preds = model.predict_survival(X_test, times=list(time_bins.cpu().numpy()))
         elif model_name == "deepsurv":
-            model_preds, time_bins_deepsurv, _ = make_deepsurv_prediction(model, test_dict['X'],
-                                                                          config=config, dtype=dtype)
-            spline = interp1d(time_bins_deepsurv, model_preds, kind='linear', fill_value='extrapolate')
-            model_preds = spline(time_bins)
+            model_preds, time_bins_deepsurv = make_deepsurv_prediction(model, test_dict['X'].to(device),
+                                                                       config=config, dtype=dtype)
+            spline = interp1d(time_bins_deepsurv.cpu().numpy(), model_preds.cpu().numpy(),
+                              kind='linear', fill_value='extrapolate')
+            model_preds = spline(time_bins.cpu().numpy())
         elif model_name == "mtlr":
             data_test = X_test.copy()
             data_test["time"] = pd.Series(y_test['time'])
@@ -198,29 +206,32 @@ if __name__ == "__main__":
             mtlr_test_data = torch.tensor(data_test.drop(["time", "event"], axis=1).values,
                                           dtype=dtype, device=device)
             survival_outputs, _, _ = make_mtlr_prediction(model, mtlr_test_data, time_bins, config)
-            model_preds = survival_outputs[:, 1:].numpy()
+            model_preds = survival_outputs[:, 1:].cpu().numpy()
         elif model_name == "deephit":
-            model_preds = model.predict_surv(test_dict['X'])
+            model_preds = model.predict_surv(test_dict['X']).cpu().numpy()
         elif model_name == "dcsurvival":
-            model_preds = predict_survival_function(model, test_dict['X'], time_bins).numpy()
-        elif model_name == "mensa":
-            model_preds = model.predict(test_dict['X'], time_bins)[1].detach().numpy() # use event preds
+            model_preds = predict_survival_function(model, test_dict['X'].to(device),
+                                                    time_bins, device=device).cpu().numpy()
+        elif model_name in ["mensa", "mensa-nocop"]:
+            model_preds = model.predict(test_dict['X'], time_bins)[1].cpu().detach().numpy() # use event preds
         elif model_name == "dgp":
             model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
-                model_preds[:,i] = dgps[0].survival(time_bins[i], test_dict['X'])
+                model_preds[:,i] = dgps[0].survival(time_bins[i], test_dict['X'].to(device))
+            model_preds = model_preds.cpu().numpy()
         else:
             raise NotImplementedError()
             
         # Compute L1 (Truth vs. Model) - event only
         truth_preds_e = torch.zeros((n_samples, time_bins.shape[0]), device=device)
         for i in range(time_bins.shape[0]):
-            truth_preds_e[:,i] = dgps[0].survival(time_bins[i], test_dict['X'])
-        l1_e = float(compute_l1_difference(truth_preds_e, model_preds,
-                                           n_samples, steps=time_bins))
+            truth_preds_e[:,i] = dgps[0].survival(time_bins[i], test_dict['X'].to(device))
+        model_preds_th = torch.tensor(model_preds, device=device, dtype=dtype)
+        l1_e = float(compute_l1_difference(truth_preds_e, model_preds_th, n_samples,
+                                           steps=time_bins, device=device))
         
         # Compute prediction metrics
-        surv_preds = pd.DataFrame(model_preds, columns=time_bins.detach().numpy())
+        surv_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
         n_train_samples = len(train_dict['X'])
         n_test_samples= len(test_dict['X'])
         y_train_time = train_dict['T']

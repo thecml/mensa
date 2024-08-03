@@ -4,7 +4,7 @@ from mensa.utility import *
 def safe_log(x):
     return torch.log(x+1e-6*(x<1e-6))
 
-def double_loss(model, X, T, E, copula, device):
+def double_loss(model, X, T, E, copula):
     k1, k2, lam1, lam2 = model(X)
     log_pdf1 = weibull_log_pdf(T, k1, lam1)
     log_pdf2 = weibull_log_pdf(T, k2, lam2)
@@ -25,9 +25,9 @@ def double_loss(model, X, T, E, copula, device):
     loss = -loss/E.shape[0]
     return loss
 
-def triple_loss(model, X, T, E, copula, device):
+def triple_loss(model, X, T, E, copula):
     k1, k2, k3, lam1, lam2, lam3 = model(X)
-    log_pdf1 = weibull_log_pdf(T, k1, lam1) # TODO: Handle multi-event
+    log_pdf1 = weibull_log_pdf(T, k1, lam1)
     log_pdf2 = weibull_log_pdf(T, k2, lam2)
     log_pdf3 = weibull_log_pdf(T, k3, lam3)
     log_surv1 = weibull_log_survival(T, k1, lam1)
@@ -38,7 +38,7 @@ def triple_loss(model, X, T, E, copula, device):
         p2 = log_surv1 + log_pdf2 + log_surv3
         p3 = log_surv1 + log_surv2 + log_pdf3
     else:
-        S = torch.cat([torch.exp(log_surv1).reshape(-1,1), torch.exp(log_surv2).reshape(-1,1), torch.exp(log_surv3).reshape(-1,1)], dim=1)
+        S = torch.cat([torch.exp(log_surv1).reshape(-1,1), torch.exp(log_surv2).reshape(-1,1), torch.exp(log_surv3).reshape(-1,1)], dim=1).clamp(0.002, 0.998)
         p1 = log_pdf1 + safe_log(copula.conditional_cdf("u", S))
         p2 = log_pdf2 + safe_log(copula.conditional_cdf("v", S))
         p3 = log_pdf3 + safe_log(copula.conditional_cdf("w", S))

@@ -1,11 +1,8 @@
-import math
-import pylab
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
 import copy
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from sklearn.preprocessing import LabelEncoder
 from scipy import stats
 from scipy.special import lambertw
@@ -154,7 +151,7 @@ def inverse_transform_exp(p, shape, scale):
     return stats.expon(scale).ppf(p)
 
 def relu(z):
-    return np.maximum(0, z)
+    return torch.relu(z)
 
 def array_to_tensor(array, dtype=None, device='cpu'):
     if not isinstance(array, np.ndarray):
@@ -261,23 +258,23 @@ def make_times_hierarchical(event_times, num_bins):
 def format_hierarchical_data_cr(train_dict, valid_dict, test_dict,
                                 num_bins, n_events, censoring_event=True):
     #If censoring_event=True, encode censoring as a seperate event
-    train_times = np.stack([train_dict['T'] for _ in range(n_events)], axis=1)
-    valid_times = np.stack([valid_dict['T'] for _ in range(n_events)], axis=1)
-    test_times = np.stack([test_dict['T'] for _ in range(n_events)], axis=1)
+    train_times = np.stack([train_dict['T'].cpu().numpy() for _ in range(n_events)], axis=1)
+    valid_times = np.stack([valid_dict['T'].cpu().numpy() for _ in range(n_events)], axis=1)
+    test_times = np.stack([test_dict['T'].cpu().numpy() for _ in range(n_events)], axis=1)
     train_event_bins = make_times_hierarchical(train_times, num_bins=num_bins)
     valid_event_bins = make_times_hierarchical(valid_times, num_bins=num_bins)
     test_event_bins = make_times_hierarchical(test_times, num_bins=num_bins)
     if censoring_event:
-        train_events = np.array(pd.get_dummies(train_dict['E']))
-        valid_events = np.array(pd.get_dummies(valid_dict['E']))
-        test_events = np.array(pd.get_dummies(test_dict['E']))
+        train_events = np.array(pd.get_dummies(train_dict['E'].cpu().numpy()))
+        valid_events = np.array(pd.get_dummies(valid_dict['E'].cpu().numpy()))
+        test_events = np.array(pd.get_dummies(test_dict['E'].cpu().numpy()))
     else:
-        train_events = np.array(pd.get_dummies(train_dict['E']))[:,1:] # drop censoring event
-        valid_events = np.array(pd.get_dummies(valid_dict['E']))[:,1:]
-        test_events = np.array(pd.get_dummies(test_dict['E']))[:,1:]
-    train_data = [train_dict['X'], train_event_bins, train_events]
-    valid_data = [valid_dict['X'], valid_event_bins, valid_events]
-    test_data = [test_dict['X'], test_event_bins, test_events]
+        train_events = np.array(pd.get_dummies(train_dict['E'].cpu().numpy()))[:,1:] # drop censoring event
+        valid_events = np.array(pd.get_dummies(valid_dict['E'].cpu().numpy()))[:,1:]
+        test_events = np.array(pd.get_dummies(test_dict['E'].cpu().numpy()))[:,1:]
+    train_data = [train_dict['X'].cpu().numpy(), train_event_bins, train_events]
+    valid_data = [valid_dict['X'].cpu().numpy(), valid_event_bins, valid_events]
+    test_data = [test_dict['X'].cpu().numpy(), test_event_bins, test_events]
     return train_data, valid_data, test_data
 
 def format_hierarchical_data_me(train_dict, valid_dict, test_dict, num_bins):
