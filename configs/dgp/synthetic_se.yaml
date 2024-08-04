@@ -1,7 +1,5 @@
-alpha_e1: 16
-alpha_e2: 14
-gamma_e1: 4
-gamma_e2: 4
-n_hidden: 32
+bl_hazard_e1: 0.001
+bl_hazard_e2: 0.0015
+n_hidden: 4
 n_samples: 20000
 n_features: 10
