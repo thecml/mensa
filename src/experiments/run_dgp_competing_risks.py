@@ -3,7 +3,7 @@ run_synthetic_competing_risks.py
 ====================================
 Experiment 2.1
 
-Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-cop', 'dgp']
+Models: ['deepsurv', 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-cop', 'dgp']
 """
 import sys, os
 sys.path.append(os.path.abspath('../'))
@@ -35,7 +35,7 @@ from sota_models import (make_deephit_cr, make_dsm_model, train_deepsurv_model,
 from utility.mtlr import train_mtlr_cr
 from hierarchical import util
 from hierarchical.helper import format_hierarchical_hyperparams
-from torchmtlr.utils import encode_mtlr_format_no_censoring
+from torchmtlr.utils import encode_mtlr_format
 from torchmtlr.model import MTLRCR, mtlr_survival
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
@@ -52,7 +52,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv', 'mensa', 'mensa-nocop', 'dgp']
+MODELS = ['mensa-nocop', 'dgp']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -74,13 +74,12 @@ if __name__ == "__main__":
                                                       linear=linear, device=device, dtype=dtype)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=seed)
-    n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
     n_events = dl.n_events
     dgps = dl.dgps
     
     # Make time bins
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
     time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
     
     # Evaluate models
@@ -102,12 +101,8 @@ if __name__ == "__main__":
                 trained_models.append(model)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
-            # min_time = torch.tensor([dl.get_data()[1].min()], dtype=dtype)
-            min_time = torch.tensor([0], dtype=dtype)            
-            max_time = torch.tensor([dl.get_data()[1].max()], dtype=dtype)
+            max_time = torch.tensor([dl.get_data()[1].max()], device=device, dtype=dtype)
             time_bins_dh = time_bins
-            if min_time not in time_bins_dh:
-                time_bins_dh = torch.concat([min_time, time_bins_dh], dim=0)
             if max_time not in time_bins_dh:
                 time_bins_dh = torch.concat([time_bins_dh, max_time], dim=0)
             model = make_deephit_cr(in_features=n_features, out_features=len(time_bins_dh),
@@ -119,11 +114,12 @@ if __name__ == "__main__":
             config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"synthetic_cr.yaml")
             n_time_bins = len(time_bins)
             train_data, valid_data, test_data = format_hierarchical_data_cr(train_dict, valid_dict, test_dict,
-                                                                            n_time_bins, n_events)
+                                                                            n_time_bins, n_events, censoring_event=False)
             config['min_time'] = int(train_data[1].min())
             config['max_time'] = int(train_data[1].max())
             config['num_bins'] = len(time_bins)
             params = cfg.HIERARCH_PARAMS
+            n_samples = train_dict['X'].shape[0]            
             params['n_batches'] = int(n_samples/params['batch_size'])
             layer_size = params['layer_size_fine_bins'][0][0]
             params['layer_size_fine_bins'] = calculate_layer_size_hierarch(layer_size, n_time_bins)
@@ -132,20 +128,20 @@ if __name__ == "__main__":
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose)
         elif model_name == "mtlrcr":
-            train_times = np.digitize(train_dict['T'], bins=time_bins).astype(np.int64)
+            train_times = np.digitize(train_dict['T'], bins=time_bins.cpu().numpy()).astype(np.int64)
             train_events = train_dict['E'].type(torch.int64)
-            valid_times = np.digitize(valid_dict['T'], bins=time_bins).astype(np.int64)
+            valid_times = np.digitize(valid_dict['T'], bins=time_bins.cpu().numpy()).astype(np.int64)
             valid_events = valid_dict['E'].type(torch.int64)
-            y_train = encode_mtlr_format_no_censoring(train_times, train_events, time_bins)
-            y_valid = encode_mtlr_format_no_censoring(valid_times, valid_events, time_bins)
+            y_train = encode_mtlr_format(train_times, train_events, time_bins.cpu().numpy())
+            y_valid = encode_mtlr_format(valid_times, valid_events, time_bins.cpu().numpy())
             num_time_bins = len(time_bins) + 1
             config = dotdict(cfg.MTLRCR_PARAMS)
             model = MTLRCR(in_features=n_features, num_time_bins=num_time_bins, num_events=n_events)
             model = train_mtlr_cr(train_dict['X'], y_train, valid_dict['X'], y_valid,
-                                    model, time_bins, num_epochs=config['num_epochs'],
-                                    lr=config['lr'], batch_size=config['batch_size'],
-                                    verbose=True, device=device, C1=config['c1'],
-                                    early_stop=config['early_stop'], patience=config['patience'])
+                                  model, time_bins, num_epochs=config['num_epochs'],
+                                  lr=config['lr'], batch_size=config['batch_size'],
+                                  verbose=True, device=device, C1=config['c1'],
+                                  early_stop=config['early_stop'], patience=config['patience'])
         elif model_name == "dsm":
             config = dotdict(cfg.DSM_PARAMS)
             n_iter = config['n_iter']
@@ -184,7 +180,6 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Compute survival function
-        n_samples = test_dict['X'].shape[0]
         if model_name == "deepsurv":
             all_preds = []
             for trained_model in trained_models:
@@ -192,50 +187,51 @@ if __name__ == "__main__":
                                                                   config=config, dtype=dtype)
                 spline = interp1d(time_bins_model.cpu().numpy(), preds.cpu().numpy(),
                                   kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins.cpu().numpy()), columns=time_bins.numpy())
+                preds = pd.DataFrame(spline(time_bins.cpu().numpy()), columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "deephit":
             cif = model.predict_cif(test_dict['X']).cpu().numpy() # TODO: Check output
             all_preds = []
             for i in range(n_events):
                 cif_df = pd.DataFrame((1-cif[i]).T, columns=time_bins_dh.cpu().numpy())
-                spline = interp1d(time_bins_dh, cif_df, kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins), columns=time_bins.numpy())
+                spline = interp1d(time_bins_dh.cpu().numpy(), cif_df, kind='linear', fill_value='extrapolate')
+                preds = pd.DataFrame(spline(time_bins.cpu().numpy()), columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "hierarch":
-            event_preds = util.get_surv_curves(test_data[0], model)
+            event_preds = util.get_surv_curves(torch.tensor(test_data[0]), model)
             bin_locations = np.linspace(0, config['max_time'], event_preds[0].shape[1])
             all_preds = []
             for event_pred in event_preds:
                 preds = pd.DataFrame(event_pred, columns=bin_locations)
                 spline = interp1d(bin_locations, preds, kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins), columns=time_bins.numpy())
+                preds = pd.DataFrame(spline(time_bins.cpu().numpy()), columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "mtlrcr":
-            pred_prob = model(test_dict['X'])
+            pred_prob = model(test_dict['X'].to(device))
             num_points = len(time_bins)
             all_preds = []
             for i in range(n_events):
                 start = i * num_time_bins
                 end = start + num_time_bins
-                preds = mtlr_survival(pred_prob[:, start:end]).detach().numpy()[:, 1:]
-                preds = pd.DataFrame(preds, columns=time_bins.numpy())
+                preds = mtlr_survival(pred_prob[:, start:end]).detach().cpu().numpy()[:, 1:]
+                preds = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "dsm":
             all_preds = []
             for i in range(n_events):
-                model_pred = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.numpy()), risk=i+1)
+                model_pred = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.cpu().numpy()), risk=i+1)
                 model_pred = pd.DataFrame(model_pred, columns=time_bins.cpu().numpy())
                 all_preds.append(model_pred)
         elif model_name in ["mensa", "mensa-nocop"]:
             model_preds = model.predict(test_dict['X'], time_bins)
             all_preds = []
             for model_pred in model_preds:
-                model_pred = pd.DataFrame(model_pred.detach().cpu().numpy(), columns=time_bins.numpy())
+                model_pred = pd.DataFrame(model_pred.detach().cpu().numpy(), columns=time_bins.cpu().numpy())
                 all_preds.append(model_pred)
             all_preds.pop(0) # remove censoring model
         elif model_name == "dgp":
             all_preds = []
+            n_samples = test_dict['X'].shape[0]
             for model in dgps:
                 preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
                 for i in range(time_bins.shape[0]):
@@ -271,15 +267,16 @@ if __name__ == "__main__":
             mae = lifelines_eval.mae(method='Uncensored')
             d_calib = lifelines_eval.d_calibration()[0]
             
+            n_samples = test_dict['X'].shape[0]
             truth_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
-                truth_preds[:,i] = dgps[event_id].survival(time_bins[i], test_dict['X'].to(device))
+                truth_preds[:,i] = dgps[event_id+1].survival(time_bins[i], test_dict['X'].to(device))
             model_preds_th = torch.tensor(surv_preds.values, device=device, dtype=dtype)
             survival_l1 = float(compute_l1_difference(truth_preds, model_preds_th,
                                                       n_samples, steps=time_bins))
             
             metrics = [ci, ibs, mae, survival_l1, d_calib, global_ci, local_ci]
-            print(metrics)
+            print(f'{model_name} {event_id+1}: ' + f'{metrics}')
             res_sr = pd.Series([model_name, seed, linear, copula_name, k_tau, event_id+1] + metrics,
                                 index=["ModelName", "Seed", "Linear", "Copula", "KTau", "EventId",
                                        "CI", "IBS", "MAE", "L1", "DCalib", "GlobalCI", "LocalCI"])

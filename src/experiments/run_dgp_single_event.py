@@ -3,7 +3,7 @@ run_synthetic_se_event.py
 ====================================
 Experiment 1.1
 
-Models: ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa-nocop", "mensa", "dgp"]
+Models: ["deepsurv", "deephit", "mtlr", "dsm", "mensa-nocop", "mensa", "dgp"]
 """
 import sys, os
 sys.path.append(os.path.abspath('../'))
@@ -52,13 +52,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "mensa", "mensa-nocop", "dgp"]
+MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "mensa", "mensa-nocop", "dgp"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.6)
+    parser.add_argument('--k_tau', type=float, default=0.5)
     parser.add_argument('--copula_name', type=str, default="clayton")
     parser.add_argument('--linear', type=bool, default=False)
     
@@ -148,7 +148,7 @@ if __name__ == "__main__":
             config = dotdict(cfg.MTLR_PARAMS)
             num_time_bins = len(time_bins)
             model = mtlr(in_features=n_features, num_time_bins=num_time_bins, config=config)
-            model = train_mtlr_model(model, data_train, data_valid, time_bins,
+            model = train_mtlr_model(model, data_train, data_valid, time_bins.cpu().numpy(),
                                      config, random_state=0, dtype=dtype,
                                      reset_model=True, device=device)
         elif model_name == "dcsurvival":
@@ -197,8 +197,7 @@ if __name__ == "__main__":
             model_preds = model.predict_survival_function(X_test)
             model_preds = np.row_stack([fn(time_bins) for fn in model_preds])
         elif model_name == 'dsm':
-            model_preds = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.numpy()))
-            model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
+            model_preds = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.cpu().numpy()))
         elif model_name == "deepsurv":
             model_preds, time_bins_deepsurv = make_deepsurv_prediction(model, test_dict['X'].to(device),
                                                                        config=config, dtype=dtype)
@@ -223,7 +222,7 @@ if __name__ == "__main__":
         elif model_name == "dgp":
             model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
-                model_preds[:,i] = dgps[0].survival(time_bins[i], test_dict['X'].to(device))
+                model_preds[:,i] = dgps[1].survival(time_bins[i], test_dict['X'].to(device))
             model_preds = model_preds.cpu().numpy()
         else:
             raise NotImplementedError()
@@ -231,7 +230,7 @@ if __name__ == "__main__":
         # Compute L1 (Truth vs. Model) - event only
         truth_preds_e = torch.zeros((n_samples, time_bins.shape[0]), device=device)
         for i in range(time_bins.shape[0]):
-            truth_preds_e[:,i] = dgps[0].survival(time_bins[i], test_dict['X'].to(device))
+            truth_preds_e[:,i] = dgps[1].survival(time_bins[i], test_dict['X'].to(device))
         model_preds_th = torch.tensor(model_preds, device=device, dtype=dtype)
         l1_e = float(compute_l1_difference(truth_preds_e, model_preds_th, n_samples,
                                            steps=time_bins, device=device))

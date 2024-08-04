@@ -50,7 +50,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-nocop']
+MODELS = ['mensa-nocop']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -105,12 +105,8 @@ if __name__ == "__main__":
                 trained_models.append(model)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
-            # min_time = torch.tensor([dl.get_data()[1].min()], dtype=dtype, device=device)
-            min_time = torch.tensor([0], dtype=dtype, device=device)
             max_time = torch.tensor([dl.get_data()[1].max()], dtype=dtype, device=device)
             time_bins_dh = time_bins
-            if min_time not in time_bins_dh:
-                time_bins_dh = torch.concat([min_time, time_bins_dh], dim=0)
             if max_time not in time_bins_dh:
                 time_bins_dh = torch.concat([time_bins_dh, max_time], dim=0)
             model = make_deephit_cr(in_features=n_features, out_features=len(time_bins_dh),
@@ -157,11 +153,11 @@ if __name__ == "__main__":
             learning_rate = config['learning_rate']
             batch_size = config['batch_size']
             model = make_dsm_model(config)
-            model.fit(train_dict['X'].numpy(), train_dict['T'].numpy(), train_dict['E'].numpy(),
-                      val_data=(valid_dict['X'].numpy(), valid_dict['T'].numpy(), valid_dict['T'].numpy()),
+            model.fit(train_dict['X'].cpu().numpy(), train_dict['T'].cpu().numpy(), train_dict['E'].cpu().numpy(),
+                      val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'].cpu().numpy(), valid_dict['T'].cpu().numpy()),
                       learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "mensa":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
@@ -171,10 +167,10 @@ if __name__ == "__main__":
                                           dtype=dtype, device=device)
             model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
                           dropout=dropout, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs,
-                      lr_dict={'network': lr, 'copula': 0.01})
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, batch_size=batch_size,
+                      lr_dict={'network': lr, 'copula': 0.005}, verbose=True)
         elif model_name == "mensa-nocop":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
@@ -182,7 +178,8 @@ if __name__ == "__main__":
             dropout = config['dropout']
             model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
                           dropout=dropout, copula=None, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict={'network': lr})
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, batch_size=batch_size,
+                      lr_dict={'network': lr}, verbose=True)
         else:
             raise NotImplementedError()
         
@@ -224,7 +221,7 @@ if __name__ == "__main__":
         elif model_name == "dsm":
             all_preds = []
             for i in range(n_events):
-                model_pred = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.numpy()), risk=i+1)
+                model_pred = model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()), risk=i+1)
                 model_pred = pd.DataFrame(model_pred, columns=time_bins.cpu().numpy())
                 all_preds.append(model_pred)
         elif model_name in ['mensa', 'mensa-nocop']:
@@ -240,7 +237,8 @@ if __name__ == "__main__":
         
         # Calculate local and global CI
         y_test_time = np.stack([test_dict['T'].cpu().numpy() for _ in range(n_events)], axis=1)
-        y_test_event = np.stack([np.array((test_dict['E'].cpu().numpy() == i+1)*1.0) for i in range(n_events)], axis=1)
+        y_test_event = np.stack([np.array((test_dict['E'].cpu().numpy() == i+1)*1.0)
+                                 for i in range(n_events)], axis=1)
         all_preds_arr = [df.to_numpy() for df in all_preds]
         global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
         local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)

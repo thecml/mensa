@@ -51,13 +51,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "dsm", "mtlr", "dcsurvival", "mensa", "mensa-nocop"]
+MODELS = ["mensa-nocop"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='seer_se')
+    parser.add_argument('--dataset_name', type=str, default='mimic_se')
     
     args = parser.parse_args()
     seed = args.seed
@@ -161,7 +161,7 @@ if __name__ == "__main__":
                                            valid_dict['T'], valid_dict['E'],
                                            num_epochs=1000, learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
@@ -171,9 +171,9 @@ if __name__ == "__main__":
             model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
                           dropout=dropout, copula=copula, device=device)
             model.fit(train_dict, valid_dict, n_epochs=n_epochs,
-                      lr_dict={'network': lr, 'copula': 0.01})
+                      lr_dict={'network': lr, 'copula': 0.01}, batch_size=batch_size)
         elif model_name == "mensa-nocop":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name}.yaml")
+            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
@@ -181,7 +181,7 @@ if __name__ == "__main__":
             dropout = config['dropout']
             model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
                           dropout=dropout, copula=None, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict={'network': lr})
+            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict={'network': lr}, batch_size=batch_size)
         else:
             raise NotImplementedError()
         

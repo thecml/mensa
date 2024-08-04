@@ -79,31 +79,20 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         DGP1: Data generation process for event
         DGP2: Data generation process for censoring
         """
-        mu_e1 = data_config['mu_e1']
-        mu_e2 = data_config['mu_e2']
-        sigma_e1 = data_config['sigma_e1']
-        sigma_e2 = data_config['sigma_e2']
+        bl_hazard_e1 = data_config['bl_hazard_e1']
+        bl_hazard_e2 = data_config['bl_hazard_e2']
         n_hidden = data_config['n_hidden']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
 
-        perturbation_range = (-0.05, 0.05)
         if linear:
-            mu_e1 = [mu_e1 + random.uniform(*perturbation_range) for _ in range(n_features)]
-            mu_e2 = [mu_e2 + random.uniform(*perturbation_range) for _ in range(n_features)]
-            sigma_e1 = [sigma_e1 + random.uniform(*perturbation_range) for _ in range(n_features)]
-            sigma_e2 = [sigma_e2 + random.uniform(*perturbation_range) for _ in range(n_features)]
-            dgp1 = DGP_Exp_linear(n_features, baseline_hazard=0.002, device=device, dtype=dtype)
-            dgp2 = DGP_Exp_linear(n_features, baseline_hazard=0.001, device=device, dtype=dtype)
+            dgp1 = DGP_Exp_linear(n_features, baseline_hazard=bl_hazard_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Exp_linear(n_features, baseline_hazard=bl_hazard_e2, device=device, dtype=dtype)
         else:
-            mu_e1 = [mu_e1/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            mu_e2 = [mu_e2/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            sigma_e1 = [sigma_e1/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            sigma_e2 = [sigma_e2/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            dgp1 = DGP_EXP_nonlinear(n_features, baseline_hazard=0.002, n_hidden=4, device=device, dtype=dtype)
-            dgp2 = DGP_EXP_nonlinear(n_features, baseline_hazard=0.001, n_hidden=4, device=device, dtype=dtype)
+            dgp1 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_hazard_e1, n_hidden=n_hidden, device=device, dtype=dtype)
+            dgp2 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_hazard_e2, n_hidden=n_hidden, device=device, dtype=dtype)
             
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -121,7 +110,7 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         t2_times = dgp2.rvs(X, uv[:,1].to(device)).cpu()
         
         observed_times = np.minimum(t1_times, t2_times)
-        event_indicators = (t1_times < t2_times).type(torch.int)
+        event_indicators = (t2_times < t1_times).type(torch.int)
         
         columns = [f'X{i}' for i in range(n_features)]
         self.X = pd.DataFrame(X.cpu(), columns=columns)
@@ -162,39 +151,23 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         DGP2: Data generation process for event 2
         DGP3: Data generation process for censoring
         """
-        mu_e1 = data_config['mu_e1']
-        mu_e2 = data_config['mu_e2']
-        mu_e3 = data_config['mu_e3']
-        sigma_e1 = data_config['sigma_e1']
-        sigma_e2 = data_config['sigma_e2']
-        sigma_e3 = data_config['sigma_e3']
+        bl_hazard_e1 = data_config['bl_hazard_e1']
+        bl_hazard_e2 = data_config['bl_hazard_e2']
+        bl_hazard_e3 = data_config['bl_hazard_e3']
         n_hidden = data_config['n_hidden']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
         
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
         
-        perturbation_range = (-0.05, 0.05)
         if linear:
-            mu_e1 = [mu_e1 + random.uniform(*perturbation_range) for _ in range(n_features)]
-            mu_e2 = [mu_e2 + random.uniform(*perturbation_range) for _ in range(n_features)]
-            mu_e3 = [mu_e3 + random.uniform(*perturbation_range) for _ in range(n_features)]
-            sigma_e1 = [sigma_e1 + random.uniform(*perturbation_range) for _ in range(n_features)]
-            sigma_e2 = [sigma_e2 + random.uniform(*perturbation_range) for _ in range(n_features)]
-            sigma_e3 = [sigma_e3 + random.uniform(*perturbation_range) for _ in range(n_features)]
-            dgp1 = DGP_LogNormal_linear(mu=mu_e1, sigma=sigma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_LogNormal_linear(mu=mu_e2, sigma=sigma_e2, device=device, dtype=dtype)
-            dgp3 = DGP_LogNormal_linear(mu=mu_e3, sigma=sigma_e3, device=device, dtype=dtype)
+            dgp1 = DGP_Exp_linear(n_features, baseline_hazard=bl_hazard_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Exp_linear(n_features, baseline_hazard=bl_hazard_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Exp_linear(n_features, baseline_hazard=bl_hazard_e3, device=device, dtype=dtype)
         else:
-            mu_e1 = [mu_e1/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            mu_e2 = [mu_e2/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            mu_e3 = [mu_e3/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            sigma_e1 = [sigma_e1/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            sigma_e2 = [sigma_e2/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            sigma_e3 = [sigma_e3/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            dgp1 = DGP_LogNormal_nonlinear(n_features, n_hidden, mu=mu_e1, sigma=sigma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_LogNormal_nonlinear(n_features, n_hidden, mu=mu_e2, sigma=sigma_e2, device=device, dtype=dtype)
-            dgp3 = DGP_LogNormal_nonlinear(n_features, n_hidden, mu=mu_e3, sigma=sigma_e3, device=device, dtype=dtype)
+            dgp1 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_hazard_e1, n_hidden=n_hidden, device=device, dtype=dtype)
+            dgp2 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_hazard_e2, n_hidden=n_hidden, device=device, dtype=dtype)
+            dgp3 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_hazard_e3, n_hidden=n_hidden, device=device, dtype=dtype)
         
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -272,12 +245,9 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         DGP2: Data generation process for event 2
         DGP3: Data generation process for event 3
         """
-        alpha_e1 = data_config['alpha_e1']
-        alpha_e2 = data_config['alpha_e2']
-        alpha_e3 = data_config['alpha_e3']
-        gamma_e1 = data_config['gamma_e1']
-        gamma_e2 = data_config['gamma_e2']
-        gamma_e3 = data_config['gamma_e3']
+        bl_hazard_e1 = data_config['bl_hazard_e1']
+        bl_hazard_e2 = data_config['bl_hazard_e2']
+        bl_hazard_e3 = data_config['bl_hazard_e3']
         n_hidden = data_config['n_hidden']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
@@ -293,40 +263,27 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
         
         if linear:
-            dgp1 = DGP_Weibull_linear(n_features, alpha=alpha_e1, gamma=gamma_e1,
-                                      device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_linear(n_features, alpha=alpha_e2, gamma=gamma_e2,
-                                      device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_linear(n_features, alpha=alpha_e3, gamma=gamma_e3,
-                                      device=device, dtype=dtype)
+            dgp1 = DGP_Exp_linear(n_features, baseline_hazard=bl_hazard_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Exp_linear(n_features, baseline_hazard=bl_hazard_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Exp_linear(n_features, baseline_hazard=bl_hazard_e3, device=device, dtype=dtype)
         else:
-            perturbation_range = (-0.5, 0.5)
-            alphas_e1 = [alpha_e1 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            alphas_e2 = [alpha_e2 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            alphas_e3 = [alpha_e3 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            gammas_e1 = [gamma_e1 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            gammas_e2 = [gamma_e2 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            gammas_e3 = [gamma_e3 + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden, alpha=alphas_e1, gamma=gammas_e1,
-                                         risk_function=relu, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden, alpha=alphas_e2, gamma=gammas_e2,
-                                         risk_function=relu, device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden, alpha=alphas_e3, gamma=gammas_e3,
-                                         risk_function=relu, device=device, dtype=dtype)
+            dgp1 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_hazard_e1, n_hidden=n_hidden, device=device, dtype=dtype)
+            dgp2 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_hazard_e2, n_hidden=n_hidden, device=device, dtype=dtype)
+            dgp3 = DGP_EXP_nonlinear(n_features, baseline_hazard=bl_hazard_e3, n_hidden=n_hidden, device=device, dtype=dtype)
 
         u_e1, u_e2, u_e3 = simulation.simu_mixture(3, n_samples, copula_parameters)
         u = torch.from_numpy(u_e1).type(dtype).reshape(-1,1)
         v = torch.from_numpy(u_e2).type(dtype).reshape(-1,1)
         w = torch.from_numpy(u_e3).type(dtype).reshape(-1,1)
-        uv = torch.cat([u,v,w], axis=1)
+        uv = torch.cat([u,v,w], axis=1).to(device)
         
-        t1_times = dgp1.rvs(X, uv[:,0])
-        t2_times = dgp2.rvs(X, uv[:,1])
-        t3_times = dgp3.rvs(X, uv[:,2])
+        t1_times = dgp1.rvs(X, uv[:,0]).cpu()
+        t2_times = dgp2.rvs(X, uv[:,1]).cpu()
+        t3_times = dgp3.rvs(X, uv[:,2]).cpu()
         
         # Make adm. censoring
         event_times = np.stack([t1_times, t2_times, t3_times], axis=1)
-        event_times = np.minimum(event_times, adm_censoring_time)
+        event_times = np.minimum(event_times, 10)
         event_indicators = (event_times < adm_censoring_time).astype(int)
 
         # Format data
@@ -444,6 +401,10 @@ class MimicMultiDataLoader(BaseDataLoader):
             
         df = df[(df['Age'] >= 60) & (df['Age'] <= 65)] # select cohort ages 60-65    
         
+        df = df[df['ARF_time'] > 0]
+        df = df[df['shock_time'] > 0]
+        df = df[df['death_time'] > 0]
+        
         columns_to_drop = [col for col in df.columns if
                            any(substring in col for substring in ['_event', '_time', 'hadm_id'])]
         events = ['ARF', 'shock', 'death']
@@ -559,6 +520,10 @@ class MimicSingleDataLoader(BaseDataLoader):
             df = df.sample(n=n_samples, random_state=0)
             
         df = df[(df['Age'] >= 60) & (df['Age'] <= 65)] # select cohort ages 60-65
+        
+        df = df[df['ARF_time'] > 0]
+        df = df[df['shock_time'] > 0]
+        df = df[df['death_time'] > 0]
   
         columns_to_drop = [col for col in df.columns if
                            any(substring in col for substring in ['_event', '_time', 'hadm_id'])]
@@ -568,7 +533,7 @@ class MimicSingleDataLoader(BaseDataLoader):
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
         
-        self.y_t = df[f'death_time'].values
+        self.y_t = df[f'death_time'].values # use only death
         self.y_e = df[f'death_event'].values
         self.n_events = 1
         
