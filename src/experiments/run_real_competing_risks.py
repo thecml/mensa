@@ -3,7 +3,8 @@ run_real_competing_risks.py
 ====================================
 Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-nocop']
 """
-
+import sys, os
+sys.path.append(os.path.abspath('../'))
 # 3rd party
 import pandas as pd
 import numpy as np
@@ -84,7 +85,8 @@ if __name__ == "__main__":
     
     # Make time bins
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
-    
+    time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
+
     # Evaluate models
     for model_name in MODELS:
         if model_name == "deepsurv":
@@ -103,7 +105,8 @@ if __name__ == "__main__":
                 trained_models.append(model)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
-            min_time = torch.tensor([dl.get_data()[1].min()], dtype=dtype, device=device)
+            # min_time = torch.tensor([dl.get_data()[1].min()], dtype=dtype, device=device)
+            min_time = torch.tensor([0], dtype=dtype, device=device)
             max_time = torch.tensor([dl.get_data()[1].max()], dtype=dtype, device=device)
             time_bins_dh = time_bins
             if min_time not in time_bins_dh:
