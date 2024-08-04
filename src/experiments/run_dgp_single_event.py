@@ -50,9 +50,10 @@ torch.set_default_dtype(dtype)
 
 # Setup device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+device = torch.device('cpu')
 # Define models
-MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "mensa-nocop", "dgp"]
+MODELS = ["deepsurv", "deephit", "mtlr", "dcsurvival", "mensa", "mensa-nocop", "dgp"] # 
+MODELS = ["dsm"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -95,6 +96,7 @@ if __name__ == "__main__":
     for model_name in MODELS:
         # Make time bins    
         time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
+        time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
 
         if model_name == "cox":
             config = dotdict(cfg.COX_PARAMS)
@@ -141,7 +143,6 @@ if __name__ == "__main__":
             model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
                                         (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
         elif model_name == "mtlr":
-            time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
             data_train = X_train.copy()
             data_train["time"] = pd.Series(y_train['time'])
             data_train["event"] = pd.Series(y_train['event']).astype(int)

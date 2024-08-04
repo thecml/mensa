@@ -50,8 +50,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-# MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-nocop']
-MODELS = ['mtlrcr']
+MODELS = ['deephit',  'mtlrcr', 'dsm', "deepsurv", "hierarch", 'mensa', 'mensa-nocop']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -87,8 +86,10 @@ if __name__ == "__main__":
     
     # Evaluate models
     for model_name in MODELS:
+        print (model_name)
         # Make time bins
         time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
+        time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
 
         if model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
@@ -106,7 +107,8 @@ if __name__ == "__main__":
                 trained_models.append(model)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
-            min_time = torch.tensor([dl.get_data()[1].min()], dtype=dtype, device=device)
+            # min_time = torch.tensor([dl.get_data()[1].min()], dtype=dtype, device=device)
+            min_time = torch.tensor([0], dtype=dtype, device=device)
             max_time = torch.tensor([dl.get_data()[1].max()], dtype=dtype, device=device)
             time_bins_dh = time_bins
             if min_time not in time_bins_dh:
@@ -135,20 +137,19 @@ if __name__ == "__main__":
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose)
         elif model_name == "mtlrcr":
-            mtlr_time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
             train_times = np.digitize(train_dict['T'],
-                                      bins=mtlr_time_bins.cpu().numpy()).astype(np.int64)
+                                      bins=time_bins.cpu().numpy()).astype(np.int64)
             train_events = train_dict['E'].type(torch.int64).cpu().numpy()
             valid_times = np.digitize(valid_dict['T'],
-                                      bins=mtlr_time_bins.cpu().numpy()).astype(np.int64)
+                                      bins=time_bins.cpu().numpy()).astype(np.int64)
             valid_events = valid_dict['E'].type(torch.int64).cpu().numpy()
-            y_train = encode_mtlr_format(train_times, train_events, mtlr_time_bins.cpu().numpy())
-            y_valid = encode_mtlr_format(valid_times, valid_events, mtlr_time_bins.cpu().numpy())
-            num_time_bins = len(mtlr_time_bins.cpu().numpy()) + 1
+            y_train = encode_mtlr_format(train_times, train_events, time_bins.cpu().numpy())
+            y_valid = encode_mtlr_format(valid_times, valid_events, time_bins.cpu().numpy())
+            num_time_bins = len(time_bins.cpu().numpy()) + 1
             config = dotdict(cfg.MTLRCR_PARAMS)
             model = MTLRCR(in_features=n_features, num_time_bins=num_time_bins, num_events=n_events)
             model = train_mtlr_cr(train_dict['X'], y_train, valid_dict['X'], y_valid,
-                                  model, mtlr_time_bins, num_epochs=config['num_epochs'],
+                                  model, time_bins, num_epochs=config['num_epochs'],
                                   lr=config['lr'], batch_size=config['batch_size'],
                                   verbose=True, device=device, C1=config['c1'],
                                   early_stop=config['early_stop'], patience=config['patience'])
@@ -158,8 +159,8 @@ if __name__ == "__main__":
             learning_rate = config['learning_rate']
             batch_size = config['batch_size']
             model = make_dsm_model(config)
-            model.fit(train_dict['X'].numpy(), train_dict['T'].numpy(), train_dict['E'].numpy(),
-                      val_data=(valid_dict['X'].numpy(), valid_dict['T'].numpy(), valid_dict['T'].numpy()),
+            model.fit(train_dict['X'].cpu().numpy(), train_dict['T'].cpu().numpy(), train_dict['E'].cpu().numpy(),
+                      val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'].cpu().numpy(), valid_dict['T'].cpu().numpy()),
                       learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
@@ -213,7 +214,6 @@ if __name__ == "__main__":
                 preds = pd.DataFrame(event_preds[i], columns=bin_locations)
                 all_preds.append(preds)
         elif model_name == "mtlrcr":
-            time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
             pred_prob = model(test_dict['X'])
             num_points = len(time_bins.cpu().numpy())
             all_preds = []
@@ -226,7 +226,7 @@ if __name__ == "__main__":
         elif model_name == "dsm":
             all_preds = []
             for i in range(n_events):
-                model_pred = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.numpy()), risk=i+1)
+                model_pred = model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()), risk=i+1)
                 model_pred = pd.DataFrame(model_pred, columns=time_bins.cpu().numpy())
                 all_preds.append(model_pred)
         elif model_name in ['mensa', 'mensa-nocop']:

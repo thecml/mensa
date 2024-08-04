@@ -51,8 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "dsm", "mtlr", "dcsurvival", "mensa", "mensa-nocop"]
-MODELS = ['mtlr']
+MODELS = ["deepsurv", "deephit", "mtlr", "dcsurvival", "mensa", "mensa-nocop", "dsm"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -67,9 +66,10 @@ if __name__ == "__main__":
     # Load and split data
     dl = get_data_loader(dataset_name)
     dl = dl.load_data()
-    train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
-                                                      random_state=seed)
-    
+    # train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
+    #                                                   random_state=seed)
+    train_dict, valid_dict, test_dict = dl.split_data(train_size=0.1, valid_size=0.1, test_size=0.8,
+                                                      random_state=seed)    
     # Preprocess data
     cat_features = dl.cat_features
     num_features = dl.num_features
@@ -84,8 +84,6 @@ if __name__ == "__main__":
     test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
     n_samples = train_dict['X'].shape[0]
     
-    # Make time bins
-
     # Format data to work easier with sksurv API
     n_features = train_dict['X'].shape[1]
     X_train = pd.DataFrame(train_dict['X'].cpu().numpy(), columns=[f'X{i}' for i in range(n_features)])
@@ -97,7 +95,11 @@ if __name__ == "__main__":
     
     # Evaluate each model
     for model_name in MODELS:
+        print (model_name)
+        # Make time bins
         time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device) #Weijie: event=None or event=train_dict['E']
+        time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
+
         if model_name == "cox":
             config = dotdict(cfg.COX_PARAMS)
             model = make_cox_model(config)
@@ -112,8 +114,8 @@ if __name__ == "__main__":
             learning_rate = config['learning_rate']
             batch_size = config['batch_size']
             model = make_dsm_model(config)
-            model.fit(train_dict['X'].numpy(), train_dict['T'].numpy(), train_dict['E'].numpy(),
-                      val_data=(valid_dict['X'].numpy(), valid_dict['T'].numpy(), valid_dict['T'].numpy()),
+            model.fit(train_dict['X'].cpu().numpy(), train_dict['T'].cpu().numpy(), train_dict['E'].cpu().numpy(),
+                      val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'].cpu().numpy(), valid_dict['T'].cpu().numpy()),
                       learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
@@ -135,7 +137,6 @@ if __name__ == "__main__":
             model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
                                         (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
         elif model_name == "mtlr":
-            time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
             data_train = X_train.copy()
             data_train["time"] = pd.Series(y_train['time'])
             data_train["event"] = pd.Series(y_train['event']).astype(int)
@@ -192,7 +193,7 @@ if __name__ == "__main__":
             model_preds = model.predict_survival_function(X_test)
             model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
         elif model_name == 'dsm':
-            model_preds = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.numpy()))
+            model_preds = model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()))
             model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
         elif model_name == "deepsurv":
             model_preds, time_bins_deepsurv = make_deepsurv_prediction(model, test_dict['X'].to(device),
