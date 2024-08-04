@@ -1,6 +1,6 @@
-bl_hazard_e1: 0.001
-bl_hazard_e2: 0.0015
-bl_hazard_e3: 0.002
+bl_hazard_e1: 0.025
+bl_hazard_e2: 0.023
+bl_hazard_e3: 0.02
 n_hidden: 4
 n_events: 3
 n_samples: 20000
