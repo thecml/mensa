@@ -5,7 +5,8 @@ Experiment 1.1
 
 Models: ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa-nocop", "mensa", "dgp"]
 """
-
+import sys, os
+sys.path.append(os.path.abspath('../'))
 # 3rd party
 import pandas as pd
 import numpy as np
@@ -81,7 +82,7 @@ if __name__ == "__main__":
     min_time = dl.get_data()[1].min()
     max_time = dl.get_data()[1].max()
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
-    time_bins = torch.concat([torch.tensor([0], dtype=dtype, device=device), time_bins], dim=0)
+    time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
 
     # Format data to work easier with sksurv API
     X_train = pd.DataFrame(train_dict['X'], columns=[f'X{i}' for i in range(n_features)])

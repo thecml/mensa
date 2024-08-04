@@ -4,7 +4,8 @@ run_real_single_event.py
 Datasets: seer_se, support_se, mimic_se
 Models: ["deepsurv", "deephit", "dsm", "mtlr", "dcsurvival", "mensa", "mensa-nocop"]
 """
-
+import sys, os
+sys.path.append(os.path.abspath('../'))
 # 3rd party
 import pandas as pd
 import numpy as np
@@ -84,6 +85,7 @@ if __name__ == "__main__":
     
     # Make time bins
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
+    time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
 
     # Format data to work easier with sksurv API
     n_features = train_dict['X'].shape[1]

@@ -5,7 +5,8 @@ Experiment 2.1
 
 Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-cop', 'dgp']
 """
-
+import sys, os
+sys.path.append(os.path.abspath('../'))
 # 3rd party
 import pandas as pd
 import numpy as np
@@ -80,6 +81,7 @@ if __name__ == "__main__":
     
     # Make time bins
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
     
     # Evaluate models
     for model_name in MODELS:
@@ -100,7 +102,8 @@ if __name__ == "__main__":
                 trained_models.append(model)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
-            min_time = torch.tensor([dl.get_data()[1].min()], dtype=dtype)
+            # min_time = torch.tensor([dl.get_data()[1].min()], dtype=dtype)
+            min_time = torch.tensor([0], dtype=dtype)            
             max_time = torch.tensor([dl.get_data()[1].max()], dtype=dtype)
             time_bins_dh = time_bins
             if min_time not in time_bins_dh:
