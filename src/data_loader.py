@@ -95,15 +95,15 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             mu_e2 = [mu_e2 + random.uniform(*perturbation_range) for _ in range(n_features)]
             sigma_e1 = [sigma_e1 + random.uniform(*perturbation_range) for _ in range(n_features)]
             sigma_e2 = [sigma_e2 + random.uniform(*perturbation_range) for _ in range(n_features)]
-            dgp1 = DGP_LogNormal_linear(mu=mu_e1, sigma=sigma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_LogNormal_linear(mu=mu_e2, sigma=sigma_e2, device=device, dtype=dtype)
+            dgp1 = DGP_Exp_linear(n_features, baseline_hazard=0.002, device=device, dtype=dtype)
+            dgp2 = DGP_Exp_linear(n_features, baseline_hazard=0.001, device=device, dtype=dtype)
         else:
             mu_e1 = [mu_e1/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
             mu_e2 = [mu_e2/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
             sigma_e1 = [sigma_e1/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
             sigma_e2 = [sigma_e2/n_hidden + random.uniform(*perturbation_range) for _ in range(n_hidden)]
-            dgp1 = DGP_LogNormal_nonlinear(n_features, n_hidden, mu=mu_e1, sigma=sigma_e1, device=device, dtype=dtype)
-            dgp2 = DGP_LogNormal_nonlinear(n_features, n_hidden, mu=mu_e2, sigma=sigma_e2, device=device, dtype=dtype)
+            dgp1 = DGP_EXP_nonlinear(n_features, baseline_hazard=0.002, n_hidden=4, device=device, dtype=dtype)
+            dgp2 = DGP_EXP_nonlinear(n_features, baseline_hazard=0.001, n_hidden=4, device=device, dtype=dtype)
             
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
