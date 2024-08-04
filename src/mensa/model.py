@@ -107,8 +107,8 @@ class MENSA:
     
     def fit(self, train_dict, valid_dict, batch_size=10000, n_epochs=100, 
             copula_grad_multiplier=1.0, copula_grad_clip = 1.0, model_path=f"{cfg.MODELS_DIR}/mensa.pt",
-            patience_tresh=100, optimizer='adamw', weight_decay=0.0, lr_dict={'network':0.004, 'copula':0.01},
-            betas=(0.9,0.999), use_wandb=False, verbose=False):
+            patience_tresh=100, optimizer='adamw', weight_decay=1e-4, lr_dict={'network':0.004, 'copula':0.01},
+            betas=(0.9, 0.999), use_wandb=False, verbose=False):
         
         optim_dict = [{'params': self.net.parameters(), 'lr': lr_dict['network']}]
         if self.copula is not None:
