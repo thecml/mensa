@@ -125,8 +125,8 @@ def make_mtlr_prediction(
         end_time = datetime.now()
         inference_time = end_time - start_time
         survival_curves = mtlr_survival(pred, with_sample=False)
-
-    time_bins = torch.cat([torch.tensor([0]), time_bins], dim=0).to(survival_curves.device)
+    
+    time_bins = torch.cat([torch.tensor([0], device=survival_curves.device), time_bins], dim=0).to(survival_curves.device)
     return survival_curves, time_bins, survival_curves.unsqueeze(0).repeat(config.n_samples_test, 1, 1)
 
 def train_mtlr_model(

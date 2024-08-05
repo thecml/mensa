@@ -11,13 +11,8 @@ import pandas as pd
 import numpy as np
 import config as cfg
 import torch
-import torch.optim as optim
-import torch.nn as nn
 import random
 import warnings
-import copy
-import tqdm
-import math
 import argparse
 import os
 from scipy.interpolate import interp1d
@@ -25,22 +20,15 @@ from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
 from data_loader import MultiEventSyntheticDataLoader
-from copula import Clayton2D, Frank2D, NestedClayton
-from utility.survival import (make_time_bins, preprocess_data, convert_to_structured,
-                              risk_fn, compute_l1_difference, predict_survival_function,
-                              make_times_hierarchical)
+from utility.survival import (make_time_bins, compute_l1_difference)
 from utility.data import dotdict
 from utility.config import load_config
-from utility.loss import triple_loss
-from utility.data import format_data_deephit_cr, format_hierarchical_data_me, calculate_layer_size_hierarch
+from utility.data import format_hierarchical_data_me, calculate_layer_size_hierarch
 from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
-from Copula2 import Convex_Nested
 
 # SOTA
-from sota_models import (make_cox_model, make_coxnet_model, make_coxboost_model, make_dcph_model,
-                          make_deephit_cr, make_dsm_model, make_rsf_model, train_deepsurv_model,
-                          make_deepsurv_prediction, DeepSurv, make_deephit_cr, train_deephit_model)
+from sota_models import (train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
 from hierarchical import util
 from hierarchical.helper import format_hierarchical_hyperparams
 
@@ -66,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--k_tau', type=float, default=0.25)
     parser.add_argument('--copula_name', type=str, default="clayton")
-    parser.add_argument('--linear', type=bool, default=True)
+    parser.add_argument('--linear', type=bool, default=False)
     
     args = parser.parse_args()
     seed = args.seed
@@ -134,7 +122,7 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Compute survival function
-        n_samples = test_dict['X'].shape[0]                    
+        n_samples = test_dict['X'].shape[0]
         if model_name == "deepsurv":
             all_preds = []
             for trained_model in trained_models:

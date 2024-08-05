@@ -650,16 +650,16 @@ def predict_survival_curve_truth_pred(truth_model, pred_model, x, time_steps):
         surv1_truth[:,i] = truth_model.survival(time_steps[i], x)
     return surv1_truth, surv1_estimate, time_steps, time_steps.max()
 
-def compute_l1_difference(truth_preds, model_preds, n_samples, steps):
-    device = torch.device("cpu")
-    t_m = steps.max()
-    surv1 = truth_preds
-    surv2 = model_preds
-    #surv1, surv2, time_steps, t_m = predict_survival_curve_truth_pred(truth_model, pred_model, x, steps)
-    integ = torch.sum(torch.diff(torch.cat([torch.zeros(1), steps])) * torch.abs(surv1-surv2))
-    return (integ/t_m/n_samples).detach().cpu().numpy() # t_max and N are the same for all patients
+def compute_l1_difference(truth_preds, model_preds, n_samples, steps, device='cpu'):
+    t_m = steps.max().to(device)
+    surv1 = truth_preds.to(device)
+    surv2 = model_preds.to(device)
+    steps = steps.to(device)
+    integ = torch.sum(torch.diff(torch.cat([torch.zeros(1, device=device), steps])) * torch.abs(surv1 - surv2))
+    result = (integ / t_m / n_samples).detach().cpu().numpy()
+    return result
 
-def predict_survival_function(model, x_test, time_bins, truth=False, device = 'cpu'):
+def predict_survival_function(model, x_test, time_bins, truth=False, device='cpu'):
     surv_estimate = torch.zeros((x_test.shape[0], time_bins.shape[0]), device=device)
     time_bins = torch.tensor(time_bins, device=device)
     for i in range(time_bins.shape[0]):

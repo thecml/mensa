@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from torch.nn.parameter import Parameter
 from torch.autograd import Function
+from torch.utils.data import DataLoader, TensorDataset
 
 import wandb
 
@@ -16,220 +17,182 @@ import numpy as np
 import config as cfg
 
 from utility.loss import triple_loss
-from distributions import (Weibull_linear, Weibull_nonlinear, Weibull_log_linear, Exp_linear,
-                           EXP_nonlinear, LogNormal_linear, LogNormal_nonlinear, LogNormalCox_linear)
-from copula import NestedClayton, NestedFrank, ConvexCopula
-from copula import Clayton2D, Frank2D, Clayton
+from copula import Nested_Convex_Copula
 
-from utility.model_helper import get_model_best_params, set_model_best_params
-from mensa.loss import double_loss, triple_loss
-from mensa.utility import *
+from mensa.loss import double_loss, triple_loss, conditional_weibull_loss
+from mensa.utility import weibull_log_survival
 
-from torch.utils.data import TensorDataset, DataLoader
+def create_representation(inputdim, layers, activation, bias=False):
+    if activation == 'ReLU6':
+        act = nn.ReLU6()
+    elif activation == 'ReLU':
+        act = nn.ReLU()
+    elif activation == 'SeLU':
+        act = nn.SELU()
+    elif activation == 'Tanh':
+        act = nn.Tanh()
 
-MAX_PATIENCE = 100
+    modules = []
+    prevdim = inputdim
 
-"""
-From: https://github.com/aligharari96/mensa_mine/blob/main/new_model.py
-"""
-class Net(torch.nn.Module):
-    def __init__(self, nf, n_events, layers,
-                 dropout=0.5, activation_fn=nn.ReLU):
-        super(Net, self).__init__()
+    for hidden in layers:
+        modules.append(nn.Linear(prevdim, hidden, bias=bias))
+        modules.append(act)
+        prevdim = hidden
+
+    return nn.Sequential(*modules)
+
+class DeepSurvivalMachinesTorch(torch.nn.Module):
+    """"
+    k: number of distributions
+    temp: 1000 default, temprature for softmax
+    discount: not used yet 
+    """
+    def __init__(self, inputdim, k, layers, temp, risks, discount=1.0):
+        super(DeepSurvivalMachinesTorch, self).__init__()
+
+        self.k = k
+        self.temp = float(temp)
+        self.discount = float(discount)
         
-        d_in = nf
-        self.layers_ = []
-        for l in layers:
-            d_out = l
-            self.layers_.append(torch.nn.Linear(d_in, d_out))
-            self.layers_.append(torch.nn.Dropout(dropout))
-            self.layers_.append(activation_fn())
-            d_in = d_out
-            
-        self.layers_.append(nn.Linear(d_in, d_in))  # Skip connection
-        self.network = nn.Sequential(*self.layers_)
-        
-        self.out = nn.Linear(d_in + nf, n_events*2)
-        
-        #Initize weights with a small number
-        self._initialize_weights()
-        
-    def _initialize_weights(self):
-        small_value = 0.0001
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.uniform_(m.weight, -small_value, small_value)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-        
+        self.risks = risks
+
+        if layers is None: layers = []
+        self.layers = layers
+
+        if len(layers) == 0: lastdim = inputdim
+        else: lastdim = layers[-1]
+
+        self.act = nn.SELU()
+        self.shape = nn.Parameter(-torch.ones(self.k *  risks)) #(k * risk)
+        self.scale = nn.Parameter(-torch.ones(self.k * risks))
+
+        self.gate = nn.Linear(lastdim, self.k * self.risks, bias=False)
+        self.scaleg = nn.Linear(lastdim, self.k * self.risks, bias=True)
+        self.shapeg = nn.Linear(lastdim, self.k * self.risks, bias=True)
+        self.embedding = create_representation(inputdim, layers, 'ReLU6')
+
     def forward(self, x):
-        tmp = self.network(x)
-        tmp = torch.cat([tmp, x], dim=1) # Skip connection
-        params = self.out(tmp)
+        xrep = self.embedding(x)
+        dim = x.shape[0]
+        shape = self.act(self.shapeg(xrep))  + self.shape.expand(dim,-1)
+        scale = self.act(self.scaleg(xrep)) + self.scale.expand(dim,-1)
         
-        exp_params = torch.exp(params)
+        gate = self.gate(xrep) / self.temp
+        outcomes = []
+        for i in range(self.risks):
+            outcomes.append((shape[:,i*self.k:(i+1)* self.k], scale[:,i*self.k:(i+1)* self.k], gate[:,i*self.k:(i+1)* self.k]))
+            
+        return outcomes
         
-        return tuple(exp_params[:, i] for i in range(exp_params.shape[1]))
-
 class MENSA:
-    """
-    Implements MENSA model
-    """
-    def __init__(self, n_features, n_events, layers=[64, 64], dropout=0.25,
-                 activation_fn="relu", copula=None, device="cpu",
-                 dtype=torch.float64, config=None):
-        self.config = config
+    def __init__(self, n_features, n_events, n_dists=5,
+                 layers=[32, 32], copula=None, device='cuda'):
+        
         self.n_features = n_features
         self.copula = copula
+        
         self.n_events = n_events
-        
         self.device = device
-        self.dtype = dtype
+        self.model = DeepSurvivalMachinesTorch(n_features, n_dists, layers, 1000,
+                                               risks=n_events) # single event
         
-        self.train_loss, self.valid_loss = list(), list()
-        self.thetas = list()
-        
-        if activation_fn == "relu":
-            activation_fn = nn.ReLU
-        elif activation_fn == "leakyrelu":
-            activation_fn = nn.LeakyReLU
-        elif activation_fn == "elu":
-            activation_fn = nn.ELU
-        else:
-            raise NotImplementedError("Not supported activation fn")
-            
-        self.model = Net(n_features, self.n_events, layers, dropout, activation_fn).to(device)
-            
     def get_model(self):
         return self.model
     
     def get_copula(self):
         return self.copula
     
-    def fit(self, train_dict, valid_dict, n_epochs=10000, lr=0.01, batch_size=32, use_wandb=False):
+    def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=2000, 
+            copula_grad_multiplier=1.0, copula_grad_clip=1.0,
+            patience=100, optimizer='adam', weight_decay=0.005,
+            lr_dict={'network': 5e-4, 'copula': 0.01},
+            betas=(0.9, 0.999), use_wandb=False, verbose=False):
+        
+        optim_dict = [{'params': self.model.parameters(), 'lr': lr_dict['network']}]
         if self.copula is not None:
             self.copula.enable_grad()
-
-        train_dataset = TensorDataset(train_dict['X'], train_dict['T'], train_dict['E'])
-        train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    
-        params = [{"params": self.model.parameters(), "lr": lr, "weight_decay":1e-4}]
-        if self.copula is not None:
-            params.append({"params": self.copula.parameters(), "lr": lr, "weight_decay":1e-4})
-            
-        optimizer = torch.optim.Adam(params)
+            optim_dict.append({'params': self.copula.parameters(), 'lr': lr_dict['copula']})
         
-        min_val_loss = 1000
-        patience = MAX_PATIENCE
-        for itr in range(n_epochs):
+        if optimizer == 'adam':
+            optimizer = torch.optim.Adam(optim_dict, betas=betas, weight_decay=weight_decay)
+        elif optimizer == 'adamw':
+            optimizer = torch.optim.AdamW(optim_dict, betas=betas, weight_decay=weight_decay)
+        
+        X = train_dict['X'].to(self.device)
+        T = train_dict['T'].to(self.device)
+        E = train_dict['E'].to(self.device)
+        train_loader = DataLoader(TensorDataset(X, T, E), batch_size=batch_size, shuffle=True)
+        
+        self.model.to(self.device)
+        patience = 100
+        min_delta = 0.001
+        best_val_loss = float('inf')
+        epochs_no_improve = 0
+
+        # Training loop with early stopping
+        for itr in range(10000):
             self.model.train()
-            batch_loss = list()
-            for batch in train_dataloader:
+            for xi, ti, ei in train_loader:
                 optimizer.zero_grad()
-                X = batch[0].to(self.device)
-                T = batch[1].to(self.device)
-                E = batch[2].to(self.device)
-                
-                if self.n_events == 2:
-                    loss = double_loss(self.model, X, T, E, self.copula, self.device)
-                elif self.n_events == 3:
-                    loss = triple_loss(self.model, X, T, E, self.copula, self.device)
-                else:
-                    raise NotImplementedError()
-                
-                #batch_loss.append(float(loss.cpu().detach().numpy()))
-            
+                loss = conditional_weibull_loss(self.model, xi, ti, ei)
                 loss.backward()
                 optimizer.step()
-                
-                if self.copula is not None:
-                    for p in self.copula.parameters()[:-2]: #TODO: Add [:-2] using nested cop
-                        if p < 0.01:
-                            with torch.no_grad():
-                                p[:] = torch.clamp(p, 0.01, 100)
             
-            #self.train_loss.append(np.mean(batch_loss))
-            if self.copula is not None:
-                self.thetas.append(tuple([float(tensor.cpu().detach().numpy())
-                                        for tensor in self.copula.parameters()[:-2]]))
-                
+            self.model.eval()
             with torch.no_grad():
-                self.model.eval()
-                
-                if self.n_events == 2:
-                    val_loss = double_loss(self.model, valid_dict['X'].to(self.device),
-                                           valid_dict['T'].to(self.device), valid_dict['E'].to(self.device),
-                                           self.copula, self.device).detach().clone().cpu().numpy()
-                elif self.n_events == 3:
-                    val_loss = triple_loss(self.model, valid_dict['X'].to(self.device),
-                                           valid_dict['T'].to(self.device), valid_dict['E'].to(self.device),
-                                           self.copula, self.device).detach().clone().cpu().numpy()
-                else:
-                    raise NotImplementedError()
-                
-                self.valid_loss.append(val_loss)
-                
+                val_loss = conditional_weibull_loss(self.model, valid_dict['X'].to(self.device),
+                                                    valid_dict['T'].to(self.device), valid_dict['E'].to(self.device))
                 if use_wandb:
-                    pass
-                    #theta = float(self.copula.parameters()[0].cpu().detach().numpy())
-                    #wandb.log({"val_loss": val_loss, "theta": theta})
                     wandb.log({"val_loss": val_loss})
-                
-                if val_loss  < min_val_loss:
-                    min_val_loss = val_loss
-                    filename = f"{cfg.MODELS_DIR}/mensa.pt"
-                    torch.save(self.model.state_dict(), filename)
-                    patience = MAX_PATIENCE
-                else:
-                    patience = patience - 1
-                
-            if patience == 0:
-                print("Early stopping...")
+
+            if itr % 100 == 0:
+                if verbose:
+                    print(f"Iteration {itr}, Training Loss: {loss.item()}, Validation Loss: {val_loss.item()}")
+
+            # Check for early stopping
+            if val_loss < best_val_loss - min_delta:
+                best_val_loss = val_loss
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+
+            if epochs_no_improve >= patience:
+                if verbose:
+                    print(f"Early stopping at iteration {itr}")
                 break
-            
-            if (itr % 100 == 0):
-                if self.copula is not None:
-                    if self.n_events == 2:
-                        pass
-                        #print(f"{min_val_loss} - {self.copula.parameters()}")
-                    else:
-                        pass
-                        #print(f"{min_val_loss} - {self.copula.parameters()}")
-                else:
-                    pass
-                    #print(f"{min_val_loss}")
                     
-    def predict(self, x_test, time_bins):
-        filename = f"{cfg.MODELS_DIR}/mensa.pt"
-        self.model.load_state_dict(torch.load(filename))
-        self.model.eval()
+    def predict(self, x_test, time_bins, risk=0):
+        t = list(time_bins.cpu().numpy())
+        params = self.model.forward(x_test)
         
-        if self.n_events == 2:
-            k1, k2, lam1, lam2 = self.model(x_test.to(self.device))
-            k1 = k1.to(self.device)
-            lam1 = lam1.to(self.device)
-            k = [k1, k2]
-            lam = [lam1, lam2]
-        elif self.n_events == 3:
-            k1, k2, k3, lam1, lam2, lam3 = self.model(x_test.to(self.device))
-            k1 = k1.to(self.device)
-            lam1 = lam1.to(self.device)
-            k2 = k2.to(self.device)
-            lam2 = lam2.to(self.device)
-            k3 = k3.to(self.device)
-            lam3 = lam3.to(self.device)
-            k = [k1, k2, k3]
-            lam = [lam1, lam2, lam3]
-        else:
-            raise NotImplementedError()
-    
-        surv_estimates = list()
-        for k_i, lam_i in zip(k, lam):
-            surv_estimate = torch.zeros((x_test.shape[0], time_bins.shape[0]), device=self.device)
-            time_bins = torch.tensor(time_bins, device=self.device)
-            for i in range(time_bins.shape[0]):
-                surv_estimate[:,i] = torch.exp(weibull_log_survival(time_bins[i], k_i, lam_i))
-            surv_estimates.append(surv_estimate)
-            
-        return surv_estimates
+        shape, scale, logits = params[risk][0], params[risk][1], params[risk][2]
+        k_ = shape
+        b_ = scale
+
+        squish = nn.LogSoftmax(dim=1)
+        logits = squish(logits)
+        
+        t_horz = torch.tensor(time_bins).double().to(logits.device)
+        t_horz = t_horz.repeat(shape.shape[0], 1)
+        
+        cdfs = []
+        for j in range(len(time_bins)):
+
+            t = t_horz[:, j]
+            lcdfs = []
+
+            for g in range(self.model.k):
+
+                k = k_[:, g]
+                b = b_[:, g]
+                s = - (torch.pow(torch.exp(b)*t, torch.exp(k)))
+                lcdfs.append(s)
+
+            lcdfs = torch.stack(lcdfs, dim=1)
+            lcdfs = lcdfs+logits
+            lcdfs = torch.logsumexp(lcdfs, dim=1)
+            cdfs.append(lcdfs.detach().cpu().numpy())
+        
+        return np.exp(np.array(cdfs)).T
                     

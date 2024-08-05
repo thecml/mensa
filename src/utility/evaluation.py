@@ -67,7 +67,7 @@ def global_C_index(mod_out, test_time, test_event, weight=True):
     else:
         return np.mean(cindex_list)
 
-def local_C_index(mod_out, test_time, test_event):
+def local_C_index(mod_out, test_time, test_event, weight=False):
     '''
     each patient
     mod_out: List of surv pred
@@ -75,6 +75,8 @@ def local_C_index(mod_out, test_time, test_event):
     test_event: np.array of binary #patient, #event
     '''
     cindex_list = []
+    global_total_pairs = 0.0
+    global_concordant_pairs = 0.0
     for patient_id in range(test_time.shape[0]):
         surv_pred_patient = np.column_stack([mod_out[event_index][patient_id, :] for event_index in range(len(mod_out))]).T
 
@@ -84,12 +86,17 @@ def local_C_index(mod_out, test_time, test_event):
         if np.sum(temp_test_event) != 0:
             try:
                 evaluator = LifelinesEvaluator(surv_pred_event.T, temp_test_time, temp_test_event)
-                cindex, _, _ = evaluator.concordance()
+                cindex, concordant_pairs, total_pairs = evaluator.concordance()
                 cindex_list.append(cindex)
+                global_total_pairs += total_pairs
+                global_concordant_pairs += concordant_pairs
             except:
                 continue
-    return np.mean(cindex_list)
-
+    if weight:
+        return global_concordant_pairs/global_total_pairs
+    else:
+        return np.mean(cindex_list)
+    
 # print ("all_event C index", all_events_C_index(mod_out, test_time, test_event))
 # print ("global C index", global_C_index(mod_out, test_time, test_event))
 # print ("local C index", local_C_index(mod_out, test_time, test_event))

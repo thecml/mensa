@@ -96,6 +96,7 @@ class Convex_bivariate:
         self.copulas = []
         self.device = device
         self.n_copula = len(copulas)
+        self.eps = eps
         for i in range(len(copulas)):
             if copulas[i] == 'fr':
                 copula_tmp = Frank_Bivariate(thetas[i], eps=eps, dtype=dtype, device=device)
@@ -185,10 +186,8 @@ class Nested_Convex_Copula:
         self.child_copula.disable_grad()
         self.parent_copula.disable_grad()
 
-
     def parameters(self):#[child_theta, parent_thetas, parent_logits, child_logits]
         return self.child_copula.parameters()[:-1] + self.parent_copula.parameters() + [self.child_copula.parameters()[-1]]
-    
     
     def __str__(self) -> str:
         child_str = "Copulas: "

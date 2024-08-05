@@ -1,10 +1,11 @@
 import torch
+from torch import nn
 from mensa.utility import *
 
 def safe_log(x):
     return torch.log(x+1e-6*(x<1e-6))
 
-def double_loss(model, X, T, E, copula, device):
+def double_loss(model, X, T, E, copula):
     k1, k2, lam1, lam2 = model(X)
     log_pdf1 = weibull_log_pdf(T, k1, lam1)
     log_pdf2 = weibull_log_pdf(T, k2, lam2)
@@ -25,9 +26,9 @@ def double_loss(model, X, T, E, copula, device):
     loss = -loss/E.shape[0]
     return loss
 
-def triple_loss(model, X, T, E, copula, device):
+def triple_loss(model, X, T, E, copula):
     k1, k2, k3, lam1, lam2, lam3 = model(X)
-    log_pdf1 = weibull_log_pdf(T, k1, lam1) # TODO: Handle multi-event
+    log_pdf1 = weibull_log_pdf(T, k1, lam1)
     log_pdf2 = weibull_log_pdf(T, k2, lam2)
     log_pdf3 = weibull_log_pdf(T, k3, lam3)
     log_surv1 = weibull_log_survival(T, k1, lam1)
@@ -38,7 +39,7 @@ def triple_loss(model, X, T, E, copula, device):
         p2 = log_surv1 + log_pdf2 + log_surv3
         p3 = log_surv1 + log_surv2 + log_pdf3
     else:
-        S = torch.cat([torch.exp(log_surv1).reshape(-1,1), torch.exp(log_surv2).reshape(-1,1), torch.exp(log_surv3).reshape(-1,1)], dim=1)
+        S = torch.cat([torch.exp(log_surv1).reshape(-1,1), torch.exp(log_surv2).reshape(-1,1), torch.exp(log_surv3).reshape(-1,1)], dim=1).clamp(0.002, 0.998)
         p1 = log_pdf1 + safe_log(copula.conditional_cdf("u", S))
         p2 = log_pdf2 + safe_log(copula.conditional_cdf("v", S))
         p3 = log_pdf3 + safe_log(copula.conditional_cdf("w", S))
@@ -50,4 +51,50 @@ def triple_loss(model, X, T, E, copula, device):
     e3 = (E == 2) * 1.0
     loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3)
     loss = -loss/E.shape[0]
+    return loss
+
+def conditional_weibull_loss(model, x, t, E, elbo=True):
+
+    alpha = model.discount
+    params = model.forward(x)
+
+    t = t.reshape(-1,1).expand(-1, model.k)#(n, k)
+    f_risks = []
+    s_risks = []
+
+    for i in range(model.risks):
+        k = params[i][0]
+        b = params[i][1]
+        gate = nn.Softmax(dim=1)(params[i][2])
+        s = - (torch.pow(torch.exp(b)*t, torch.exp(k)))
+        f = k + b + ((torch.exp(k)-1)*(b+torch.log(t)))
+        f = f + s
+        s = (s * gate).sum(dim=1)#log_survival
+        f = (f * gate).sum(dim=1)#log_density
+        f_risks.append(f)#(n,3) each column for one risk
+        s_risks.append(s)
+    f = torch.stack(f_risks, dim=1)
+    s = torch.stack(s_risks, dim=1)
+
+    if model.risks == 3:
+        p1 = f[:,0] + s[:,1] + s[:,2] 
+        p2 = s[:,0] + f[:,1] + s[:,2]
+        p3 = s[:,0] + s[:,1] + f[:,2]
+        e1 = (E == 0) * 1.0
+        e2 = (E == 1) * 1.0
+        e3 = (E == 2) * 1.0
+        loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3)
+        loss = -loss/E.shape[0]
+    elif model.risks == 2:
+        p1 = f[:,0] + s[:,1] 
+        p2 = s[:,0] + f[:,1] 
+        e1 = (E == 1) * 1.0 #event
+        e2 = (E == 0) * 1.0#censoring
+        loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) 
+        loss = -loss/E.shape[0]
+    elif model.risks == 1:#added single risk 
+        e1 = (E == 1) * 1.0
+        e2 = (E == 0) * 1.0
+        loss = torch.sum(e1 * f[:,0]) + torch.sum(e2 * s[:,0]) 
+        loss = -loss/E.shape[0]
     return loss
