@@ -52,13 +52,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv', 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-cop', 'dgp']
+MODELS = ['deepsurv']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.5)
+    parser.add_argument('--k_tau', type=float, default=0.25)
     parser.add_argument('--copula_name', type=str, default="clayton")
     parser.add_argument('--linear', type=bool, default=False)
     
@@ -160,10 +160,7 @@ if __name__ == "__main__":
             dropout = config['dropout']
             copula = Nested_Convex_Copula(['cl'], ['cl'], [1, 1], [1], 1e-3,
                                           dtype=dtype, device=device)
-            model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers,
-                          dropout=dropout, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs,
-                      lr_dict={'network': lr, 'copula': 0.01}, verbose=True)
+            raise NotImplementedError()
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
@@ -171,9 +168,8 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             dropout = config['dropout']
-            model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers,
-                          dropout=dropout, copula=None, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict={'network': lr})
+            model = MENSA(n_features, n_events=n_events+1, copula=None, device=device)
+            model.fit(train_dict, valid_dict, verbose=True)
         elif model_name == "dgp":
             pass
         else:
@@ -223,12 +219,11 @@ if __name__ == "__main__":
                 model_pred = pd.DataFrame(model_pred, columns=time_bins.cpu().numpy())
                 all_preds.append(model_pred)
         elif model_name in ["mensa", "mensa-nocop"]:
-            model_preds = model.predict(test_dict['X'], time_bins)
             all_preds = []
-            for model_pred in model_preds:
-                model_pred = pd.DataFrame(model_pred.detach().cpu().numpy(), columns=time_bins.cpu().numpy())
-                all_preds.append(model_pred)
-            all_preds.pop(0) # remove censoring model
+            for i in range(n_events):
+                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
+                model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
+                all_preds.append(model_preds)
         elif model_name == "dgp":
             all_preds = []
             n_samples = test_dict['X'].shape[0]

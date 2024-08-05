@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from torch.nn.parameter import Parameter
 from torch.autograd import Function
+from torch.utils.data import DataLoader, TensorDataset
 
 import wandb
 
@@ -18,99 +19,97 @@ import config as cfg
 from utility.loss import triple_loss
 from copula import Nested_Convex_Copula
 
-from utility.model_helper import get_model_best_params, set_model_best_params
-from mensa.loss import double_loss, triple_loss
+from mensa.loss import double_loss, triple_loss, conditional_weibull_loss
 from mensa.utility import weibull_log_survival
 
-MAX_PATIENCE = 100
+def create_representation(inputdim, layers, activation, bias=False):
+    if activation == 'ReLU6':
+        act = nn.ReLU6()
+    elif activation == 'ReLU':
+        act = nn.ReLU()
+    elif activation == 'SeLU':
+        act = nn.SELU()
+    elif activation == 'Tanh':
+        act = nn.Tanh()
 
-class Net(nn.Module):
-    def __init__(self,  n_features=10, n_events=3, hidden_layers=[32,32], 
-                 activation_func='relu', dropout=0.5, residual=True, bias=True):
-        super().__init__()
-        self.n_features = n_features
-        self.n_events = n_events
-        self.dropout_val = dropout
-        self.residual = residual
-        self.layers = nn.ModuleList()
+    modules = []
+    prevdim = inputdim
+
+    for hidden in layers:
+        modules.append(nn.Linear(prevdim, hidden, bias=bias))
+        modules.append(act)
+        prevdim = hidden
+
+    return nn.Sequential(*modules)
+
+class DeepSurvivalMachinesTorch(torch.nn.Module):
+    """"
+    k: number of distributions
+    temp: 1000 default, temprature for softmax
+    discount: not used yet 
+    """
+    def __init__(self, inputdim, k, layers, temp, risks, discount=1.0):
+        super(DeepSurvivalMachinesTorch, self).__init__()
+
+        self.k = k
+        self.temp = float(temp)
+        self.discount = float(discount)
         
-        if activation_func == 'relu':
-            self.activation = nn.ReLU()
-        elif activation_func == 'leaky_relu':
-            self.activation = nn.LeakyReLU()
-        elif activation_func == 'tanh':
-            self.activation = nn.Tanh()
-        elif activation_func == 'sigmoid':
-            self.activation = nn.Sigmoid()
-        elif activation_func == 'selu':
-            self.activation = nn.SELU()
-        elif activation_func == 'gelu':
-            self.activation = nn.GELU()
-        else:
-            raise NotImplementedError("Activation fn not available")
-        
-        d_in = n_features
-        for h in hidden_layers:
-            l = nn.Linear(d_in, h, bias=bias)
-            d_in = h
-            l.weight.data.fill_(0.01)
-            if bias:
-                l.bias.data.fill_(0.01)
-            self.layers.append(l)
-        self.dropout = nn.Dropout(dropout)
-        if residual:
-            self.last_layer = nn.Linear(hidden_layers[-1] + n_features, n_events*2)
-        else:
-            self.last_layer = nn.Linear(hidden_layers[-1], n_events*2)
-        self.last_layer.weight.data.fill_(0.01)
-        if bias:
-            self.last_layer.bias.data.fill_(0.01)
-        
+        self.risks = risks
+
+        if layers is None: layers = []
+        self.layers = layers
+
+        if len(layers) == 0: lastdim = inputdim
+        else: lastdim = layers[-1]
+
+        self.act = nn.SELU()
+        self.shape = nn.Parameter(-torch.ones(self.k *  risks)) #(k * risk)
+        self.scale = nn.Parameter(-torch.ones(self.k * risks))
+
+        self.gate = nn.Linear(lastdim, self.k * self.risks, bias=False)
+        self.scaleg = nn.Linear(lastdim, self.k * self.risks, bias=True)
+        self.shapeg = nn.Linear(lastdim, self.k * self.risks, bias=True)
+        self.embedding = create_representation(inputdim, layers, 'ReLU6')
+
     def forward(self, x):
-        tmp = x
-        for i, l in enumerate(self.layers):
-            x = l(x)
-            if self.dropout_val > 0:
-                if i != (len(self.layers)-1):
-                    x = self.dropout(x)
-            x = self.activation(x)
-        if self.residual:
-            x = torch.cat([x, tmp], dim=1)
-        x = self.dropout(x)
-        p = self.last_layer(x)
-        p = torch.exp(p)
-        return tuple(p[:, i] for i in range(p.shape[1]))
+        xrep = self.embedding(x)
+        dim = x.shape[0]
+        shape = self.act(self.shapeg(xrep))  + self.shape.expand(dim,-1)
+        scale = self.act(self.scaleg(xrep)) + self.scale.expand(dim,-1)
+        
+        gate = self.gate(xrep) / self.temp
+        outcomes = []
+        for i in range(self.risks):
+            outcomes.append((shape[:,i*self.k:(i+1)* self.k], scale[:,i*self.k:(i+1)* self.k], gate[:,i*self.k:(i+1)* self.k]))
+            
+        return outcomes
         
 class MENSA:
-    def __init__(self, n_features, n_events, dropout = 0.8, residual = True,
-                 bias = True, hidden_layers = [32, 128], activation_func='relu',
-                 copula = None, device = 'cuda'):
+    def __init__(self, n_features, n_events, n_dists=5,
+                 layers=[32, 32], copula=None, device='cuda'):
         
         self.n_features = n_features
         self.copula = copula
         
         self.n_events = n_events
         self.device = device
-        self.net = Net(n_features=n_features, 
-                       n_events=n_events, 
-                       hidden_layers=hidden_layers, 
-                       activation_func=activation_func, 
-                       dropout =dropout, 
-                       residual=residual, 
-                       bias=bias).to(self.device)
+        self.model = DeepSurvivalMachinesTorch(n_features, n_dists, layers, 1000,
+                                               risks=n_events) # single event
         
     def get_model(self):
-        return self.net
+        return self.model
     
     def get_copula(self):
         return self.copula
     
-    def fit(self, train_dict, valid_dict, batch_size=10000, n_epochs=100, 
-            copula_grad_multiplier=1.0, copula_grad_clip = 1.0, model_path=f"{cfg.MODELS_DIR}/mensa.pt",
-            patience_tresh=100, optimizer='adamw', weight_decay=1e-4, lr_dict={'network':0.004, 'copula':0.01},
+    def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=2000, 
+            copula_grad_multiplier=1.0, copula_grad_clip=1.0,
+            patience=100, optimizer='adam', weight_decay=0.005,
+            lr_dict={'network': 5e-4, 'copula': 0.01},
             betas=(0.9, 0.999), use_wandb=False, verbose=False):
         
-        optim_dict = [{'params': self.net.parameters(), 'lr': lr_dict['network']}]
+        optim_dict = [{'params': self.model.parameters(), 'lr': lr_dict['network']}]
         if self.copula is not None:
             self.copula.enable_grad()
             optim_dict.append({'params': self.copula.parameters(), 'lr': lr_dict['copula']})
@@ -119,138 +118,81 @@ class MENSA:
             optimizer = torch.optim.Adam(optim_dict, betas=betas, weight_decay=weight_decay)
         elif optimizer == 'adamw':
             optimizer = torch.optim.AdamW(optim_dict, betas=betas, weight_decay=weight_decay)
-            
-        min_val_loss = 10000
-        patience = 0
-        best_theta = []
-        for itr in range(n_epochs):
-            epoch_loss = 0
-            self.net.train()
-            X = train_dict['X']
-            T = train_dict['T']
-            E = train_dict['E']
-            idx = torch.randperm(E.shape[0])
-            n_batch = int(np.ceil(E.shape[0]/batch_size))
-            
-            for i in range(n_batch):
-                idx_start = batch_size * i
-                idx_end = min(X.shape[0], (i+1)*batch_size)
-                x = X[idx[idx_start:idx_end]].to(self.device)
-                t = T[idx[idx_start:idx_end]].to(self.device)
-                e = E[idx[idx_start:idx_end]].to(self.device)
+        
+        X = train_dict['X'].to(self.device)
+        T = train_dict['T'].to(self.device)
+        E = train_dict['E'].to(self.device)
+        train_loader = DataLoader(TensorDataset(X, T, E), batch_size=batch_size, shuffle=True)
+        
+        self.model.to(self.device)
+        patience = 100
+        min_delta = 0.001
+        best_val_loss = float('inf')
+        epochs_no_improve = 0
 
+        # Training loop with early stopping
+        for itr in range(10000):
+            self.model.train()
+            for xi, ti, ei in train_loader:
                 optimizer.zero_grad()
-                
-                if self.n_events == 2:
-                    loss = double_loss(self.net, x, t, e, self.copula)
-                elif self.n_events == 3:
-                    loss = triple_loss(self.net, x, t, e, self.copula)
-                else:
-                    raise NotImplementedError()
-                
-                epoch_loss += loss.detach().clone().cpu()*x.shape[0]
+                loss = conditional_weibull_loss(self.model, xi, ti, ei)
                 loss.backward()
-
-                if (copula_grad_multiplier) and (self.copula is not None):
-                    if isinstance(self.copula, Nested_Convex_Copula):
-                        for p in self.copula.parameters()[:-2]:
-                            p.grad= (p.grad * copula_grad_multiplier).clip(-1 * copula_grad_clip,1 *copula_grad_clip)
-                    else:
-                        for p in self.copula.parameters():
-                            p.grad= (p.grad * copula_grad_multiplier).clip(-1 * copula_grad_clip,1 *copula_grad_clip)
-
                 optimizer.step()
-                if self.copula is not None:
-                    if isinstance(self.copula, Nested_Convex_Copula):
-                        for p in self.copula.parameters()[-2]:
-                            if p < 0.01:
-                                with torch.no_grad():
-                                    p[:] = torch.clamp(p, 0.01, 100)
-                    else:
-                        for p in self.copula.parameters():
-                            if p < 0.01:
-                                with torch.no_grad():
-                                    p[:] = torch.clamp(p, 0.01, 100)
-                
-            epoch_loss = epoch_loss / X.shape[0]
-            self.net.eval()
             
+            self.model.eval()
             with torch.no_grad():
-                if self.n_events == 2:
-                    val_loss = double_loss(self.net, valid_dict['X'].to(self.device),
-                                           valid_dict['T'].to(self.device),
-                                           valid_dict['E'].to(self.device), self.copula)
-                elif self.n_events == 3:
-                    val_loss = triple_loss(self.net, valid_dict['X'].to(self.device),
-                                           valid_dict['T'].to(self.device),
-                                           valid_dict['E'].to(self.device), self.copula)
-                else:
-                    raise NotImplementedError()
-                
+                val_loss = conditional_weibull_loss(self.model, valid_dict['X'].to(self.device),
+                                                    valid_dict['T'].to(self.device), valid_dict['E'].to(self.device))
                 if use_wandb:
                     wandb.log({"val_loss": val_loss})
-                    
-                if val_loss < min_val_loss + 1e-6:
-                    min_val_loss = val_loss
-                    patience = 0
-                    torch.save(self.net.state_dict(), model_path)
-                    if self.copula is not None:
-                        best_theta = [p.detach().clone().cpu() for p in self.copula.parameters()]
-                else:
-                    patience += 1
-                    if patience == patience_tresh:
-                        if verbose:
-                            print('Early stopping!')
-                        break
-                
+
             if itr % 100 == 0:
                 if verbose:
-                    if self.copula is not None:
-                        print(itr, "/", n_epochs, "train_loss: ", round(epoch_loss.item(),4),
-                            "val_loss: ", round(val_loss.item(),4), "min_val_loss: ", round(min_val_loss.item(),4), self.copula.parameters())
-                    else:
-                        print(itr, "/", n_epochs, "train_loss: ", round(epoch_loss.item(),4),
-                            "val_loss: ", round(val_loss.item(),4), "min_val_loss: ", round(min_val_loss.item(),4))
+                    print(f"Iteration {itr}, Training Loss: {loss.item()}, Validation Loss: {val_loss.item()}")
 
-        self.net.load_state_dict(torch.load(model_path))
-        self.net.eval()
-        if self.copula is not None:
-            self.copula.set_params(best_theta)
-        
-        return self.net.to('cpu'), self.copula
+            # Check for early stopping
+            if val_loss < best_val_loss - min_delta:
+                best_val_loss = val_loss
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+
+            if epochs_no_improve >= patience:
+                if verbose:
+                    print(f"Early stopping at iteration {itr}")
+                break
                     
-    def predict(self, x_test, time_bins):
-        filename = f"{cfg.MODELS_DIR}/mensa.pt"
-        self.net.load_state_dict(torch.load(filename))
-        self.net.to(self.device)
-        self.net.eval()
+    def predict(self, x_test, time_bins, risk=0):
+        t = list(time_bins.cpu().numpy())
+        params = self.model.forward(x_test)
         
-        if self.n_events == 2:
-            k1, k2, lam1, lam2 = self.net(x_test.to(self.device))
-            k1 = k1.to(self.device)
-            lam1 = lam1.to(self.device)
-            k = [k1, k2]
-            lam = [lam1, lam2]
-        elif self.n_events == 3:
-            k1, k2, k3, lam1, lam2, lam3 = self.net(x_test.to(self.device))
-            k1 = k1.to(self.device)
-            lam1 = lam1.to(self.device)
-            k2 = k2.to(self.device)
-            lam2 = lam2.to(self.device)
-            k3 = k3.to(self.device)
-            lam3 = lam3.to(self.device)
-            k = [k1, k2, k3]
-            lam = [lam1, lam2, lam3]
-        else:
-            raise NotImplementedError()
-    
-        surv_estimates = list()
-        for k_i, lam_i in zip(k, lam):
-            surv_estimate = torch.zeros((x_test.shape[0], time_bins.shape[0]), device=self.device)
-            time_bins = torch.tensor(time_bins, device=self.device)
-            for i in range(time_bins.shape[0]):
-                surv_estimate[:,i] = torch.exp(weibull_log_survival(time_bins[i], k_i, lam_i))
-            surv_estimates.append(surv_estimate)
-            
-        return surv_estimates
+        shape, scale, logits = params[risk][0], params[risk][1], params[risk][2]
+        k_ = shape
+        b_ = scale
+
+        squish = nn.LogSoftmax(dim=1)
+        logits = squish(logits)
+        
+        t_horz = torch.tensor(time_bins).double().to(logits.device)
+        t_horz = t_horz.repeat(shape.shape[0], 1)
+        
+        cdfs = []
+        for j in range(len(time_bins)):
+
+            t = t_horz[:, j]
+            lcdfs = []
+
+            for g in range(self.model.k):
+
+                k = k_[:, g]
+                b = b_[:, g]
+                s = - (torch.pow(torch.exp(b)*t, torch.exp(k)))
+                lcdfs.append(s)
+
+            lcdfs = torch.stack(lcdfs, dim=1)
+            lcdfs = lcdfs+logits
+            lcdfs = torch.logsumexp(lcdfs, dim=1)
+            cdfs.append(lcdfs.detach().cpu().numpy())
+        
+        return np.exp(np.array(cdfs)).T
                     

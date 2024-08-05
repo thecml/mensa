@@ -165,10 +165,7 @@ if __name__ == "__main__":
             dropout = config['dropout']
             copula = Nested_Convex_Copula(['cl', 'cl'], ['cl'], [1, 1], [1], 1e-3,
                                           dtype=dtype, device=device)
-            model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
-                          dropout=dropout, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, batch_size=batch_size,
-                      lr_dict={'network': lr, 'copula': 0.005}, verbose=True)
+            raise NotImplementedError()
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
@@ -176,10 +173,8 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             dropout = config['dropout']
-            model = MENSA(n_features=n_features, n_events=n_events+1, hidden_layers=layers, # add censoring model
-                          dropout=dropout, copula=None, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, batch_size=batch_size,
-                      lr_dict={'network': lr}, verbose=True)
+            model = MENSA(n_features, n_events=n_events+1, copula=None, device=device)
+            model.fit(train_dict, valid_dict, verbose=True)
         else:
             raise NotImplementedError()
         
@@ -225,13 +220,11 @@ if __name__ == "__main__":
                 model_pred = pd.DataFrame(model_pred, columns=time_bins.cpu().numpy())
                 all_preds.append(model_pred)
         elif model_name in ['mensa', 'mensa-nocop']:
-            model_preds = model.predict(test_dict['X'], time_bins)
             all_preds = []
-            for model_pred in model_preds:
-                model_pred = pd.DataFrame(model_pred.detach().cpu().numpy(),
-                                          columns=time_bins.cpu().numpy())
-                all_preds.append(model_pred)
-            all_preds.pop(0) # remove censoring model
+            for i in range(n_events):
+                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
+                model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
+                all_preds.append(model_preds)
         else:
             raise NotImplementedError()
         
