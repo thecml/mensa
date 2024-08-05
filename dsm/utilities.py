@@ -37,9 +37,14 @@ def conditional_weibull_loss(model, x, t, E, elbo=True):
     elif model.risks == 2:
         p1 = f[:,0] + s[:,1] 
         p2 = s[:,0] + f[:,1] 
-        e1 = (E == 0) * 1.0 #event
-        e2 = (E == 1) * 1.0#censoring
+        e1 = (E == 1) * 1.0 #event
+        e2 = (E == 0) * 1.0#censoring
         loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) 
+        loss = -loss/E.shape[0]
+    elif model.risks == 1:#added single risk 
+        e1 = (E == 1) * 1.0
+        e2 = (E == 0) * 1.0
+        loss = torch.sum(e1 * f[:,0]) + torch.sum(e2 * s[:,0]) 
         loss = -loss/E.shape[0]
     return loss
     
