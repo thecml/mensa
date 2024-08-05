@@ -52,7 +52,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa-nocop", "mensa", "dgp"]
+MODELS = ["mensa-nocop"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -78,9 +78,7 @@ if __name__ == "__main__":
     n_features = train_dict['X'].shape[1]
     dgps = dl.dgps
     
-    # Make time bins    
-    min_time = dl.get_data()[1].min()
-    max_time = dl.get_data()[1].max()
+    # Make time bins
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
     time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
 
@@ -172,10 +170,7 @@ if __name__ == "__main__":
             layers = config['layers']
             dropout = config['dropout']
             copula = Convex_bivariate(copulas=['cl'], dtype=dtype, device=device)
-            model = MENSA(n_features=n_features, n_events=2, hidden_layers=layers,
-                          dropout=dropout, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs,
-                      lr_dict={'network': lr, 'copula': 0.01})
+            raise NotImplementedError()
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
@@ -183,9 +178,8 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             dropout = config['dropout']
-            model = MENSA(n_features=n_features, n_events=2, hidden_layers=layers,
-                          dropout=dropout, copula=None, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict={'network': lr})
+            model = MENSA(n_features, n_events=2, copula=None, device=device)
+            model.fit(train_dict, valid_dict, verbose=True)
         elif model_name == "dgp":
             pass
         else:
@@ -218,7 +212,7 @@ if __name__ == "__main__":
             model_preds = predict_survival_function(model, test_dict['X'].to(device),
                                                     time_bins, device=device).cpu().numpy()
         elif model_name in ["mensa", "mensa-nocop"]:
-            model_preds = model.predict(test_dict['X'], time_bins)[1].cpu().detach().numpy() # use event preds
+            model_preds = model.predict(test_dict, time_bins, risk=0).cpu().detach().numpy() # use event preds
         elif model_name == "dgp":
             model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
@@ -234,6 +228,7 @@ if __name__ == "__main__":
         model_preds_th = torch.tensor(model_preds, device=device, dtype=dtype)
         l1_e = float(compute_l1_difference(truth_preds_e, model_preds_th, n_samples,
                                            steps=time_bins, device=device))
+        print(l1_e)
         
         # Compute prediction metrics
         surv_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
