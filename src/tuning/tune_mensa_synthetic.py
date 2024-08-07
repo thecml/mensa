@@ -1,20 +1,11 @@
 import numpy as np
 import os
-import argparse
-import pandas as pd
 import config as cfg
 import torch
 from utility.tuning import get_mensa_sweep_cfg
-from utility.data import dotdict
-import data_loader
 from utility.config import load_config
-from utility.survival import make_time_bins, preprocess_data, convert_to_structured
-from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from utility.evaluation import LifelinesEvaluator
 from data_loader import SingleEventSyntheticDataLoader
-from copula import Clayton2D
 from mensa.model import MENSA
-from utility.survival import compute_l1_difference
 import warnings
 import random
 
@@ -27,7 +18,7 @@ random.seed(0)
 os.environ["WANDB_SILENT"] = "true"
 import wandb
 
-N_RUNS = 100
+N_RUNS = 1
 PROJECT_NAME = "mensa"
 
 # Setup precision
@@ -62,24 +53,16 @@ def train_mensa_model():
     train_dict, valid_dict, _ = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2)
     n_features = train_dict['X'].shape[1]
 
-    # Make time bins
-    min_time = dl.get_data()[1].min()
-    max_time = dl.get_data()[1].max()
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
-    time_bins = torch.concat([torch.tensor([min_time], device=device, dtype=dtype), 
-                              time_bins, torch.tensor([max_time], device=device, dtype=dtype)])
-    
     # Train model
-    n_epochs = config['n_epochs']
-    lr = config['lr']
     layers = config['layers']
-    dropout = config['dropout']
+    lr = config['lr']
+    n_epochs = config['n_epochs']
     batch_size = config['batch_size']
-    copula = Clayton2D(torch.tensor([2.0]).type(dtype), device, dtype)
-    model = MENSA(n_features=n_features, n_events=2, layers=layers, dropout=dropout,
-                  copula=copula, device=device)
-    model.fit(train_dict, valid_dict, n_epochs=n_epochs,
-              lr=lr, batch_size=batch_size, use_wandb=True) # log to wandb
+    k = config['k']
+    lr_dict = {'network': lr, 'copula': 0.01}
+    model = MENSA(n_features, n_events=2, n_dists=k, layers=layers, device=device)
+    model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict=lr_dict,
+              batch_size=batch_size, use_wandb=True)
     
 if __name__ == "__main__":
     main()

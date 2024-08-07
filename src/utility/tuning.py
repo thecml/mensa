@@ -14,22 +14,16 @@ def get_mensa_sweep_cfg():
                            [128], [128, 128]]
             },
             "lr": {
-                "values": [0.01, 0.005, 0.001, 0.0001]
-            },
-            "dropout":{
-                "values": [0, 0.1, 0.2, 0.25, 0.5, 0.6, 0.75]
+                "values": [1e-3, 5e-4, 1e-4]
             },
             "n_epochs": {
-                "values": [100, 200, 250, 500, 750, 1000, 2000, 3000]
+                "values": [10000]
             },
             "batch_size": {
-                "values": [128]
+                "values": [32, 64, 128, 1024]
             },
-            "activation_fn": {
-                "values": ["relu"]
-            },
-            "optimizer": {
-                "values": ["adam", "adamw"]
+            "k": {
+                "values": [4, 6, 8]
             }
         }
     }

@@ -757,8 +757,6 @@ def get_data_loader(dataset_name:str) -> BaseDataLoader:
         return SeerSingleDataLoader()
     elif dataset_name == "mimic_se":
         return MimicSingleDataLoader()
-    elif dataset_name == "support_se":
-        return SupportSingleDataLoader()
     elif dataset_name == "seer_cr":
         return SeerCompetingDataLoader()
     elif dataset_name == "als_me":
