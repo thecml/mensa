@@ -53,7 +53,7 @@ def triple_loss(model, X, T, E, copula):
     loss = -loss/E.shape[0]
     return loss
 
-def conditional_weibull_loss(model, x, t, E, elbo=True):
+def conditional_weibull_loss(model, x, t, E, elbo=True, copula=None):
 
     alpha = model.discount
     params = model.forward(x)
@@ -77,18 +77,30 @@ def conditional_weibull_loss(model, x, t, E, elbo=True):
     s = torch.stack(s_risks, dim=1)
 
     if model.risks == 3:
-        p1 = f[:,0] + s[:,1] + s[:,2] 
-        p2 = s[:,0] + f[:,1] + s[:,2]
-        p3 = s[:,0] + s[:,1] + f[:,2]
+        if copula is None:
+            p1 = f[:,0] + s[:,1] + s[:,2] 
+            p2 = s[:,0] + f[:,1] + s[:,2]
+            p3 = s[:,0] + s[:,1] + f[:,2]
+        else:
+            S = torch.cat([torch.exp(s[:,0]).reshape(-1,1), torch.exp(s[:,1]).reshape(-1,1),
+                           torch.exp(s[:,2]).reshape(-1,1)], dim=1).clamp(0.002, 0.998)
+            p1 = f[:,0] + safe_log(copula.conditional_cdf("u", S))
+            p2 = f[:,1] + safe_log(copula.conditional_cdf("v", S))
+            p3 = f[:,2] + safe_log(copula.conditional_cdf("w", S))
         e1 = (E == 0) * 1.0
         e2 = (E == 1) * 1.0
         e3 = (E == 2) * 1.0
         loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3)
         loss = -loss/E.shape[0]
     elif model.risks == 2:
-        p1 = f[:,0] + s[:,1] 
-        p2 = s[:,0] + f[:,1] 
-        e1 = (E == 1) * 1.0 #event
+        if copula is None:
+            p1 = f[:,0] + s[:,1]
+            p2 = s[:,0] + f[:,1]
+        else:
+            S = torch.cat([torch.exp(s[:,0]).reshape(-1,1), torch.exp(s[:,1]).reshape(-1,1)], dim=1)
+            p1 = f[:,0] + safe_log(copula.conditional_cdf("u", S))
+            p2 = f[:,1] + safe_log(copula.conditional_cdf("v", S))
+        e1 = (E == 1) * 1.0#event
         e2 = (E == 0) * 1.0#censoring
         loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) 
         loss = -loss/E.shape[0]

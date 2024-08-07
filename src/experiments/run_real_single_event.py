@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["mensa-nocop"]
+MODELS = ["mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -166,18 +166,21 @@ if __name__ == "__main__":
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
-            copula = Convex_bivariate(copulas=['cl'], dtype=dtype, device=device)
-            raise NotImplementedError()
+            copula = Convex_bivariate(copulas=['fr'], dtype=dtype, device=device)
+            model = MENSA(n_features, n_events=2, copula=copula, device=device)
+            lr_dict = {'network': 0.001, 'copula': 0.01} #{'network': 5e-4, 'copula': 0.001} # low mae {'network': 0.01, 'copula': 0.005}
+            model.fit(train_dict, valid_dict, optimizer='adam', verbose=False,
+                      patience=100, batch_size=128, lr_dict=lr_dict)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
+            lr_dict = {'network': 5e-4, 'copula': 0.01}
             model = MENSA(n_features, n_events=2, copula=None, device=device)
-            model.fit(train_dict, valid_dict, verbose=True)
+            model.fit(train_dict, valid_dict, verbose=False,
+                      patience=100, batch_size=2048, lr_dict=lr_dict)
         else:
             raise NotImplementedError()
         
@@ -210,7 +213,7 @@ if __name__ == "__main__":
             model_preds = predict_survival_function(model, test_dict['X'].to(device),
                                                     time_bins, device=device).cpu().numpy()
         elif model_name in ['mensa', 'mensa-nocop']:
-            model_preds = model.predict(test_dict, time_bins, risk=0).cpu().detach().numpy() # use event preds
+            model_preds = model.predict(test_dict['X'], time_bins, risk=0) # use event preds
         else:
             raise NotImplementedError()
         
@@ -230,7 +233,10 @@ if __name__ == "__main__":
         mae_hinge = lifelines_eval.mae(method="Hinge")
         mae_margin = lifelines_eval.mae(method="Margin")
         mae_pseudo = lifelines_eval.mae(method="Pseudo_obs")
-        d_calib = lifelines_eval.d_calibration()[0]
+        d_calib, hist = lifelines_eval.d_calibration()
+        
+        print(d_calib)
+        print(hist)
         
         metrics = [ci, ibs, mae_hinge, mae_margin, mae_pseudo, d_calib]
         print(f'{model_name}: ' + f'{metrics}')

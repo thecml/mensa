@@ -50,13 +50,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-nocop']
+MODELS = ['mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='seer_cr')
+    parser.add_argument('--dataset_name', type=str, default='rotterdam_cr')
     
     args = parser.parse_args()
     seed = args.seed
@@ -163,9 +163,11 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             dropout = config['dropout']
-            copula = Nested_Convex_Copula(['cl', 'cl'], ['cl'], [1, 1], [1], 1e-3,
+            lr_dict = {'network': 0.001, 'copula': 0.005}
+            copula = Nested_Convex_Copula(['fr', 'fr'], ['fr'], [1, 1], [1], 1e-3,
                                           dtype=dtype, device=device)
-            raise NotImplementedError()
+            model = MENSA(n_features, n_events=n_events+1, n_dists=3, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, lr_dict=lr_dict, batch_size=1024, verbose=False)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
@@ -173,8 +175,9 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             dropout = config['dropout']
-            model = MENSA(n_features, n_events=n_events+1, copula=None, device=device)
-            model.fit(train_dict, valid_dict, verbose=True)
+            lr_dict = {'network': 0.001, 'copula': 0.005} # {'network': 0.01, 'copula': 0.005
+            model = MENSA(n_features, n_events=n_events+1, n_dists=3, copula=None, device=device)
+            model.fit(train_dict, valid_dict, lr_dict=lr_dict, batch_size=1024, verbose=False)
         else:
             raise NotImplementedError()
         

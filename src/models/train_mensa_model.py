@@ -20,6 +20,7 @@ from sota_models import DeepSurv, train_deepsurv_model, make_deepsurv_prediction
 from scipy.interpolate import interp1d
 from data_loader import get_data_loader
 from utility.survival import preprocess_data
+from copula import Convex_bivariate
 
 from mensa.model import MENSA
 
@@ -61,16 +62,18 @@ if __name__ == "__main__":
     time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
 
     # Train
-    model = MENSA(n_features, n_events=2, copula=None, device=device)
-    model.fit(train_dict, valid_dict, verbose=True)
-    model_preds = model.predict(test_dict, time_bins)
+    copula = Convex_bivariate(copulas=['cl'], dtype=dtype, device=device)
+    model = MENSA(n_features, n_events=2, copula=None, device=device, n_dists=1)
+    lr_dict = {'network': 0.005, 'copula': 0.01} # network: 0.0005, copula: 0.0005, 0.005 original: 0.01
+    model.fit(train_dict, valid_dict, verbose=True, patience=100, lr_dict=lr_dict, batch_size=1024, n_epochs=3000)
+    model_preds = model.predict(test_dict['X'], time_bins)
     
     # Evaluate
     surv_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
     y_train_time = train_dict['T']
     y_train_event = (train_dict['E'])*1.0
     y_test_time = test_dict['T']
-    y_test_event = (test_dict['E'])*1.0
+    y_test_event = (test_dict['E'])*1.0 
     lifelines_eval = LifelinesEvaluator(surv_preds.T, y_test_time, y_test_event,
                                         y_train_time, y_train_event)
     

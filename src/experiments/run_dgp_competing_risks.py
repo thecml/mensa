@@ -3,7 +3,7 @@ run_synthetic_competing_risks.py
 ====================================
 Experiment 2.1
 
-Models: ['deepsurv', 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-cop', 'dgp']
+Models: ['deepsurv', 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-nocop', 'dgp']
 """
 import sys, os
 sys.path.append(os.path.abspath('../'))
@@ -52,13 +52,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['deepsurv']
+MODELS = ['mensa-nocop', 'mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.25)
+    parser.add_argument('--k_tau', type=float, default=0.5)
     parser.add_argument('--copula_name', type=str, default="clayton")
     parser.add_argument('--linear', type=bool, default=False)
     
@@ -158,9 +158,11 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             dropout = config['dropout']
-            copula = Nested_Convex_Copula(['cl'], ['cl'], [1, 1], [1], 1e-3,
+            lr_dict = {'network': 0.001, 'copula': 0.01}
+            copula = Nested_Convex_Copula(['cl', 'cl'], ['cl'], [1, 1], [1], 1e-3,
                                           dtype=dtype, device=device)
-            raise NotImplementedError()
+            model = MENSA(n_features, n_events=n_events+1, n_dists=5, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, lr_dict=lr_dict, verbose=False)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
@@ -168,8 +170,9 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             dropout = config['dropout']
-            model = MENSA(n_features, n_events=n_events+1, copula=None, device=device)
-            model.fit(train_dict, valid_dict, verbose=True)
+            lr_dict = {'network': 0.001, 'copula': 0.01}
+            model = MENSA(n_features, n_events=n_events+1, n_dists=5, copula=None, device=device)
+            model.fit(train_dict, valid_dict, lr_dict=lr_dict, verbose=False)
         elif model_name == "dgp":
             pass
         else:

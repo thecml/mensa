@@ -52,7 +52,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv"]
+MODELS = ["mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -168,18 +168,21 @@ if __name__ == "__main__":
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
             copula = Convex_bivariate(copulas=['cl'], dtype=dtype, device=device)
-            raise NotImplementedError()
+            model = MENSA(n_features, layers=[32], n_events=2, copula=copula, device=device)
+            lr_dict = {'network': 0.001, 'copula': 0.01}
+            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True,
+                      patience=1000, batch_size=8096, lr_dict=lr_dict)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
+            lr_dict = {'network': 0.001, 'copula': 0.01}
             model = MENSA(n_features, n_events=2, copula=None, device=device)
-            model.fit(train_dict, valid_dict, verbose=True)
+            model.fit(train_dict, valid_dict, verbose=True,
+                      patience=500, batch_size=128, lr_dict=lr_dict)
         elif model_name == "dgp":
             pass
         else:
@@ -212,7 +215,7 @@ if __name__ == "__main__":
             model_preds = predict_survival_function(model, test_dict['X'].to(device),
                                                     time_bins, device=device).cpu().numpy()
         elif model_name in ["mensa", "mensa-nocop"]:
-            model_preds = model.predict(test_dict, time_bins, risk=0).cpu().detach().numpy() # use event preds
+            model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=0) # use event preds
         elif model_name == "dgp":
             model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
