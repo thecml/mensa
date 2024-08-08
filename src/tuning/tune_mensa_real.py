@@ -1,23 +1,15 @@
 import numpy as np
 import os
-import argparse
-import pandas as pd
 import config as cfg
 import torch
 from utility.tuning import get_mensa_sweep_cfg
-from utility.data import dotdict
-import data_loader
 from utility.config import load_config
-from utility.survival import make_time_bins, preprocess_data, convert_to_structured
-from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
-from utility.evaluation import LifelinesEvaluator
-from data_loader import SingleEventSyntheticDataLoader
-from utility.survival import compute_l1_difference
+from utility.survival import preprocess_data
+from data_loader import get_data_loader
+from mensa.model import MENSA
 import warnings
 import random
-from data_loader import get_data_loader
-
-from new_files.final_model import *
+import pandas as pd
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
@@ -28,7 +20,7 @@ random.seed(0)
 os.environ["WANDB_SILENT"] = "true"
 import wandb
 
-N_RUNS = 100
+N_RUNS = 10
 PROJECT_NAME = "mensa"
 
 # Setup precision
@@ -41,7 +33,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def main():
     global dataset_name
     
-    dataset_name = "seer_cr"
+    dataset_name = "seer_se"
     sweep_config = get_mensa_sweep_cfg()
 
     sweep_id = wandb.sweep(sweep_config, project=f'{PROJECT_NAME}')
@@ -56,7 +48,6 @@ def train_mensa_model():
     # Load and split data
     dl = get_data_loader(dataset_name)
     dl = dl.load_data()
-    n_events = dl.n_events
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=0)
     
@@ -75,18 +66,14 @@ def train_mensa_model():
 
     # Train model
     layers = config['layers']
-    dropout = config['dropout']
-    n_epochs = config['n_epochs']
     lr = config['lr']
-    activation_fn = config['activation_fn']
-    optimizer = config['optimizer']
-    
-    mensa = Mensa(n_features=n_features, n_events=n_events+1,
-                  activation_func=activation_fn, dropout=dropout,
-                  hidden_layers=layers, copula=None, device = device)
+    n_epochs = config['n_epochs']
+    batch_size = config['batch_size']
+    k = config['k']
     lr_dict = {'network': lr, 'copula': 0.01}
-    paramnet, copula = mensa.fit(train_dict, valid_dict, n_epochs=n_epochs,
-                                 lr_dict=lr_dict, optimizer=optimizer, use_wandb=True)
+    model = MENSA(n_features, n_events=2, n_dists=k, layers=layers, device=device)
+    model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict=lr_dict,
+              batch_size=batch_size, use_wandb=True)
     
 if __name__ == "__main__":
     main()

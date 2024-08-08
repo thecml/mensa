@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='seer_se')
+    parser.add_argument('--dataset_name', type=str, default='mimic_se')
     
     args = parser.parse_args()
     seed = args.seed
@@ -163,21 +163,27 @@ if __name__ == "__main__":
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
+            n_dists = config['n_dists']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
-            copula = Convex_bivariate(copulas=['cl'], dtype=dtype, device=device)
-            raise NotImplementedError()
+            copula_family = config['copula_family']
+            copula = Convex_bivariate(copulas=[copula_family], dtype=dtype, device=device)
+            model = MENSA(n_features, layers=layers, n_dists=n_dists, n_events=2, copula=copula, device=device)
+            lr_dict = {'network': lr, 'copula': lr}
+            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
+                      patience=10, batch_size=batch_size, lr_dict=lr_dict)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
+            n_dists = config['n_dists']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
-            model = MENSA(n_features, n_events=2, copula=None, device=device)
-            model.fit(train_dict, valid_dict, verbose=True)
+            model = MENSA(n_features, layers=layers, n_dists=n_dists, n_events=2, copula=None, device=device)
+            lr_dict = {'network': lr, 'copula': lr}
+            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
+                      patience=10, batch_size=batch_size, lr_dict=lr_dict)
         else:
             raise NotImplementedError()
         
@@ -210,7 +216,7 @@ if __name__ == "__main__":
             model_preds = predict_survival_function(model, test_dict['X'].to(device),
                                                     time_bins, device=device).cpu().numpy()
         elif model_name in ['mensa', 'mensa-nocop']:
-            model_preds = model.predict(test_dict, time_bins, risk=0).cpu().detach().numpy() # use event preds
+            model_preds = model.predict(test_dict['X'], time_bins, risk=0) # use event preds
         else:
             raise NotImplementedError()
         

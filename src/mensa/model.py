@@ -1,28 +1,16 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
-import torch
-import torch.nn as nn
-
-import torch
-import torch.nn as nn
-from torch.nn.parameter import Parameter
-from torch.autograd import Function
 from torch.utils.data import DataLoader, TensorDataset
 
 import wandb
 
 import numpy as np
-import config as cfg
 
-from utility.loss import triple_loss
 from copula import Nested_Convex_Copula
 
-from mensa.loss import double_loss, triple_loss, conditional_weibull_loss
-from mensa.utility import weibull_log_survival
+from mensa.loss import conditional_weibull_loss
 
-def create_representation(inputdim, layers, activation, bias=False):
+def create_representation(inputdim, layers, activation, bias=True):
     if activation == 'ReLU6':
         act = nn.ReLU6()
     elif activation == 'ReLU':
@@ -70,7 +58,7 @@ class DeepSurvivalMachinesTorch(torch.nn.Module):
         self.gate = nn.Linear(lastdim, self.k * self.risks, bias=False)
         self.scaleg = nn.Linear(lastdim, self.k * self.risks, bias=True)
         self.shapeg = nn.Linear(lastdim, self.k * self.risks, bias=True)
-        self.embedding = create_representation(inputdim, layers, 'ReLU6')
+        self.embedding = create_representation(inputdim, layers, 'ReLU6') # ReLU6
 
     def forward(self, x):
         xrep = self.embedding(x)
@@ -87,7 +75,7 @@ class DeepSurvivalMachinesTorch(torch.nn.Module):
         
 class MENSA:
     def __init__(self, n_features, n_events, n_dists=5,
-                 layers=[32, 32], copula=None, device='cuda'):
+                 layers=[32, 32], copula=None, device='cuda'): #[32, 32]
         
         self.n_features = n_features
         self.copula = copula
@@ -95,7 +83,7 @@ class MENSA:
         self.n_events = n_events
         self.device = device
         self.model = DeepSurvivalMachinesTorch(n_features, n_dists, layers, 1000,
-                                               risks=n_events) # single event
+                                               risks=n_events)
         
     def get_model(self):
         return self.model
@@ -103,12 +91,12 @@ class MENSA:
     def get_copula(self):
         return self.copula
     
-    def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=2000, 
+    def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=20000, 
             copula_grad_multiplier=1.0, copula_grad_clip=1.0,
             patience=100, optimizer='adam', weight_decay=0.005,
-            lr_dict={'network': 5e-4, 'copula': 0.01},
+            lr_dict={'network': 5e-4, 'copula': 0.005},
             betas=(0.9, 0.999), use_wandb=False, verbose=False):
-        
+
         optim_dict = [{'params': self.model.parameters(), 'lr': lr_dict['network']}]
         if self.copula is not None:
             self.copula.enable_grad()
@@ -125,42 +113,97 @@ class MENSA:
         train_loader = DataLoader(TensorDataset(X, T, E), batch_size=batch_size, shuffle=True)
         
         self.model.to(self.device)
-        patience = 100
         min_delta = 0.001
-        best_val_loss = float('inf')
+        best_val_loss = torch.tensor(float('inf')).to(self.device)
         epochs_no_improve = 0
 
         # Training loop with early stopping
-        for itr in range(10000):
+        for itr in range(n_epochs):
             self.model.train()
+            total_train_loss = 0
+            num_batches = 0
+            
             for xi, ti, ei in train_loader:
                 optimizer.zero_grad()
-                loss = conditional_weibull_loss(self.model, xi, ti, ei)
+                if self.copula is not None:
+                    loss = conditional_weibull_loss(self.model, xi, ti, ei, elbo=True, copula=self.copula)
+                else:
+                    loss = conditional_weibull_loss(self.model, xi, ti, ei)
+                    if torch.isnan(loss):
+                        print("NAN")
+                        loss = conditional_weibull_loss(self.model, xi, ti, ei)
                 loss.backward()
+                    
+                if (copula_grad_multiplier) and (self.copula is not None):
+                    if isinstance(self.copula, Nested_Convex_Copula):
+                        for p in self.copula.parameters()[:-2]:
+                            p.grad = (p.grad * copula_grad_multiplier).clip(-1 * copula_grad_clip, 1 *copula_grad_clip)
+                    else:
+                        for p in self.copula.parameters():
+                            p.grad = (p.grad * copula_grad_multiplier).clip(-1 * copula_grad_clip, 1 *copula_grad_clip)
+                
                 optimizer.step()
+                
+                if self.copula is not None:
+                    if isinstance(self.copula, Nested_Convex_Copula):
+                        for p in self.copula.parameters()[-2]:
+                            if p < 0.01:
+                                with torch.no_grad():
+                                    p = torch.clamp(p, 0.01, 100)
+                    else:
+                        for p in self.copula.parameters():
+                            if p < 0.01:
+                                with torch.no_grad():
+                                    p = torch.clamp(p, 0.01, 100)
+            
+                total_train_loss += loss.item()
+                num_batches += 1
+        
+            avg_train_loss = total_train_loss / num_batches
             
             self.model.eval()
             with torch.no_grad():
-                val_loss = conditional_weibull_loss(self.model, valid_dict['X'].to(self.device),
-                                                    valid_dict['T'].to(self.device), valid_dict['E'].to(self.device))
-                if use_wandb:
-                    wandb.log({"val_loss": val_loss})
+                if self.copula is not None:
+                    val_loss = conditional_weibull_loss(self.model, valid_dict['X'].to(self.device),
+                                                        valid_dict['T'].to(self.device), valid_dict['E'].to(self.device),
+                                                        elbo=True, copula=self.copula)
+                else:
+                    val_loss = conditional_weibull_loss(self.model, valid_dict['X'].to(self.device),
+                                                        valid_dict['T'].to(self.device), valid_dict['E'].to(self.device))
+                
+            if use_wandb:
+                wandb.log({"val_loss": val_loss})
 
-            if itr % 100 == 0:
-                if verbose:
-                    print(f"Iteration {itr}, Training Loss: {loss.item()}, Validation Loss: {val_loss.item()}")
+            if verbose:
+                if self.copula is not None:
+                    if isinstance(self.copula, Nested_Convex_Copula):
+                        params = [np.around(float(param), 5) for param in self.copula.parameters()[:-2]]
+                    else:
+                        params = [np.around(float(param), 5) for param in self.copula.parameters()]
+                    print(itr, "/", n_epochs, "train_loss: ", round(avg_train_loss, 4),
+                        "val_loss: ", round(val_loss.item(), 4),
+                        "min_val_loss: ", round(best_val_loss.item(), 4),
+                        "copula: ", params)
+                else:
+                    print(itr, "/", n_epochs, "train_loss: ", round(avg_train_loss, 4),
+                        "val_loss: ", round(val_loss.item(), 4),
+                        "min_val_loss: ", round(best_val_loss.item(), 4))
 
             # Check for early stopping
             if val_loss < best_val_loss - min_delta:
                 best_val_loss = val_loss
                 epochs_no_improve = 0
+                if self.copula is not None:
+                    best_theta = [p.detach().clone().cpu() for p in self.copula.parameters()]
             else:
                 epochs_no_improve += 1
 
             if epochs_no_improve >= patience:
-                if verbose:
-                    print(f"Early stopping at iteration {itr}")
+                print(f"Early stopping at iteration {itr}, best val loss: {best_val_loss}")
                 break
+            
+        if self.copula is not None:
+            self.copula.set_params(best_theta)
                     
     def predict(self, x_test, time_bins, risk=0):
         t = list(time_bins.cpu().numpy())

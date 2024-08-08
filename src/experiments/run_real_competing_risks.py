@@ -50,13 +50,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-nocop']
+MODELS = ['mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='seer_cr')
+    parser.add_argument('--dataset_name', type=str, default='rotterdam_cr')
     
     args = parser.parse_args()
     seed = args.seed
@@ -159,22 +159,31 @@ if __name__ == "__main__":
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
+            n_dists = config['n_dists']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
-            copula = Nested_Convex_Copula(['cl', 'cl'], ['cl'], [1, 1], [1], 1e-3,
+            lr_dict = {'network': lr, 'copula':lr}
+            copula_family = config['copula_family']
+            copula = Nested_Convex_Copula([copula_family, copula_family],
+                                          [copula_family], [1, 1], [1], 1e-3,
                                           dtype=dtype, device=device)
-            raise NotImplementedError()
+            model = MENSA(n_features, layers=layers, n_events=n_events+1,
+                          n_dists=n_dists, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, lr_dict=lr_dict, n_epochs=n_epochs,
+                      patience=10, batch_size=batch_size, verbose=True)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
+            n_dists = config['n_dists']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
-            model = MENSA(n_features, n_events=n_events+1, copula=None, device=device)
-            model.fit(train_dict, valid_dict, verbose=True)
+            lr_dict = {'network': lr, 'copula':lr}
+            model = MENSA(n_features, layers=layers, n_events=n_events+1,
+                          n_dists=n_dists, copula=None, device=device)
+            model.fit(train_dict, valid_dict, lr_dict=lr_dict, n_epochs=n_epochs,
+                      patience=10, batch_size=batch_size, verbose=True)
         else:
             raise NotImplementedError()
         

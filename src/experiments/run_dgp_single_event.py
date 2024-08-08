@@ -52,13 +52,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["mensa-nocop"]
+MODELS = ["mensa-nocop", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.25)
+    parser.add_argument('--k_tau', type=float, default=0.5)
     parser.add_argument('--copula_name', type=str, default="clayton")
     parser.add_argument('--linear', type=bool, default=False)
     
@@ -168,18 +168,22 @@ if __name__ == "__main__":
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
-            copula = Convex_bivariate(copulas=['cl'], dtype=dtype, device=device)
-            raise NotImplementedError()
+            copula_family = config['copula_family']
+            copula = Convex_bivariate(copulas=[copula_family], dtype=dtype, device=device)
+            model = MENSA(n_features, layers=layers, n_events=2, copula=copula, device=device)
+            lr_dict = {'network': lr, 'copula': lr}
+            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
+                      patience=10, batch_size=batch_size, lr_dict=lr_dict)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
-            model = MENSA(n_features, n_events=2, copula=None, device=device)
-            model.fit(train_dict, valid_dict, verbose=True)
+            model = MENSA(n_features, layers=layers, n_events=2, copula=None, device=device)
+            lr_dict = {'network': lr, 'copula': lr}
+            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
+                      patience=10, batch_size=batch_size, lr_dict=lr_dict)
         elif model_name == "dgp":
             pass
         else:
@@ -212,7 +216,7 @@ if __name__ == "__main__":
             model_preds = predict_survival_function(model, test_dict['X'].to(device),
                                                     time_bins, device=device).cpu().numpy()
         elif model_name in ["mensa", "mensa-nocop"]:
-            model_preds = model.predict(test_dict, time_bins, risk=0).cpu().detach().numpy() # use event preds
+            model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=0) # use event preds
         elif model_name == "dgp":
             model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
