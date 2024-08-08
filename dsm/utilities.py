@@ -2,7 +2,7 @@ import torch
 import numpy as np 
 import torch.nn as nn 
 
-def conditional_weibull_loss(model, x, t, E, elbo=True):
+def conditional_weibull_loss(model, x, t, E, elbo=True, copula=None):
 
     alpha = model.discount
     params = model.forward(x)
@@ -26,14 +26,26 @@ def conditional_weibull_loss(model, x, t, E, elbo=True):
     s = torch.stack(s_risks, dim=1)
 
     if model.risks == 3:
-        p1 = f[:,0] + s[:,1] + s[:,2] 
-        p2 = s[:,0] + f[:,1] + s[:,2]
-        p3 = s[:,0] + s[:,1] + f[:,2]
-        e1 = (E == 0) * 1.0
-        e2 = (E == 1) * 1.0
-        e3 = (E == 2) * 1.0
-        loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3)
-        loss = -loss/E.shape[0]
+        
+        if copula is None:
+            p1 = f[:,0] + s[:,1] + s[:,2] 
+            p2 = s[:,0] + f[:,1] + s[:,2]
+            p3 = s[:,0] + s[:,1] + f[:,2]
+            e1 = (E == 0) * 1.0
+            e2 = (E == 1) * 1.0
+            e3 = (E == 2) * 1.0
+            loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3)
+            loss = -loss/E.shape[0]
+        else:
+            S = torch.exp(s).clamp(0.001,0.999)
+            p1 = f[:,0] + safe_log(copula.conditional_cdf("u", S))
+            p2 = f[:,1] + safe_log(copula.conditional_cdf("v", S))
+            p3 = f[:,2] + safe_log(copula.conditional_cdf("w", S))
+            e1 = (E == 0) * 1.0
+            e2 = (E == 1) * 1.0
+            e3 = (E == 2) * 1.0
+            loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3)
+            loss = -loss/E.shape[0]
     elif model.risks == 2:
         p1 = f[:,0] + s[:,1] 
         p2 = s[:,0] + f[:,1] 
