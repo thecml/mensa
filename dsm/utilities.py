@@ -14,12 +14,14 @@ def conditional_weibull_loss(model, x, t, E, elbo=True, copula=None):
     for i in range(model.risks):
         k = params[i][0]
         b = params[i][1]
-        gate = nn.Softmax(dim=1)(params[i][2])
+        gate = nn.LogSoftmax(dim=1)(params[i][2])
         s = - (torch.pow(torch.exp(b)*t, torch.exp(k)))
         f = k + b + ((torch.exp(k)-1)*(b+torch.log(t)))
         f = f + s
-        s = (s * gate).sum(dim=1)#log_survival
-        f = (f * gate).sum(dim=1)#log_density
+        s = (s + gate)
+        s = torch.logsumexp(s, dim=1)#log_survival
+        f = (f + gate)
+        f = torch.logsumexp(f, dim=1)#log_density
         f_risks.append(f)#(n,3) each column for one risk
         s_risks.append(s)
     f = torch.stack(f_risks, dim=1)
