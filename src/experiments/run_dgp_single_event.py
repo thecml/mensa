@@ -52,13 +52,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["mensa"]
+MODELS = ["mensa-nocop", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.25)
+    parser.add_argument('--k_tau', type=float, default=0.5)
     parser.add_argument('--copula_name', type=str, default="clayton")
     parser.add_argument('--linear', type=bool, default=False)
     
@@ -168,21 +168,22 @@ if __name__ == "__main__":
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            copula = Convex_bivariate(copulas=['cl'], dtype=dtype, device=device)
-            model = MENSA(n_features, layers=[32], n_events=2, copula=copula, device=device)
-            lr_dict = {'network': 0.001, 'copula': 0.01}
-            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True,
-                      patience=1000, batch_size=8096, lr_dict=lr_dict)
+            copula_family = config['copula_family']
+            copula = Convex_bivariate(copulas=[copula_family], dtype=dtype, device=device)
+            model = MENSA(n_features, layers=layers, n_events=2, copula=copula, device=device)
+            lr_dict = {'network': lr, 'copula': lr}
+            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
+                      patience=10, batch_size=batch_size, lr_dict=lr_dict)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            lr_dict = {'network': 0.001, 'copula': 0.01}
-            model = MENSA(n_features, n_events=2, copula=None, device=device)
-            model.fit(train_dict, valid_dict, verbose=True,
-                      patience=500, batch_size=128, lr_dict=lr_dict)
+            model = MENSA(n_features, layers=layers, n_events=2, copula=None, device=device)
+            lr_dict = {'network': lr, 'copula': lr}
+            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
+                      patience=10, batch_size=batch_size, lr_dict=lr_dict)
         elif model_name == "dgp":
             pass
         else:

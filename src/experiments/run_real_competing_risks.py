@@ -159,25 +159,31 @@ if __name__ == "__main__":
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
+            n_dists = config['n_dists']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
-            lr_dict = {'network': 0.001, 'copula': 0.005}
-            copula = Nested_Convex_Copula(['fr', 'fr'], ['fr'], [1, 1], [1], 1e-3,
+            lr_dict = {'network': lr, 'copula':lr}
+            copula_family = config['copula_family']
+            copula = Nested_Convex_Copula([copula_family, copula_family],
+                                          [copula_family], [1, 1], [1], 1e-3,
                                           dtype=dtype, device=device)
-            model = MENSA(n_features, n_events=n_events+1, n_dists=3, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, lr_dict=lr_dict, batch_size=1024, verbose=False)
+            model = MENSA(n_features, layers=layers, n_events=n_events+1,
+                          n_dists=n_dists, copula=copula, device=device)
+            model.fit(train_dict, valid_dict, lr_dict=lr_dict, n_epochs=n_epochs,
+                      patience=10, batch_size=batch_size, verbose=True)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
+            n_dists = config['n_dists']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            dropout = config['dropout']
-            lr_dict = {'network': 0.001, 'copula': 0.005} # {'network': 0.01, 'copula': 0.005
-            model = MENSA(n_features, n_events=n_events+1, n_dists=3, copula=None, device=device)
-            model.fit(train_dict, valid_dict, lr_dict=lr_dict, batch_size=1024, verbose=False)
+            lr_dict = {'network': lr, 'copula':lr}
+            model = MENSA(n_features, layers=layers, n_events=n_events+1,
+                          n_dists=n_dists, copula=None, device=device)
+            model.fit(train_dict, valid_dict, lr_dict=lr_dict, n_epochs=n_epochs,
+                      patience=10, batch_size=batch_size, verbose=True)
         else:
             raise NotImplementedError()
         

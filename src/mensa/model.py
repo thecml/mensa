@@ -1,28 +1,16 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
-import torch
-import torch.nn as nn
-
-import torch
-import torch.nn as nn
-from torch.nn.parameter import Parameter
-from torch.autograd import Function
 from torch.utils.data import DataLoader, TensorDataset
 
 import wandb
 
 import numpy as np
-import config as cfg
 
-from utility.loss import triple_loss
 from copula import Nested_Convex_Copula
 
-from mensa.loss import double_loss, triple_loss, conditional_weibull_loss
-from mensa.utility import weibull_log_survival
+from mensa.loss import conditional_weibull_loss
 
-def create_representation(inputdim, layers, activation, bias=False):
+def create_representation(inputdim, layers, activation, bias=True):
     if activation == 'ReLU6':
         act = nn.ReLU6()
     elif activation == 'ReLU':
@@ -70,7 +58,7 @@ class DeepSurvivalMachinesTorch(torch.nn.Module):
         self.gate = nn.Linear(lastdim, self.k * self.risks, bias=False)
         self.scaleg = nn.Linear(lastdim, self.k * self.risks, bias=True)
         self.shapeg = nn.Linear(lastdim, self.k * self.risks, bias=True)
-        self.embedding = create_representation(inputdim, layers, 'ReLU6')
+        self.embedding = create_representation(inputdim, layers, 'ReLU6') # ReLU6
 
     def forward(self, x):
         xrep = self.embedding(x)
@@ -141,6 +129,9 @@ class MENSA:
                     loss = conditional_weibull_loss(self.model, xi, ti, ei, elbo=True, copula=self.copula)
                 else:
                     loss = conditional_weibull_loss(self.model, xi, ti, ei)
+                    if torch.isnan(loss):
+                        print("NAN")
+                        loss = conditional_weibull_loss(self.model, xi, ti, ei)
                 loss.backward()
                     
                 if (copula_grad_multiplier) and (self.copula is not None):
@@ -183,16 +174,20 @@ class MENSA:
             if use_wandb:
                 wandb.log({"val_loss": val_loss})
 
-            if itr % 10 == 0:
-                if verbose:
-                    if self.copula is not None:
-                        print(itr, "/", n_epochs, "train_loss: ", round(avg_train_loss, 4),
-                            "val_loss: ", round(val_loss.item(), 4),
-                            "min_val_loss: ", round(best_val_loss.item(), 4), self.copula.parameters())
+            if verbose:
+                if self.copula is not None:
+                    if isinstance(self.copula, Nested_Convex_Copula):
+                        params = [np.around(float(param), 5) for param in self.copula.parameters()[:-2]]
                     else:
-                        print(itr, "/", n_epochs, "train_loss: ", round(avg_train_loss, 4),
-                            "val_loss: ", round(val_loss.item(), 4),
-                            "min_val_loss: ", round(best_val_loss.item(), 4))
+                        params = [np.around(float(param), 5) for param in self.copula.parameters()]
+                    print(itr, "/", n_epochs, "train_loss: ", round(avg_train_loss, 4),
+                        "val_loss: ", round(val_loss.item(), 4),
+                        "min_val_loss: ", round(best_val_loss.item(), 4),
+                        "copula: ", params)
+                else:
+                    print(itr, "/", n_epochs, "train_loss: ", round(avg_train_loss, 4),
+                        "val_loss: ", round(val_loss.item(), 4),
+                        "min_val_loss: ", round(best_val_loss.item(), 4))
 
             # Check for early stopping
             if val_loss < best_val_loss - min_delta:

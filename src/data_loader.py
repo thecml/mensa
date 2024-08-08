@@ -93,8 +93,10 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             dgp1 = DGP_Weibull_linear(n_features, alpha_e1, gamma_e1, device, dtype)
             dgp2 = DGP_Weibull_linear(n_features, alpha_e2, gamma_e2, device, dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1], gamma=[gamma_e1], device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2], gamma=[gamma_e2], device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1]*n_hidden,
+                                         gamma=[4]*n_hidden, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2]*n_hidden,
+                                         gamma=[gamma_e2]*n_hidden, device=device, dtype=dtype)
             
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -170,9 +172,12 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
             dgp2 = DGP_Weibull_linear(n_features, alpha_e2, gamma_e2, device, dtype)
             dgp3 = DGP_Weibull_linear(n_features, alpha_e3, gamma_e3, device, dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1], gamma=[gamma_e1], device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2], gamma=[gamma_e2], device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e3], gamma=[gamma_e3], device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1]*n_hidden,
+                                         gamma=[4]*n_hidden, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2]*n_hidden,
+                                         gamma=[gamma_e2]*n_hidden, device=device, dtype=dtype)
+            dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e3]*n_hidden,
+                                         gamma=[gamma_e3]*n_hidden, device=device, dtype=dtype)
         
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)

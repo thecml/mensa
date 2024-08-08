@@ -97,8 +97,8 @@ def train_mensa_model_2_events(train_dict, valid_dict, model1, model2, copula, n
                 min_val_loss = val_loss.detach().clone()
             else:
                 stop_itr += 1
-                if stop_itr == 2000:
-                    break
+                #if stop_itr == 5000:
+                #    break
                 
     model1.mu = best_mu1
     model2.mu = best_mu2
@@ -186,7 +186,7 @@ if __name__ == "__main__":
     model1 = Weibull_log_linear(n_features, device, dtype)
     model2 = Weibull_log_linear(n_features, device, dtype)
     model1, model2, copula = train_mensa_model_2_events(train_dict, valid_dict, model1, model2,
-                                                        copula, n_epochs=5000, lr=0.01)
+                                                        copula, n_epochs=20000, lr=0.0005)
 
     # Print NLL of all events together
     print(f"NLL all events: {double_loss(model1, model2, valid_dict, copula)}")
