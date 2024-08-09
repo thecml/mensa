@@ -58,7 +58,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.5)
+    parser.add_argument('--k_tau', type=float, default=0.25)
     parser.add_argument('--copula_name', type=str, default="clayton")
     parser.add_argument('--linear', type=bool, default=False)
     
@@ -193,7 +193,7 @@ if __name__ == "__main__":
         n_samples = test_dict['X'].shape[0]
         if model_name in ['cox', 'coxnet', "coxboost", 'rsf']:
             model_preds = model.predict_survival_function(X_test)
-            model_preds = np.row_stack([fn(time_bins) for fn in model_preds])
+            model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
         elif model_name == 'dsm':
             model_preds = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.cpu().numpy()))
         elif model_name == "deepsurv":

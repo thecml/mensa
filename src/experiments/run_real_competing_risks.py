@@ -56,7 +56,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='rotterdam_cr')
+    parser.add_argument('--dataset_name', type=str, default='seer_cr')
     
     args = parser.parse_args()
     seed = args.seed
