@@ -21,5 +21,4 @@ for seed in "${seeds[@]}"; do
         echo "Running with seed=$seed, dataset_name=$dataset_name"
         python3 $base_path/../src/experiments/run_real_competing_risks.py --seed "$seed" --dataset_name "$dataset_name"
     done
-    done
 done

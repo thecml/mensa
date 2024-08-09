@@ -14,8 +14,8 @@ fi
 
 copula_names=("clayton" "frank" "gumbel")
 linear=("True" "False")
-k_taus=(0.0 0.2 0.4 0.6 0.8)
-seeds=(0)
+k_taus=(0.0 0.25 0.50 0.75)
+seeds=(0 1 2 3 4)
 
 for copula_name in "${copula_names[@]}"; do
     for lin in "${linear[@]}"; do

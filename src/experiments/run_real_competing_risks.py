@@ -171,7 +171,7 @@ if __name__ == "__main__":
             model = MENSA(n_features, layers=layers, n_events=n_events+1,
                           n_dists=n_dists, copula=copula, device=device)
             model.fit(train_dict, valid_dict, lr_dict=lr_dict, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, verbose=True)
+                      patience=10, batch_size=batch_size, verbose=False)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
@@ -183,7 +183,7 @@ if __name__ == "__main__":
             model = MENSA(n_features, layers=layers, n_events=n_events+1,
                           n_dists=n_dists, copula=None, device=device)
             model.fit(train_dict, valid_dict, lr_dict=lr_dict, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, verbose=True)
+                      patience=10, batch_size=batch_size, verbose=False)
         else:
             raise NotImplementedError()
         
