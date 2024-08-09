@@ -159,7 +159,7 @@ DEEPHIT_PARAMS = {
     'dropout': 0.25,
     'alpha': 0.2,
     'sigma': 0.1,
-    'batch_size': 32,
+    'batch_size': 16,
     'lr': 0.001,
     'weight_decay': 0.01,
     'eta_multiplier': 0.8,
