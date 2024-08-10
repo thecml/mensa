@@ -1,4 +1,4 @@
-layers: [32, 32]
+layers: [32]
 lr: 0.001
 n_epochs: 1000
 n_dists: 3
