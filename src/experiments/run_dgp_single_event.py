@@ -68,8 +68,6 @@ if __name__ == "__main__":
     copula_name = args.copula_name
     linear = args.linear
     
-    print(linear)
-    
     # Load and split data
     data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_se.yaml")
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config,
@@ -234,27 +232,11 @@ if __name__ == "__main__":
         model_preds_th = torch.tensor(model_preds, device=device, dtype=dtype)
         l1_e = float(compute_l1_difference(truth_preds_e, model_preds_th, n_samples,
                                            steps=time_bins, device=device))
-        print(l1_e)
         
-        # Compute prediction metrics
-        surv_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-        n_train_samples = len(train_dict['X'])
-        n_test_samples= len(test_dict['X'])
-        y_train_time = train_dict['T']
-        y_train_event = np.array([1] * n_train_samples)
-        y_test_time = test_dict[f'T']
-        y_test_event = np.array([1] * n_test_samples)
-        lifelines_eval = LifelinesEvaluator(surv_preds.T, y_test_time, y_test_event,
-                                            y_train_time, y_train_event)
-        ci =  lifelines_eval.concordance()[0]
-        ibs = lifelines_eval.integrated_brier_score(num_points=len(time_bins))
-        mae = lifelines_eval.mae(method='Uncensored')
-        
-        metrics = [ci, ibs, mae, l1_e]
+        metrics = [l1_e]
         print(f'{model_name}: ' + f'{metrics}')
         result_row = pd.Series([model_name, seed, linear, copula_name, k_tau] + metrics,
-                               index=["ModelName", "Seed", "Linear", "Copula", "KTau",
-                                      "CI", "IBS", "MAE", "L1"])
+                               index=["ModelName", "Seed", "Linear", "Copula", "KTau", "L1"])
         
         # Save results
         filename = f"{cfg.RESULTS_DIR}/synthetic_se.csv"
