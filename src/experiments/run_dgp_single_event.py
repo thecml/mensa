@@ -52,7 +52,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa-nocop", "mensa", "dgp"]
+MODELS = ["cox", "rsf", "deepsurv", "deephit", "dcsurvival", "dsm", "mtlr", "mensa-nocop"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -257,6 +257,7 @@ if __name__ == "__main__":
                                       "CI", "IBS", "MAE", "L1"])
         
         # Save results
+        """
         filename = f"{cfg.RESULTS_DIR}/synthetic_se.csv"
         if os.path.exists(filename):
             results = pd.read_csv(filename)
@@ -264,4 +265,5 @@ if __name__ == "__main__":
             results = pd.DataFrame(columns=result_row.keys())
         results = results.append(result_row, ignore_index=True)
         results.to_csv(filename, index=False)
+        """
         

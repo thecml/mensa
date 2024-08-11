@@ -138,8 +138,8 @@ MTLR_PARAMS = {
 RSF_PARAMS = {
     'n_estimators': 100,
     'max_depth': 3,
-    'min_samples_split': 6,
-    'min_samples_leaf': 3,
+    'min_samples_split': 60,
+    'min_samples_leaf': 30,
     'max_features': None,
     "random_state": 0
 }
