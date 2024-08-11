@@ -13,7 +13,7 @@ if [ -f "$results_path" ]; then
 fi
 
 copula_names=("clayton" "frank" "gumbel")
-linear=("True" "False")
+linear=("False")
 k_taus=(0.0 0.25 0.50 0.75)
 seeds=(0 1 2 3 4)
 

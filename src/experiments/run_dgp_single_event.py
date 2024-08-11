@@ -68,6 +68,8 @@ if __name__ == "__main__":
     copula_name = args.copula_name
     linear = args.linear
     
+    print(linear)
+    
     # Load and split data
     data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_se.yaml")
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config,
