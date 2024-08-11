@@ -46,7 +46,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'hierarch', 'mensa', 'dgp']
+MODELS = ["mensa-nocop"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -75,7 +75,8 @@ if __name__ == "__main__":
     dgps = dl.dgps
 
     # Make time bins
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype)
+    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
+    time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
     
     # Evaluate models
     for model_name in MODELS:
@@ -108,14 +109,18 @@ if __name__ == "__main__":
             verbose = params['verbose']
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose)
-        elif model_name == "mensa":
+        elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
+            n_dists = config['n_dists']
             lr = config['lr']
             batch_size = config['batch_size']
-            copula = Convex_Nested(2, 2, 1e-3, 1e-3, device)
-            model = MENSA(n_features, n_events, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr=lr, batch_size=1024)
+            layers = config['layers']
+            lr_dict = {'network': lr, 'copula':lr}
+            model = MENSA(n_features, layers=layers, n_events=n_events,
+                          n_dists=n_dists, copula=None, device=device)
+            model.fit(train_dict, valid_dict, lr_dict=lr_dict, n_epochs=n_epochs,
+                      patience=10, batch_size=batch_size, multi=True, verbose=True)
         elif model_name == "dgp":
             pass
         else:
@@ -129,7 +134,7 @@ if __name__ == "__main__":
                 preds, time_bins_model, _ = make_deepsurv_prediction(trained_model, test_dict['X'],
                                                                      config=config, dtype=dtype)
                 spline = interp1d(time_bins_model, preds, kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins), columns=time_bins.numpy())
+                preds = pd.DataFrame(spline(time_bins), columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "hierarch":
             event_preds = util.get_surv_curves(test_data[0], model)
@@ -138,21 +143,21 @@ if __name__ == "__main__":
             for event_pred in event_preds:
                 preds = pd.DataFrame(event_pred, columns=bin_locations)
                 spline = interp1d(bin_locations, preds, kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins), columns=time_bins.numpy())
+                preds = pd.DataFrame(spline(time_bins), columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
-        elif model_name == "mensa":
-            model_preds = model.predict(test_dict['X'], time_bins.numpy())
+        elif model_name in ["mensa", "mensa-nocop"]:
             all_preds = []
-            for model_pred in model_preds:
-                model_pred = pd.DataFrame(model_pred.detach().numpy(), columns=time_bins.numpy())
-                all_preds.append(model_pred)
+            for i in range(n_events):
+                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)
+                model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
+                all_preds.append(model_preds)
         elif model_name == "dgp":
             all_preds = []
             for model in dgps:
                 preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
                 for i in range(time_bins.shape[0]):
                     preds[:,i] = model.survival(time_bins[i], test_dict['X'])
-                preds_df = pd.DataFrame(preds, columns=time_bins.numpy())
+                preds_df = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
                 all_preds.append(preds_df)
         else:
             raise NotImplementedError()
@@ -181,15 +186,16 @@ if __name__ == "__main__":
             
             truth_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):
-                truth_preds[:,i] = dgps[event_id].survival(time_bins[i], test_dict['X'])
-            survival_l1 = float(compute_l1_difference(truth_preds, surv_preds.to_numpy(),
+                truth_preds[:,i] = dgps[event_id].survival(time_bins[i], test_dict['X'].to(device))
+            model_preds_th = torch.tensor(surv_preds.values, device=device, dtype=dtype)
+            survival_l1 = float(compute_l1_difference(truth_preds, model_preds_th,
                                                       n_samples, steps=time_bins))
             
             metrics = [ci, ibs, mae, survival_l1, d_calib, global_ci, local_ci]
             print(metrics)
             res_sr = pd.Series([model_name, seed, linear, copula_name, k_tau, event_id+1] + metrics,
                                 index=["ModelName", "Seed", "Linear", "Copula", "KTau", "EventId",
-                                        "CI", "IBS", "MAE", "L1", "DCalib", "GlobalCI", "LocalCI"])
+                                       "CI", "IBS", "MAE", "L1", "DCalib", "GlobalCI", "LocalCI"])
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
 
         # Save results
