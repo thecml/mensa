@@ -51,12 +51,12 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["mensa-nocop"]
+MODELS = ["deepsurv", "deephit", "dsm", "mtlr", "mensa", "mensa-nocop"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--seed', type=int, default=4)
     parser.add_argument('--dataset_name', type=str, default='mimic_se')
     
     args = parser.parse_args()
@@ -112,8 +112,8 @@ if __name__ == "__main__":
             learning_rate = config['learning_rate']
             batch_size = config['batch_size']
             model = make_dsm_model(config)
-            model.fit(train_dict['X'].numpy(), train_dict['T'].numpy(), train_dict['E'].numpy(),
-                      val_data=(valid_dict['X'].numpy(), valid_dict['T'].numpy(), valid_dict['T'].numpy()),
+            model.fit(train_dict['X'].cpu().numpy(), train_dict['T'].cpu().numpy(), train_dict['E'].cpu().numpy(),
+                      val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'].cpu().numpy(), valid_dict['T'].cpu().numpy()),
                       learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
@@ -193,7 +193,7 @@ if __name__ == "__main__":
             model_preds = model.predict_survival_function(X_test)
             model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
         elif model_name == 'dsm':
-            model_preds = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.numpy()))
+            model_preds = model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()))
             model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
         elif model_name == "deepsurv":
             model_preds, time_bins_deepsurv = make_deepsurv_prediction(model, test_dict['X'].to(device),
@@ -208,7 +208,7 @@ if __name__ == "__main__":
             data_test["event"] = pd.Series(y_test['event']).astype('int')
             mtlr_test_data = torch.tensor(data_test.drop(["time", "event"], axis=1).values,
                                           dtype=dtype, device=device)
-            survival_outputs, _, _ = make_mtlr_prediction(model, mtlr_test_data, time_bins.cpu(), config)
+            survival_outputs, _, _ = make_mtlr_prediction(model, mtlr_test_data, time_bins, config)
             model_preds = survival_outputs[:, 1:].cpu().numpy()
         elif model_name == "deephit":
             model_preds = model.predict_surv(test_dict['X']).cpu().numpy()

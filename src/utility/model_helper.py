@@ -140,6 +140,8 @@ def map_model_name(model_name):
         model_name = "Hierarch."
     elif model_name == "mtlrcr":
         model_name = "MTLR-CR"
+    elif model_name == "mtlr":
+        model_name = "MTLR"
     elif model_name == "mensa":
         model_name = "MENSA"
     else:

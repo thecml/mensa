@@ -107,7 +107,7 @@ DEEPSURV_PARAMS = {
     'verbose': False,
     'lr': 0.005,
     'c1': 0.01,
-    'num_epochs': 100,
+    'num_epochs': 1000,
     'dropout': 0.25,
     'n_samples_train': 10,
     'n_samples_test': 100,
@@ -124,7 +124,7 @@ MTLR_PARAMS = {
     'sigma2': 0.002,
     'pi': 0.5,
     'verbose': False,
-    'lr': 0.00008,
+    'lr': 0.001,
     'c1': 0.01,
     'num_epochs': 1000,
     'dropout': 0.5,
@@ -138,8 +138,8 @@ MTLR_PARAMS = {
 RSF_PARAMS = {
     'n_estimators': 100,
     'max_depth': 3,
-    'min_samples_split': 6,
-    'min_samples_leaf': 3,
+    'min_samples_split': 60,
+    'min_samples_leaf': 30,
     'max_features': None,
     "random_state": 0
 }
@@ -159,7 +159,7 @@ DEEPHIT_PARAMS = {
     'dropout': 0.25,
     'alpha': 0.2,
     'sigma': 0.1,
-    'batch_size': 32,
+    'batch_size': 16,
     'lr': 0.001,
     'weight_decay': 0.01,
     'eta_multiplier': 0.8,

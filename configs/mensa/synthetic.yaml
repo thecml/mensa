@@ -2,4 +2,4 @@ layers: [32]
 lr: 0.0001
 n_epochs: 1000
 batch_size: 128
-copula_family: "fr"
+copula_family: "cl"
