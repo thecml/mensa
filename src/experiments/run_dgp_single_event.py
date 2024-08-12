@@ -52,7 +52,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["cox", "rsf", "deepsurv", "deephit", "dcsurvival", "dsm", "mtlr", "mensa-nocop"]
+MODELS = ["cox", "rsf", "deepsurv", "deephit", "dcsurvival", "dsm", "mtlr", "mensa-nocop", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -172,7 +172,7 @@ if __name__ == "__main__":
             copula = Convex_bivariate(copulas=[copula_family], dtype=dtype, device=device)
             model = MENSA(n_features, layers=layers, n_events=2, copula=copula, device=device)
             lr_dict = {'network': lr, 'copula': lr}
-            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
+            model.fit(train_dict, valid_dict, optimizer='adam', verbose=False, n_epochs=n_epochs,
                       patience=10, batch_size=batch_size, lr_dict=lr_dict)
         elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
@@ -182,7 +182,7 @@ if __name__ == "__main__":
             layers = config['layers']
             model = MENSA(n_features, layers=layers, n_events=2, copula=None, device=device)
             lr_dict = {'network': lr, 'copula': lr}
-            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
+            model.fit(train_dict, valid_dict, optimizer='adam', verbose=False, n_epochs=n_epochs,
                       patience=10, batch_size=batch_size, lr_dict=lr_dict)
         elif model_name == "dgp":
             pass

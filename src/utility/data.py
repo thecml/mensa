@@ -278,15 +278,15 @@ def format_hierarchical_data_cr(train_dict, valid_dict, test_dict,
     return train_data, valid_data, test_data
 
 def format_hierarchical_data_me(train_dict, valid_dict, test_dict, num_bins):
-    train_event_bins = make_times_hierarchical(train_dict['T'].numpy(), num_bins=num_bins)
-    valid_event_bins = make_times_hierarchical(valid_dict['T'].numpy(), num_bins=num_bins)
-    test_event_bins = make_times_hierarchical(test_dict['T'].numpy(), num_bins=num_bins)
-    train_events = train_dict['E'].numpy()
-    valid_events = valid_dict['E'].numpy()
-    test_events = test_dict['E'].numpy()
-    train_data = [train_dict['X'], train_event_bins, train_events]
-    valid_data = [valid_dict['X'], valid_event_bins, valid_events]
-    test_data = [test_dict['X'], test_event_bins, test_events]
+    train_event_bins = make_times_hierarchical(train_dict['T'].cpu().numpy(), num_bins=num_bins)
+    valid_event_bins = make_times_hierarchical(valid_dict['T'].cpu().numpy(), num_bins=num_bins)
+    test_event_bins = make_times_hierarchical(test_dict['T'].cpu().numpy(), num_bins=num_bins)
+    train_events = train_dict['E'].cpu().numpy()
+    valid_events = valid_dict['E'].cpu().numpy()
+    test_events = test_dict['E'].cpu().numpy()
+    train_data = [train_dict['X'].cpu().numpy(), train_event_bins, train_events]
+    valid_data = [valid_dict['X'].cpu().numpy(), valid_event_bins, valid_events]
+    test_data = [test_dict['X'].cpu().numpy(), test_event_bins, test_events]
     return train_data, valid_data, test_data
 
 def calculate_layer_size_hierarch(layer_size, n_time_bins):

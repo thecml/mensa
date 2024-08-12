@@ -189,9 +189,13 @@ class DGP_Weibull_linear:
     def rvs(self, x, u):
         return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
 
+import math
+def sine(x):
+    return 2 * torch.sin(x * math.pi + 0.1)
+
 class DGP_Weibull_nonlinear:
     def __init__(self, n_features, n_hidden, alpha: List[float], gamma: List[float],
-                 risk_function=torch.nn.ReLU(), device='cpu', dtype=torch.float64):
+                 risk_function=sine, device='cpu', dtype=torch.float64):
         self.alpha = torch.tensor(alpha, device=device).type(dtype)
         self.gamma = torch.tensor(gamma, device=device).type(dtype)
         self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
@@ -218,7 +222,7 @@ class DGP_Weibull_nonlinear:
         return [self.alpha, self.gamma, self.beta]
 
     def pred_params(self, x):
-        hidden = self.hidden_layer(torch.matmul(x, self.beta))
+        hidden = torch.exp(self.hidden_layer(torch.matmul(x, self.beta)))
         shape = torch.matmul(hidden, self.alpha)
         scale = torch.matmul(hidden, self.gamma)
         return shape, scale

@@ -131,10 +131,11 @@ if __name__ == "__main__":
         if model_name == "deepsurv":
             all_preds = []
             for trained_model in trained_models:
-                preds, time_bins_model, _ = make_deepsurv_prediction(trained_model, test_dict['X'],
-                                                                     config=config, dtype=dtype)
-                spline = interp1d(time_bins_model, preds, kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins), columns=time_bins.cpu().numpy())
+                preds, time_bins_model = make_deepsurv_prediction(trained_model, test_dict['X'].to(device),
+                                                                  config=config, dtype=dtype)
+                spline = interp1d(time_bins_model.cpu().numpy(), preds.cpu().numpy(),
+                                  kind='linear', fill_value='extrapolate')
+                preds = pd.DataFrame(spline(time_bins.cpu().numpy()), columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "hierarch":
             event_preds = util.get_surv_curves(test_data[0], model)
