@@ -8,7 +8,7 @@ import numpy as np
 
 from copula import Nested_Convex_Copula
 
-from mensa.loss import conditional_weibull_loss
+from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi
 
 def create_representation(inputdim, layers, activation, bias=True):
     if activation == 'ReLU6':
@@ -52,7 +52,7 @@ class DeepSurvivalMachinesTorch(torch.nn.Module):
         else: lastdim = layers[-1]
 
         self.act = nn.SELU()
-        self.shape = nn.Parameter(-torch.ones(self.k *  risks)) #(k * risk)
+        self.shape = nn.Parameter(-torch.ones(self.k * risks)) #(k * risk)
         self.scale = nn.Parameter(-torch.ones(self.k * risks))
 
         self.gate = nn.Linear(lastdim, self.k * self.risks, bias=False)
@@ -95,7 +95,7 @@ class MENSA:
             copula_grad_multiplier=1.0, copula_grad_clip=1.0,
             patience=100, optimizer='adam', weight_decay=0.005,
             lr_dict={'network': 5e-4, 'copula': 0.005},
-            betas=(0.9, 0.999), use_wandb=False, verbose=False):
+            betas=(0.9, 0.999), use_wandb=False, multi=False, verbose=False):
 
         optim_dict = [{'params': self.model.parameters(), 'lr': lr_dict['network']}]
         if self.copula is not None:
@@ -128,11 +128,14 @@ class MENSA:
                 if self.copula is not None:
                     loss = conditional_weibull_loss(self.model, xi, ti, ei, elbo=True, copula=self.copula)
                 else:
-                    loss = conditional_weibull_loss(self.model, xi, ti, ei)
-                    if torch.isnan(loss):
-                        print("NAN")
+                    if multi:
+                        loss = conditional_weibull_loss_multi(self.model, xi, ti, ei)
+                    else:
                         loss = conditional_weibull_loss(self.model, xi, ti, ei)
+                        
                 loss.backward()
+                
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     
                 if (copula_grad_multiplier) and (self.copula is not None):
                     if isinstance(self.copula, Nested_Convex_Copula):
@@ -168,8 +171,12 @@ class MENSA:
                                                         valid_dict['T'].to(self.device), valid_dict['E'].to(self.device),
                                                         elbo=True, copula=self.copula)
                 else:
-                    val_loss = conditional_weibull_loss(self.model, valid_dict['X'].to(self.device),
-                                                        valid_dict['T'].to(self.device), valid_dict['E'].to(self.device))
+                    if multi:
+                        val_loss = conditional_weibull_loss_multi(self.model, valid_dict['X'].to(self.device),
+                                                                  valid_dict['T'].to(self.device), valid_dict['E'].to(self.device))
+                    else:
+                        val_loss = conditional_weibull_loss(self.model, valid_dict['X'].to(self.device),
+                                                            valid_dict['T'].to(self.device), valid_dict['E'].to(self.device))
                 
             if use_wandb:
                 wandb.log({"val_loss": val_loss})

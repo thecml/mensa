@@ -120,3 +120,47 @@ def conditional_weibull_loss(model, x, t, E, elbo=True, copula=None):
         loss = torch.sum(e1 * f[:,0]) + torch.sum(e2 * s[:,0]) 
         loss = -loss/E.shape[0]
     return loss
+
+def conditional_weibull_loss_multi(model, x, t, E, elbo=True, copula=None):
+
+    alpha = model.discount
+    params = model.forward(x)
+
+    f_risks = []
+    s_risks = []
+
+    for i in range(model.risks):
+        t = t[:,i].reshape(-1,1).expand(-1, model.k) #(n, k)
+        k = params[i][0]
+        b = params[i][1]
+        gate = nn.LogSoftmax(dim=1)(params[i][2])
+        s = - (torch.pow(torch.exp(b)*t, torch.exp(k)))
+        f = k + b + ((torch.exp(k)-1)*(b+torch.log(t)))
+        f = f + s
+        s = (s + gate)
+        s = torch.logsumexp(s, dim=1)#log_survival
+        f = (f + gate)
+        f = torch.logsumexp(f, dim=1)#log_density
+        f_risks.append(f)#(n,3) each column for one risk
+        s_risks.append(s)
+    f = torch.stack(f_risks, dim=1)
+    s = torch.stack(s_risks, dim=1)
+    
+    """ TO TEST
+    total_loss = 0.0
+    N = t.shape[0]
+    for i in range(N):
+        loss_i = 0.0
+        for j in range(t.shape[1]):
+            if E[i, j] == 1:
+                loss_i += f[i, j]
+            else:
+                loss_i += s[i, j]
+        total_loss -= loss_i / N
+    return total_loss
+    """
+    event_loss = E * f
+    non_event_loss = (1 - E) * s
+    total_loss = torch.sum(event_loss + non_event_loss, dim=1)
+    total_loss = -torch.mean(total_loss)
+    return total_loss
