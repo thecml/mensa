@@ -95,7 +95,7 @@ class MENSA:
             copula_grad_multiplier=1.0, copula_grad_clip=1.0,
             patience=100, optimizer='adam', weight_decay=0.005,
             lr_dict={'network': 5e-4, 'copula': 0.005},
-            betas=(0.9, 0.999), use_wandb=False, multi=False, verbose=False):
+            betas=(0.9, 0.999), use_clipping=True, use_wandb=False, multi=False, verbose=False):
 
         optim_dict = [{'params': self.model.parameters(), 'lr': lr_dict['network']}]
         if self.copula is not None:
@@ -129,13 +129,14 @@ class MENSA:
                     loss = conditional_weibull_loss(self.model, xi, ti, ei, elbo=True, copula=self.copula)
                 else:
                     if multi:
-                        loss = conditional_weibull_loss_multi(self.model, xi, ti, ei)
+                        loss = conditional_weibull_loss_multi(self.model, xi, ti, ei, self.device)
                     else:
                         loss = conditional_weibull_loss(self.model, xi, ti, ei)
                         
                 loss.backward()
                 
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                if use_clipping:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     
                 if (copula_grad_multiplier) and (self.copula is not None):
                     if isinstance(self.copula, Nested_Convex_Copula):
@@ -173,7 +174,8 @@ class MENSA:
                 else:
                     if multi:
                         val_loss = conditional_weibull_loss_multi(self.model, valid_dict['X'].to(self.device),
-                                                                  valid_dict['T'].to(self.device), valid_dict['E'].to(self.device))
+                                                                  valid_dict['T'].to(self.device),
+                                                                  valid_dict['E'].to(self.device), self.device)
                     else:
                         val_loss = conditional_weibull_loss(self.model, valid_dict['X'].to(self.device),
                                                             valid_dict['T'].to(self.device), valid_dict['E'].to(self.device))

@@ -49,14 +49,14 @@ torch.set_default_dtype(dtype)
 # Setup device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Define models
-MODELS = ['deepsurv', 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-nocop']
+# Define models 
+MODELS = ['hierarch']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='seer_cr')
+    parser.add_argument('--seed', type=int, default=4)
+    parser.add_argument('--dataset_name', type=str, default='mimic_cr')
     
     args = parser.parse_args()
     seed = args.seed

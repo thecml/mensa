@@ -29,8 +29,8 @@ if __name__ == "__main__":
     grouped = df.groupby(['ModelName', 'DatasetName', 'Seed', 'EventId']).mean().reset_index()
     average_metrics = grouped.groupby(['ModelName', 'DatasetName', 'Seed']).mean().reset_index()
     
-    dataset_names = ["rotterdam_cr"]
-    model_names = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-nocop']
+    dataset_names = ["mimic_cr"]
+    model_names = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa-nocop']
     metric_names = ["CI", "IBS", "MAEH", "GlobalCI", "LocalCI", "DCalib"]
     
     for dataset_name in dataset_names:

@@ -94,7 +94,7 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             dgp2 = DGP_Weibull_linear(n_features, alpha_e2, gamma_e2, device, dtype)
         else:
             dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1]*n_hidden,
-                                         gamma=[4]*n_hidden, device=device, dtype=dtype)
+                                         gamma=[gamma_e1]*n_hidden, device=device, dtype=dtype)
             dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2]*n_hidden,
                                          gamma=[gamma_e2]*n_hidden, device=device, dtype=dtype)
             
@@ -765,6 +765,8 @@ def get_data_loader(dataset_name:str) -> BaseDataLoader:
         return SeerSingleDataLoader()
     elif dataset_name == "mimic_se":
         return MimicSingleDataLoader()
+    elif dataset_name == "mimic_cr":
+        return NotImplementedError()
     elif dataset_name == "seer_cr":
         return SeerCompetingDataLoader()
     elif dataset_name == "als_me":
