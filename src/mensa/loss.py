@@ -77,8 +77,23 @@ def conditional_weibull_loss(model, x, t, E, elbo=True, copula=None):
         s_risks.append(s)
     f = torch.stack(f_risks, dim=1)
     s = torch.stack(s_risks, dim=1)
-
-    if model.risks == 3:
+    
+    
+    if model.risks == 4:
+        if copula is None:
+            p1 = f[:,0] + s[:,1] + s[:,2] + s[:,3]
+            p2 = s[:,0] + f[:,1] + s[:,2] + s[:,3]
+            p3 = s[:,0] + s[:,1] + f[:,2] + s[:,3]
+            p4 = s[:,0] + s[:,1] + s[:,2] + f[:,3]
+            e1 = (E == 0) * 1.0
+            e2 = (E == 1) * 1.0
+            e3 = (E == 2) * 1.0
+            e4 = (E == 2) * 1.0
+            loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3) + torch.sum(e4 * p4)
+            loss = -loss/E.shape[0]
+        else:
+            raise NotImplementedError()
+    elif model.risks == 3:
         if copula is None:
             p1 = f[:,0] + s[:,1] + s[:,2] 
             p2 = s[:,0] + f[:,1] + s[:,2]

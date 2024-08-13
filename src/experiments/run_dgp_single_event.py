@@ -52,14 +52,14 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["cox", "rsf", "deepsurv", "deephit", "dcsurvival", "dsm", "mtlr", "mensa-nocop", "mensa"]
+MODELS = ["mensa-nocop"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.25)
-    parser.add_argument('--copula_name', type=str, default="clayton")
+    parser.add_argument('--k_tau', type=float, default=0.5)
+    parser.add_argument('--copula_name', type=str, default="frank")
     parser.add_argument('--linear', type=bool, default=False)
     
     args = parser.parse_args()
