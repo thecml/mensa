@@ -134,8 +134,8 @@ class MENSA:
                         
                 loss.backward()
                 
-                if use_clipping:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                #if use_clipping:
+                #   torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     
                 if (copula_grad_multiplier) and (self.copula is not None):
                     if isinstance(self.copula, Nested_Convex_Copula):

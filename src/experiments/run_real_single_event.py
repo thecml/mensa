@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "dsm", "mtlr", "mensa", "mensa-nocop"]
+MODELS = ["dcsurvival"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -215,6 +215,7 @@ if __name__ == "__main__":
         elif model_name == "dcsurvival":
             model_preds = predict_survival_function(model, test_dict['X'].to(device),
                                                     time_bins, device=device).cpu().numpy()
+            model_preds[:,0] = 1
         elif model_name in ['mensa', 'mensa-nocop']:
             model_preds = model.predict(test_dict['X'], time_bins, risk=0) # use event preds
         else:

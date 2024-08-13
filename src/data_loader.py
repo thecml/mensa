@@ -173,7 +173,7 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
             dgp3 = DGP_Weibull_linear(n_features, alpha_e3, gamma_e3, device, dtype)
         else:
             dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1]*n_hidden,
-                                         gamma=[4]*n_hidden, device=device, dtype=dtype)
+                                         gamma=[gamma_e1]*n_hidden, device=device, dtype=dtype)
             dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2]*n_hidden,
                                          gamma=[gamma_e2]*n_hidden, device=device, dtype=dtype)
             dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e3]*n_hidden,
@@ -281,7 +281,7 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
             dgp3 = DGP_Weibull_linear(n_features, alpha_e3, gamma_e3, device, dtype)
         else:
             dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1]*n_hidden,
-                                         gamma=[4]*n_hidden, device=device, dtype=dtype)
+                                         gamma=[gamma_e1]*n_hidden, device=device, dtype=dtype)
             dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2]*n_hidden,
                                          gamma=[gamma_e2]*n_hidden, device=device, dtype=dtype)
             dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e3]*n_hidden,
@@ -354,9 +354,8 @@ class ALSMultiDataLoader(BaseDataLoader):
                            any(substring in col for substring in ['Observed', 'Event'])]
         df = df.loc[(df['Speech_Observed'] > 0) & (df['Swallowing_Observed'] > 0)
                     & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)] # min time
-        df = df.loc[(df['Speech_Observed'] <= 3000) & (df['Swallowing_Observed'] <= 3000)
-                    & (df['Handwriting_Observed'] <= 3000) & (df['Walking_Observed'] <= 3000)] # max time
-        #df = df.dropna(subset=['Handgrip_Strength']) #exclude people with no strength test
+        df = df.loc[(df['Speech_Observed'] <= 1000) & (df['Swallowing_Observed'] <= 1000)
+                    & (df['Handwriting_Observed'] <= 1000) & (df['Walking_Observed'] <= 1000)] # max time
         events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
         self.X = df.drop(columns_to_drop, axis=1)
         self.columns = list(self.X.columns)
