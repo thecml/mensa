@@ -50,7 +50,7 @@ MODELS = ["deepsurv", 'hierarch', 'mensa-nocop']
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--seed', type=int, default=4)
+    parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--dataset_name', type=str, default='als_me')
     
     args = parser.parse_args()
