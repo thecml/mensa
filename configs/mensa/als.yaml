@@ -1,6 +1,6 @@
-layers: [32]
+layers: [16]
 lr: 0.001
 n_epochs: 1000
-n_dists: 3
-batch_size: 32
+n_dists: 1
+batch_size: 128
 copula_family: "fr"

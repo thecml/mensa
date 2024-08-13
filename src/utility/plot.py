@@ -60,5 +60,5 @@ def make_bar_plot(combined_data, ybounds, methods, axis_labs, \
     ax1.spines['top'].set_visible(False)
     ax1.spines['right'].set_visible(False)
     if show_legend:
-        plt.legend(loc="upper left")
+        plt.legend(loc="upper right")
     plt.show()

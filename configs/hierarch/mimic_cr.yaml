@@ -1,6 +1,6 @@
-num_events: 2
+num_events: 3
 num_bins: 115
-terminal_events: [0, 1]
+terminal_events: [0]
 discrete: False
 event_ranks: {0: [1], 1: [0]}
 event_groups: {0: [0, 1]}
