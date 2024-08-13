@@ -243,3 +243,4 @@ data/rotterdam.csv
 best.pth
 src/tuning/screenlog.0
 results/survival_l1.pdf
+results/als_performance.pdf
