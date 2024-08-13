@@ -760,6 +760,94 @@ class RotterdamCompetingDataLoader(BaseDataLoader):
             
         return dicts[0], dicts[1], dicts[2]
 
+class MimicCompetingDataLoader(BaseDataLoader):
+    """
+    Data loader for MIMIC dataset (CR)
+    """
+    def load_data(self, n_samples:int = None):
+        '''
+        t and e order, followed by death
+        '''
+        df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, 'mimic.csv.gz'), compression='gzip', index_col=0)
+        df = df[mimic_feature_selection.selected_features]
+        
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
+            
+        df = df[(df['Age'] >= 60) & (df['Age'] <= 65)] # select cohort ages 60-65
+        
+        df = df[df['ARF_time'] > 0]
+        df = df[df['shock_time'] > 0]
+        df = df[df['death_time'] > 0]
+  
+        columns_to_drop = [col for col in df.columns if
+                           any(substring in col for substring in ['_event', '_time', 'hadm_id'])]
+        events = ['death']
+        self.X = df.drop(columns_to_drop, axis=1)
+        self.columns = list(self.X.columns)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+
+        def get_time(row):
+            if row['event'] == 0:
+                return max([row['ARF_time'], row['death_time'], row['shock_time']])
+            elif row['event'] == 3:
+                return row['death_time']
+            elif row['event'] == 2:
+                return row['shock_time']
+            elif row['event'] == 1:
+                return row['ARF_time']        
+            else:
+                raise ValueError("error in time")
+        
+        
+        def get_event(row):
+            if row['ARF_event'] == 0 and row['shock_event'] == 0 and row['death_event'] == 0:
+                return 0
+            elif row['death_event'] == 1 and min([row['ARF_time'], row['death_time'], row['shock_time']]) == row['death_time']:
+                return 3
+            elif row['shock_event'] == 1 and min([row['ARF_time'], row['shock_time']]) == row['shock_time']:
+                return 2
+            elif row['ARF_event'] == 1:
+                return 1
+            else:
+                print (row)
+                raise ValueError("error in event")
+        
+        df['event'] = df.apply(get_event, axis=1)
+        df['time'] = df.apply(get_time, axis=1)
+        
+        self.y_t = df[f'time'].values 
+        self.y_e = df[f'event'].values # 0 (censored), 1 ARF, 2 shock, 3 death
+        self.n_events = 3
+        
+        return self
+
+    def split_data(self,
+                train_size: float,
+                valid_size: float,
+                test_size: float,
+                dtype=torch.float64,
+                random_state=0):
+        df = pd.DataFrame(self.X)
+        df['event'] = self.y_e
+        df['time'] = self.y_t
+        
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            random_state=random_state)
+        
+        dataframes = [df_train, df_valid, df_test]
+        dicts = []
+        for dataframe in dataframes:
+            data_dict = dict()
+            data_dict['X'] = dataframe.drop(['event', 'time'], axis=1).to_numpy()
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.float64),dtype=dtype)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float64), dtype=dtype)
+            dicts.append(data_dict)
+            
+        return dicts[0], dicts[1], dicts[2]
+
 def get_data_loader(dataset_name:str) -> BaseDataLoader:
     if dataset_name == "seer_se":
         return SeerSingleDataLoader()
@@ -773,6 +861,8 @@ def get_data_loader(dataset_name:str) -> BaseDataLoader:
         return ALSMultiDataLoader()
     elif dataset_name == "mimic_me":
         return MimicMultiDataLoader()
+    elif dataset_name == "mimic_cr":
+        return MimicCompetingDataLoader()        
     elif dataset_name == "rotterdam_cr":
         return RotterdamCompetingDataLoader()
     elif dataset_name == "synthetic_se":
