@@ -356,7 +356,7 @@ class ALSMultiDataLoader(BaseDataLoader):
                     & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)] # min time
         df = df.loc[(df['Speech_Observed'] <= 3000) & (df['Swallowing_Observed'] <= 3000)
                     & (df['Handwriting_Observed'] <= 3000) & (df['Walking_Observed'] <= 3000)] # max time
-        df = df.dropna(subset=['Handgrip_Strength']) #exclude people with no strength test
+        #df = df.dropna(subset=['Handgrip_Strength']) #exclude people with no strength test
         events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
         self.X = df.drop(columns_to_drop, axis=1)
         self.columns = list(self.X.columns)
@@ -799,7 +799,6 @@ class MimicCompetingDataLoader(BaseDataLoader):
                 return row['ARF_time']        
             else:
                 raise ValueError("error in time")
-        
         
         def get_event(row):
             if row['ARF_event'] == 0 and row['shock_event'] == 0 and row['death_event'] == 0:

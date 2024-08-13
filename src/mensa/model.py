@@ -63,9 +63,8 @@ class DeepSurvivalMachinesTorch(torch.nn.Module):
     def forward(self, x):
         xrep = self.embedding(x)
         dim = x.shape[0]
-        shape = self.act(self.shapeg(xrep))  + self.shape.expand(dim,-1)
-        scale = self.act(self.scaleg(xrep)) + self.scale.expand(dim,-1)
-        
+        shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim,-1), min=-10, max=10)
+        scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim,-1), min=-10, max=10)
         gate = self.gate(xrep) / self.temp
         outcomes = []
         for i in range(self.risks):

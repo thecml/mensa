@@ -1,7 +1,7 @@
 """
 run_real_multi_event.py
 ====================================
-Models: ["deepsurv", 'hierarch', 'mensa']
+Models: ["deepsurv", 'hierarch', 'mensa-nocop']
 """
 
 # 3rd party
@@ -45,13 +45,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv"]
+MODELS = ["deepsurv", 'hierarch', 'mensa-nocop']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='mimic_cr')
+    parser.add_argument('--seed', type=int, default=4)
+    parser.add_argument('--dataset_name', type=str, default='als_me')
     
     args = parser.parse_args()
     seed = args.seed
@@ -193,8 +193,8 @@ if __name__ == "__main__":
             
             metrics = [ci, ibs, mae_hinge, mae_margin, mae_pseudo, d_calib, global_ci, local_ci]
             print(metrics)
-            res_sr = pd.Series([model_name, seed, event_id+1] + metrics,
-                                index=["ModelName", "Seed", "EvenId", "CI", "IBS",
+            res_sr = pd.Series([model_name, dataset_name, seed, event_id+1] + metrics,
+                                index=["ModelName", "DatasetName", "Seed", "EvenId", "CI", "IBS",
                                        "MAEH", "MAEM", "MAEPO", "DCalib", "GlobalCI", "LocalCI"])
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
             
