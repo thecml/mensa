@@ -67,7 +67,7 @@ def global_C_index(mod_out, test_time, test_event, weight=True):
     else:
         return np.mean(cindex_list)
 
-def local_C_index(mod_out, test_time, test_event, weight=False):
+def local_C_index(mod_out, test_time, test_event, weight=True):
     '''
     each patient
     mod_out: List of surv pred
@@ -91,7 +91,7 @@ def local_C_index(mod_out, test_time, test_event, weight=False):
                 global_total_pairs += total_pairs
                 global_concordant_pairs += concordant_pairs
             except:
-                continue
+                continue    
     if weight:
         return global_concordant_pairs/global_total_pairs
     else:
