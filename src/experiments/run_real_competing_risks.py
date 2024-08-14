@@ -1,7 +1,7 @@
 """
 run_real_competing_risks.py
 ====================================
-Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-nocop']
+Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa-nocop']
 """
 import sys, os
 sys.path.append(os.path.abspath('../'))
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='mimic_cr')
+    parser.add_argument('--dataset_name', type=str, default='seer_cr')
     
     args = parser.parse_args()
     seed = args.seed
