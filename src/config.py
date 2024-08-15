@@ -61,18 +61,11 @@ COXBOOST_PARAMS = {
 
 DEEPSURV_PARAMS = {
     'hidden_size': 32,
-    'mu_scale': None,
-    'rho_scale': -5,
-    'sigma1': 1,
-    'sigma2': 0.002,
-    'pi': 0.5,
     'verbose': False,
     'lr': 0.005,
     'c1': 0.01,
     'num_epochs': 1000,
     'dropout': 0.25,
-    'n_samples_train': 10,
-    'n_samples_test': 100,
     'batch_size': 32,
     'early_stop': True,
     'patience': 10
@@ -80,18 +73,11 @@ DEEPSURV_PARAMS = {
 
 MTLR_PARAMS = {
     'hidden_size': 32,
-    'mu_scale': None,
-    'rho_scale': -5,
-    'sigma1': 1,
-    'sigma2': 0.002,
-    'pi': 0.5,
     'verbose': False,
     'lr': 0.001,
     'c1': 0.01,
     'num_epochs': 1000,
     'dropout': 0.5,
-    'n_samples_train': 10,
-    'n_samples_test': 100,
     'batch_size': 32,
     'early_stop': True,
     'patience': 10
@@ -132,18 +118,11 @@ DEEPHIT_PARAMS = {
 
 MTLRCR_PARAMS = {
     'hidden_size': 32,
-    'mu_scale': None,
-    'rho_scale': -5,
-    'sigma1': 1,
-    'sigma2': 0.002,
-    'pi': 0.5,
     'verbose': False,
     'lr': 1e-3,
     'c1': 0.01,
     'num_epochs': 1000,
     'dropout': 0.25,
-    'n_samples_train': 10,
-    'n_samples_test': 100,
     'batch_size': 32,
     'early_stop': True,
     'patience': 10
@@ -153,7 +132,8 @@ DCSURVIVAL_PARAMS = {
     'depth': 2,
     'widths': [100, 100],
     'lc_w_range': [0, 1.0],
-    'shift_w_range': [0., 2.0]
+    'shift_w_range': [0., 2.0],
+    'learning_rate': 1e-4
 }
 
 MENSA_PARAMS = {

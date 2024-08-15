@@ -19,20 +19,14 @@ from scipy.interpolate import interp1d
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
-from data_loader import SingleEventSyntheticDataLoader
-from utility.survival import (make_time_bins, preprocess_data, convert_to_structured,
-                              predict_survival_function)
+from utility.survival import (make_time_bins, preprocess_data, convert_to_structured)
 from utility.data import dotdict
 from utility.config import load_config
 from mensa.model import MENSA
 from utility.data import format_data_deephit_single
-from copula import Convex_bivariate
 from data_loader import get_data_loader
 
 # SOTA
-from dcsurvival.dirac_phi import DiracPhi
-from dcsurvival.survival import DCSurvival
-from dcsurvival.model import train_dcsurvival_model
 from sota_models import (make_cox_model, make_dsm_model, make_rsf_model, train_deepsurv_model,
                          make_deepsurv_prediction, DeepSurv, make_deephit_single, train_deephit_model)
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction

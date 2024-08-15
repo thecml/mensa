@@ -155,7 +155,7 @@ if __name__ == "__main__":
             widths = config['widths']
             lc_w_range = config['lc_w_range']
             shift_w_range = config['shift_w_range']
-            learning_rate = 1e-4
+            learning_rate = config['learning_rate']
             phi = DiracPhi(depth, widths, lc_w_range, shift_w_range, device, tol=1e-14).to(device)
             model = DCSurvival(phi, device, num_features=n_features, tol=1e-14).to(device)
             model = train_dcsurvival_model(model, train_dict['X'], valid_dict['X'],
