@@ -1,10 +1,9 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import argparse
 import pandas as pd
-from typing import List, Tuple, Optional, Union
+from typing import List, Tuple, Union
 from datetime import datetime
 import torch
 import torch.optim as optim
@@ -13,8 +12,8 @@ from tqdm import trange
 from torch.utils.data import DataLoader, TensorDataset
 from utility.survival import reformat_survival
 from utility.loss import mtlr_nll
-from torchmtlr.model import mtlr_neg_log_likelihood, mtlr_risk, mtlr_survival
-from torchmtlr.utils import make_time_bins, encode_mtlr_format, reset_parameters
+from torchmtlr.model import mtlr_neg_log_likelihood, mtlr_survival
+from torchmtlr.utils import reset_parameters
 from torch.optim import Adam
 
 class dotdict(dict):

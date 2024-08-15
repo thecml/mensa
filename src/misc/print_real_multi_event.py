@@ -37,7 +37,7 @@ if __name__ == "__main__":
     df = df.round(N_DECIMALS).fillna(0)
     
     dataset_names = ["als_me"]
-    model_names = ["deepsurv", 'hierarch', 'mensa-nocop']
+    model_names = ["deepsurv", 'hierarch', 'mensa']
     metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"]
     n_events = 4
     

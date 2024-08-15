@@ -230,12 +230,3 @@ def conditional_weibull_loss_multi(model, X, T, E, device, elbo=True, copula=Non
         raise NotImplementedError()
         
     return loss
-    
-    #"""
-    """
-    event_loss = E * f
-    non_event_loss = (1 - E) * s
-    total_loss = torch.sum(event_loss + non_event_loss, dim=1)
-    total_loss = -torch.mean(total_loss)
-    return total_loss
-    """

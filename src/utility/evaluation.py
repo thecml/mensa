@@ -1,7 +1,4 @@
-import sys,os
-# sys.path.append('./SurvivalEVAL/')
 from SurvivalEVAL import LifelinesEvaluator
-# from SurvivalEVAL.Evaluator import LifelinesEvaluator
 import pandas as pd
 import numpy as np
 
@@ -59,7 +56,6 @@ def global_C_index(mod_out, test_time, test_event, weight=True):
 
         cindex, concordant_pairs, total_pairs = evaluator.concordance()
         cindex_list.append(cindex)
-        # print (cindex, concordant_pairs, total_pairs)
         global_total_pairs += total_pairs
         global_concordant_pairs += concordant_pairs
     if weight:
@@ -96,7 +92,3 @@ def local_C_index(mod_out, test_time, test_event, weight=True):
         return global_concordant_pairs/global_total_pairs
     else:
         return np.mean(cindex_list)
-    
-# print ("all_event C index", all_events_C_index(mod_out, test_time, test_event))
-# print ("global C index", global_C_index(mod_out, test_time, test_event))
-# print ("local C index", local_C_index(mod_out, test_time, test_event))

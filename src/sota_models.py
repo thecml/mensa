@@ -9,23 +9,17 @@ import torch
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import argparse
 import pandas as pd
-from typing import List, Tuple, Optional, Union
+from typing import List, Tuple, Union
 from datetime import datetime
 import torch
 import torch.optim as optim
 import torch.nn as nn
 from tqdm import trange
 from torch.utils.data import DataLoader, TensorDataset
-from utility.survival import reformat_survival
-from utility.loss import mtlr_nll, cox_nll
-from utility.survival import compute_unique_counts, make_monotonic, make_stratified_split
-from utility.data import MultiEventDataset
-from utility.data import dotdict
+from utility.loss import cox_nll
 from utility.survival import cox_survival, calculate_baseline_hazard
-from sksurv.linear_model.coxph import BreslowEstimator
 
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
@@ -153,18 +147,6 @@ def make_rsf_model(config):
                                 min_samples_leaf=min_samples_leaf,
                                 max_features=max_features)
     return model
-
-"""
-def make_deephit_single_model(config, in_features, out_features, duration_index):
-    num_nodes = config['num_nodes']
-    batch_norm = config['batch_norm']
-    dropout = config['dropout']
-    net = tt.practical.MLPVanilla(in_features, num_nodes, out_features, batch_norm, dropout)
-    model = DeepHitSingle(net, tt.optim.Adam, alpha=config['alpha'],
-                          sigma=config['sigma'], duration_index=duration_index)
-    model.optimizer.set_lr(config['lr'])
-    return model
-"""
 
 def make_deephit_cr(config, in_features, out_features, num_risks, duration_index):
     num_nodes_shared = config['num_nodes_shared']

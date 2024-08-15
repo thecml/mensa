@@ -30,7 +30,7 @@ if __name__ == "__main__":
     average_metrics = grouped.groupby(['ModelName', 'DatasetName', 'Seed']).mean().reset_index()
     
     dataset_names = ["rotterdam_cr"]
-    model_names = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa-nocop']
+    model_names = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
     metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"]
     
     for dataset_name in dataset_names:

@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 import config as cfg
 from pathlib import Path
 

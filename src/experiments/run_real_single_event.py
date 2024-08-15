@@ -2,7 +2,7 @@
 run_real_single_event.py
 ====================================
 Datasets: seer_se, support_se, mimic_se
-Models: ["deepsurv", "deephit", "dsm", "mtlr", "dcsurvival", "mensa", "mensa-nocop"]
+Models: ["deepsurv", "deephit", "dsm", "mtlr", "mensa"]
 """
 import sys, os
 sys.path.append(os.path.abspath('../'))
@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv"]
+MODELS = ["deepsurv", "deephit", "dsm", "mtlr", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -147,33 +147,7 @@ if __name__ == "__main__":
             model = train_mtlr_model(model, data_train, data_valid, time_bins.cpu().numpy(),
                                      config, random_state=0, dtype=dtype,
                                      reset_model=True, device=device)
-        elif model_name == "dcsurvival":
-            config = dotdict(cfg.DCSURVIVAL_PARAMS)
-            depth = config['depth']
-            widths = config['widths']
-            lc_w_range = config['lc_w_range']
-            shift_w_range = config['shift_w_range']
-            learning_rate = 1e-5
-            phi = DiracPhi(depth, widths, lc_w_range, shift_w_range, device, tol=1e-14).to(device)
-            model = DCSurvival(phi, device, num_features=n_features, tol=1e-14).to(device)
-            model = train_dcsurvival_model(model, train_dict['X'], valid_dict['X'],
-                                           train_dict['T'], train_dict['E'],
-                                           valid_dict['T'], valid_dict['E'],
-                                           num_epochs=1000, learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
-            n_epochs = config['n_epochs']
-            n_dists = config['n_dists']
-            lr = config['lr']
-            batch_size = config['batch_size']
-            layers = config['layers']
-            copula_family = config['copula_family']
-            copula = Convex_bivariate(copulas=[copula_family], dtype=dtype, device=device)
-            model = MENSA(n_features, layers=layers, n_dists=n_dists, n_events=2, copula=copula, device=device)
-            lr_dict = {'network': lr, 'copula': lr}
-            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, lr_dict=lr_dict)
-        elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
             n_dists = config['n_dists']
@@ -212,11 +186,7 @@ if __name__ == "__main__":
             model_preds = survival_outputs[:, 1:].cpu().numpy()
         elif model_name == "deephit":
             model_preds = model.predict_surv(test_dict['X']).cpu().numpy()
-        elif model_name == "dcsurvival":
-            model_preds = predict_survival_function(model, test_dict['X'].to(device),
-                                                    time_bins, device=device).cpu().numpy()
-            model_preds[:,0] = 1
-        elif model_name in ['mensa', 'mensa-nocop']:
+        elif model_name == "mensa":
             model_preds = model.predict(test_dict['X'], time_bins, risk=0) # use event preds
         else:
             raise NotImplementedError()
