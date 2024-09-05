@@ -1,7 +1,7 @@
 """
 run_real_competing_risks.py
 ====================================
-Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa', 'mensa-nocop']
+Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
 """
 import sys, os
 sys.path.append(os.path.abspath('../'))
@@ -25,7 +25,6 @@ from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, c
 from utility.evaluation import global_C_index, local_C_index
 from data_loader import get_data_loader
 from mensa.model import MENSA
-from copula import Nested_Convex_Copula
 
 # SOTA
 from sota_models import (make_deephit_cr, make_dsm_model, train_deepsurv_model,
@@ -49,14 +48,14 @@ torch.set_default_dtype(dtype)
 # Setup device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Define models 
-MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa-nocop']
+# Define models
+MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='mimic_cr') #rotterdam_cr
+    parser.add_argument('--dataset_name', type=str, default='rotterdam_cr')
     
     args = parser.parse_args()
     seed = args.seed
@@ -131,16 +130,8 @@ if __name__ == "__main__":
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose)
         elif model_name == "mtlrcr":
-            #####
-            # train_times = np.digitize(train_dict['T'],
-            #                           bins=time_bins.cpu().numpy()).astype(np.int64)
             train_events = train_dict['E'].type(torch.int64).cpu().numpy()
-            # valid_times = np.digitize(valid_dict['T'],
-            #                           bins=time_bins.cpu().numpy()).astype(np.int64)
             valid_events = valid_dict['E'].type(torch.int64).cpu().numpy()
-            # y_train = encode_mtlr_format(train_times, train_events, time_bins.cpu().numpy())
-            # y_valid = encode_mtlr_format(valid_times, valid_events, time_bins.cpu().numpy())
-            ######
             y_train = encode_mtlr_format(train_dict['T'], train_events, time_bins.cpu().numpy())
             y_valid = encode_mtlr_format(valid_dict['T'], valid_events, time_bins.cpu().numpy())            
             num_time_bins = len(time_bins.cpu().numpy()) + 1
@@ -161,22 +152,6 @@ if __name__ == "__main__":
                       val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'].cpu().numpy(), valid_dict['T'].cpu().numpy()),
                       learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "mensa":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
-            n_epochs = config['n_epochs']
-            n_dists = config['n_dists']
-            lr = config['lr']
-            batch_size = config['batch_size']
-            layers = config['layers']
-            lr_dict = {'network': lr, 'copula':lr}
-            copula_family = config['copula_family']
-            copula = Nested_Convex_Copula([copula_family, copula_family],
-                                          [copula_family], [1, 1], [1], 1e-3,
-                                          dtype=dtype, device=device)
-            model = MENSA(n_features, layers=layers, n_events=n_events+1,
-                          n_dists=n_dists, copula=copula, device=device)
-            model.fit(train_dict, valid_dict, lr_dict=lr_dict, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, verbose=False)
-        elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
             n_dists = config['n_dists']
@@ -232,7 +207,7 @@ if __name__ == "__main__":
                 model_pred = model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()), risk=i+1)
                 model_pred = pd.DataFrame(model_pred, columns=time_bins.cpu().numpy())
                 all_preds.append(model_pred)
-        elif model_name in ['mensa', 'mensa-nocop']:
+        elif model_name == "mensa":
             all_preds = []
             for i in range(n_events):
                 model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)

@@ -1,5 +1,3 @@
-import numpy as np
-
 def get_mensa_sweep_cfg():
     return {
         "method": "bayes",

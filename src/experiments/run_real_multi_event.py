@@ -1,7 +1,7 @@
 """
 run_real_multi_event.py
 ====================================
-Models: ["deepsurv", 'hierarch', 'mensa-nocop']
+Models: ["deepsurv", 'hierarch', 'mensa']
 """
 
 # 3rd party
@@ -45,7 +45,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'hierarch', 'mensa-nocop']
+MODELS = ["deepsurv", 'hierarch', 'mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -122,7 +122,7 @@ if __name__ == "__main__":
             verbose = params['verbose']
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose)
-        elif model_name == "mensa-nocop":
+        elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
             n_dists = config['n_dists']
@@ -154,7 +154,7 @@ if __name__ == "__main__":
             for i in range(len(event_preds)):
                 preds = pd.DataFrame(event_preds[i], columns=bin_locations)
                 all_preds.append(preds)
-        elif model_name == "mensa-nocop":
+        elif model_name == "mensa":
             model_preds = model.predict(test_dict['X'], time_bins)
             all_preds = []
             for i in range(n_events):

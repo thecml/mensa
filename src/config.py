@@ -1,10 +1,8 @@
 from pathlib import Path
-import numpy as np
 
 # Directories
 ROOT_DIR = Path(__file__).absolute().parent.parent
 DATA_DIR = Path.joinpath(ROOT_DIR, "data")
-MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
 CONFIGS_DIR = Path.joinpath(ROOT_DIR, 'configs')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 DATA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'data')
@@ -13,43 +11,7 @@ DGP_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dgp')
 MENSA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mensa')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 
-'''
-Record of all settings for datasets
-Definitions:
-    location: where the data is stored
-    features: where in location (see above) the covariates/features are stored
-    terminal event: event such that no other events can occur after it
-    discrete: whether the time values are discrete
-    event ranks: each key represents and event, the values are the events that prevent it
-    event groups: each key represents the position in a trajectory (e.g., first, second, ...), values represent which events can occur in that position
-    min_time: earliest event time
-    max_time: latest event time (prediction horizon)
-    min_epoch: minimum number of epochs to train for (while learning the model)
-'''
-SYNTHETIC_SETTINGS = {
-    'num_events': 2,
-    'num_bins': 20,
-    'terminal_events': [1],
-    'discrete': False,
-    'event_ranks': {0:[], 1:[]},
-    'event_groups': {0:[0, 1], 1:[0, 1]},
-    'min_time': 0,
-    'max_time': 20,
-    'min_epoch': 50,
-}
-
-# This contains DEFAULT parameters for the models
-'''
-record of all hyper parameters 
-format (elements in order):
-    size of the layers in theta (ignored if using independent models)
-    (size of layer, how many fine bins each coarse bin from the previous grain gets split into)
-    learning rate, regularization constant, number of batches
-    backward c index optimization, hierarchical loss, alpha, sigma for l_g
-    boolean for whether to use theta (whether to joint model or not)
-    boolean for whether to use deephit
-    number of extra time bins (that represent t > T, for individuals who do not experience event by end of horizon) 
-'''
+# This contains default parameters for the models
 HIERARCH_PARAMS = {
     'theta_layer_size': [100],
     'layer_size_fine_bins': [(50, 5), (50, 5)],
@@ -99,18 +61,11 @@ COXBOOST_PARAMS = {
 
 DEEPSURV_PARAMS = {
     'hidden_size': 32,
-    'mu_scale': None,
-    'rho_scale': -5,
-    'sigma1': 1,
-    'sigma2': 0.002,
-    'pi': 0.5,
     'verbose': False,
     'lr': 0.005,
     'c1': 0.01,
     'num_epochs': 1000,
     'dropout': 0.25,
-    'n_samples_train': 10,
-    'n_samples_test': 100,
     'batch_size': 32,
     'early_stop': True,
     'patience': 10
@@ -118,18 +73,11 @@ DEEPSURV_PARAMS = {
 
 MTLR_PARAMS = {
     'hidden_size': 32,
-    'mu_scale': None,
-    'rho_scale': -5,
-    'sigma1': 1,
-    'sigma2': 0.002,
-    'pi': 0.5,
     'verbose': False,
     'lr': 0.001,
     'c1': 0.01,
     'num_epochs': 1000,
     'dropout': 0.5,
-    'n_samples_train': 10,
-    'n_samples_test': 100,
     'batch_size': 32,
     'early_stop': True,
     'patience': 10
@@ -170,18 +118,11 @@ DEEPHIT_PARAMS = {
 
 MTLRCR_PARAMS = {
     'hidden_size': 32,
-    'mu_scale': None,
-    'rho_scale': -5,
-    'sigma1': 1,
-    'sigma2': 0.002,
-    'pi': 0.5,
     'verbose': False,
     'lr': 1e-3,
     'c1': 0.01,
     'num_epochs': 1000,
     'dropout': 0.25,
-    'n_samples_train': 10,
-    'n_samples_test': 100,
     'batch_size': 32,
     'early_stop': True,
     'patience': 10
@@ -191,7 +132,8 @@ DCSURVIVAL_PARAMS = {
     'depth': 2,
     'widths': [100, 100],
     'lc_w_range': [0, 1.0],
-    'shift_w_range': [0., 2.0]
+    'shift_w_range': [0., 2.0],
+    'learning_rate': 1e-4
 }
 
 MENSA_PARAMS = {

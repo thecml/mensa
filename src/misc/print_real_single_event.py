@@ -29,7 +29,7 @@ if __name__ == "__main__":
     grouped = df.groupby(['ModelName', 'DatasetName', 'Seed']).mean().reset_index()
     
     dataset_names = ["seer_se"]
-    model_names = ["deepsurv", 'deephit', 'mtlr', 'dsm', 'mensa-nocop']
+    model_names = ["deepsurv", 'deephit', 'mtlr', 'dsm', 'mensa']
     metric_names = ["CI", "IBS", "MAEM", "DCalib"]
     
     for dataset_name in dataset_names:

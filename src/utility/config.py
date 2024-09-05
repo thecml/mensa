@@ -14,15 +14,7 @@ def load_config(file_path: Path, file_name: str) -> dict:
     return settings
 
 def load_model_config(dataset_name: str, model_name: str) -> dict:
-    if model_name == "cox":
-        config = load_config(cfg.COX_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
-    elif model_name == "mtlr":
-        config = load_config(cfg.MTLR_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
-    elif model_name == "deepcr":
-        config = load_config(cfg.DEEPCR_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
-    elif model_name == "deephit":
-        config = load_config(cfg.DEEPHIT_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
-    elif model_name == "hierarch":
+    if model_name == "hierarch":
         config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")
     elif model_name == "mensa":
         config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.lower()}.yaml")

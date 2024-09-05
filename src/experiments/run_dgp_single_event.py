@@ -3,7 +3,7 @@ run_synthetic_se_event.py
 ====================================
 Experiment 1.1
 
-Models: ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa-nocop", "mensa", "dgp"]
+Models: ["deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "dgp"]
 """
 import sys, os
 sys.path.append(os.path.abspath('../'))
@@ -52,14 +52,14 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["mensa-nocop"]
+MODELS = ["cox", "rsf", "deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "dgp"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--k_tau', type=float, default=0.5)
-    parser.add_argument('--copula_name', type=str, default="frank")
+    parser.add_argument('--k_tau', type=float, default=0.25)
+    parser.add_argument('--copula_name', type=str, default="clayton")
     parser.add_argument('--linear', type=bool, default=False)
     
     args = parser.parse_args()
@@ -155,7 +155,7 @@ if __name__ == "__main__":
             widths = config['widths']
             lc_w_range = config['lc_w_range']
             shift_w_range = config['shift_w_range']
-            learning_rate = 1e-4
+            learning_rate = config['learning_rate']
             phi = DiracPhi(depth, widths, lc_w_range, shift_w_range, device, tol=1e-14).to(device)
             model = DCSurvival(phi, device, num_features=n_features, tol=1e-14).to(device)
             model = train_dcsurvival_model(model, train_dict['X'], valid_dict['X'],
@@ -163,18 +163,6 @@ if __name__ == "__main__":
                                            valid_dict['T'], valid_dict['E'],
                                            num_epochs=1000, learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
-            n_epochs = config['n_epochs']
-            lr = config['lr']
-            batch_size = config['batch_size']
-            layers = config['layers']
-            copula_family = config['copula_family']
-            copula = Convex_bivariate(copulas=[copula_family], dtype=dtype, device=device)
-            model = MENSA(n_features, layers=layers, n_events=2, copula=copula, device=device)
-            lr_dict = {'network': lr, 'copula': lr}
-            model.fit(train_dict, valid_dict, optimizer='adam', verbose=False, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, lr_dict=lr_dict)
-        elif model_name == "mensa-nocop":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
@@ -215,7 +203,7 @@ if __name__ == "__main__":
         elif model_name == "dcsurvival":
             model_preds = predict_survival_function(model, test_dict['X'].to(device),
                                                     time_bins, device=device).cpu().numpy()
-        elif model_name in ["mensa", "mensa-nocop"]:
+        elif model_name == "mensa":
             model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=0) # use event preds
         elif model_name == "dgp":
             model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)

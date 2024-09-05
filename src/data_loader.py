@@ -1,21 +1,13 @@
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from abc import ABC, abstractmethod
-from typing import Tuple, List
+from typing import List
 from pathlib import Path
 import config as cfg
-from utility.survival import convert_to_structured
-from utility.data import make_synthetic
 import numpy as np
-from sklearn.model_selection import StratifiedShuffleSplit
-from utility.survival import get_trajectory_labels
 from hierarchical.data_settings import *
-import pickle
 from pycop import simulation
-from scipy import stats
-from utility.data import relu
-from utility.data import kendall_tau_to_theta, theta_to_kendall_tau
+from utility.data import kendall_tau_to_theta
 from utility.survival import make_stratified_split
 from dgp import *
 import torch
@@ -173,7 +165,7 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
             dgp3 = DGP_Weibull_linear(n_features, alpha_e3, gamma_e3, device, dtype)
         else:
             dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1]*n_hidden,
-                                         gamma=[4]*n_hidden, device=device, dtype=dtype)
+                                         gamma=[gamma_e1]*n_hidden, device=device, dtype=dtype)
             dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2]*n_hidden,
                                          gamma=[gamma_e2]*n_hidden, device=device, dtype=dtype)
             dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e3]*n_hidden,
@@ -281,7 +273,7 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
             dgp3 = DGP_Weibull_linear(n_features, alpha_e3, gamma_e3, device, dtype)
         else:
             dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1]*n_hidden,
-                                         gamma=[4]*n_hidden, device=device, dtype=dtype)
+                                         gamma=[gamma_e1]*n_hidden, device=device, dtype=dtype)
             dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2]*n_hidden,
                                          gamma=[gamma_e2]*n_hidden, device=device, dtype=dtype)
             dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e3]*n_hidden,
@@ -354,9 +346,8 @@ class ALSMultiDataLoader(BaseDataLoader):
                            any(substring in col for substring in ['Observed', 'Event'])]
         df = df.loc[(df['Speech_Observed'] > 0) & (df['Swallowing_Observed'] > 0)
                     & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)] # min time
-        df = df.loc[(df['Speech_Observed'] <= 3000) & (df['Swallowing_Observed'] <= 3000)
-                    & (df['Handwriting_Observed'] <= 3000) & (df['Walking_Observed'] <= 3000)] # max time
-        #df = df.dropna(subset=['Handgrip_Strength']) #exclude people with no strength test
+        df = df.loc[(df['Speech_Observed'] <= 1000) & (df['Swallowing_Observed'] <= 1000)
+                    & (df['Handwriting_Observed'] <= 1000) & (df['Walking_Observed'] <= 1000)] # max time
         events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
         self.X = df.drop(columns_to_drop, axis=1)
         self.columns = list(self.X.columns)
