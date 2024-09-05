@@ -130,16 +130,8 @@ if __name__ == "__main__":
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose)
         elif model_name == "mtlrcr":
-            #####
-            # train_times = np.digitize(train_dict['T'],
-            #                           bins=time_bins.cpu().numpy()).astype(np.int64)
             train_events = train_dict['E'].type(torch.int64).cpu().numpy()
-            # valid_times = np.digitize(valid_dict['T'],
-            #                           bins=time_bins.cpu().numpy()).astype(np.int64)
             valid_events = valid_dict['E'].type(torch.int64).cpu().numpy()
-            # y_train = encode_mtlr_format(train_times, train_events, time_bins.cpu().numpy())
-            # y_valid = encode_mtlr_format(valid_times, valid_events, time_bins.cpu().numpy())
-            ######
             y_train = encode_mtlr_format(train_dict['T'], train_events, time_bins.cpu().numpy())
             y_valid = encode_mtlr_format(valid_dict['T'], valid_events, time_bins.cpu().numpy())            
             num_time_bins = len(time_bins.cpu().numpy()) + 1
