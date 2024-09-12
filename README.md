@@ -1,6 +1,6 @@
 # MENSA: A Multi-Event Network for Survival Analysis under Informative Censoring
 
-MENSA is a novel, deep-learning model for multi-event survival analysis. It works by jointly learning K event distributions as a convex combination of Weibull distributions, treating the censoring distribution as just another event. This allows predicting if an instance will likely experience the event of interest or be censored, e.g., drop out of the study or be event-free at its termination. The model support single-event, competing risks and multi-event scenarios. Please consider citing the paper if you find this work useful.
+MENSA is a novel, deep-learning model for multi-event survival analysis. It works by jointly learning K event distributions as a convex combination of Weibull distributions, treating the censoring distribution as just another event. This allows predicting if a patient will likely experience the event of interest or be censored, e.g., drop out of the study or be event-free at its termination. The model support single-event, competing risks and multi-event scenarios. Please consider citing the paper if you find this work useful.
 
 <b>Preprint: https://arxiv.org/abs/2409.06525</b>
 
