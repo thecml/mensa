@@ -73,10 +73,9 @@ class DeepSurvivalMachinesTorch(torch.nn.Module):
         
 class MENSA:
     def __init__(self, n_features, n_events, n_dists=5,
-                 layers=[32, 32], copula=None, device='cuda'):
+                 layers=[32, 32], device='cuda'):
         
         self.n_features = n_features
-        self.copula = copula
         
         self.n_events = n_events
         self.device = device
@@ -86,19 +85,12 @@ class MENSA:
     def get_model(self):
         return self.model
     
-    def get_copula(self):
-        return self.copula
-    
     def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=20000, 
-            copula_grad_multiplier=1.0, copula_grad_clip=1.0,
             patience=100, optimizer='adam', weight_decay=0.005,
-            lr_dict={'network': 5e-4, 'copula': 0.005}, betas=(0.9, 0.999),
+            lr_dict={'network': 5e-4}, betas=(0.9, 0.999),
             use_wandb=False, verbose=False):
 
         optim_dict = [{'params': self.model.parameters(), 'lr': lr_dict['network']}]
-        if self.copula is not None:
-            self.copula.enable_grad()
-            optim_dict.append({'params': self.copula.parameters(), 'lr': lr_dict['copula']})
         
         if optimizer == 'adam':
             optimizer = torch.optim.Adam(optim_dict, betas=betas, weight_decay=weight_decay)
