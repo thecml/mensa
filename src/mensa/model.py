@@ -4,7 +4,8 @@ from torch.utils.data import DataLoader, TensorDataset
 
 import wandb
 import numpy as np
-from copula import Nested_Convex_Copula
+
+from tqdm import trange
 
 from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi
 
@@ -120,7 +121,9 @@ class MENSA:
         best_valid_loss = float('inf')
         epochs_no_improve = 0
         
-        for itr in range(n_epochs):
+        pbar = trange(n_epochs, disable=not verbose)
+        
+        for itr in pbar:
             self.model.train()
             total_train_loss = 0
             
@@ -164,11 +167,10 @@ class MENSA:
             if use_wandb:
                 wandb.log({"train_loss": avg_train_loss})
                 wandb.log({"valid_loss": avg_valid_loss})
-
-            if verbose:
-                print(itr, "/", n_epochs,
-                      "train_loss: ", round(avg_train_loss, 4),
-                      "valid_loss: ", round(avg_valid_loss, 4))
+                
+            pbar.set_description(f"[Epoch {itr+1:4}/{n_epochs}]")
+            pbar.set_postfix_str(f"Training loss = {avg_train_loss:.4f}, "
+                                 f"Validation loss = {avg_valid_loss:.4f}")
 
             # Check for early stopping
             if avg_valid_loss < best_valid_loss - min_delta:
