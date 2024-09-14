@@ -45,7 +45,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'hierarch', 'mensa']
+MODELS = ['mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -133,7 +133,7 @@ if __name__ == "__main__":
             model = MENSA(n_features, layers=layers, n_events=n_events,
                           n_dists=n_dists, copula=None, device=device)
             model.fit(train_dict, valid_dict, lr_dict=lr_dict, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, multi=True, verbose=False)
+                      patience=10, batch_size=batch_size, verbose=True)
         else:
             raise NotImplementedError()
         

@@ -72,7 +72,7 @@ class DeepSurvivalMachinesTorch(torch.nn.Module):
         
 class MENSA:
     def __init__(self, n_features, n_events, n_dists=5,
-                 layers=[32, 32], copula=None, device='cuda'): #[32, 32]
+                 layers=[32, 32], copula=None, device='cuda'):
         
         self.n_features = n_features
         self.copula = copula
@@ -91,8 +91,8 @@ class MENSA:
     def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=20000, 
             copula_grad_multiplier=1.0, copula_grad_clip=1.0,
             patience=100, optimizer='adam', weight_decay=0.005,
-            lr_dict={'network': 5e-4, 'copula': 0.005},
-            betas=(0.9, 0.999), use_clipping=True, use_wandb=False, multi=False, verbose=False):
+            lr_dict={'network': 5e-4, 'copula': 0.005}, betas=(0.9, 0.999),
+            use_wandb=False, verbose=False):
 
         optim_dict = [{'params': self.model.parameters(), 'lr': lr_dict['network']}]
         if self.copula is not None:
@@ -104,113 +104,124 @@ class MENSA:
         elif optimizer == 'adamw':
             optimizer = torch.optim.AdamW(optim_dict, betas=betas, weight_decay=weight_decay)
         
-        X = train_dict['X'].to(self.device)
-        T = train_dict['T'].to(self.device)
-        E = train_dict['E'].to(self.device)
-        train_loader = DataLoader(TensorDataset(X, T, E), batch_size=batch_size, shuffle=True)
+        multi_event = True if train_dict['T'].ndim > 1 else False
+        
+        train_loader = DataLoader(TensorDataset(train_dict['X'].to(self.device),
+                                                train_dict['T'].to(self.device),
+                                                train_dict['E'].to(self.device)),
+                                  batch_size=batch_size, shuffle=True)
+        valid_loader = DataLoader(TensorDataset(valid_dict['X'].to(self.device),
+                                                valid_dict['T'].to(self.device),
+                                                valid_dict['E'].to(self.device)),
+                                  batch_size=batch_size, shuffle=False)
         
         self.model.to(self.device)
         min_delta = 0.001
-        best_val_loss = torch.tensor(float('inf')).to(self.device)
+        best_val_loss = float('inf')
         epochs_no_improve = 0
-
-        # Training loop with early stopping
+        
         for itr in range(n_epochs):
             self.model.train()
             total_train_loss = 0
-            num_batches = 0
             
+            # Training step
             for xi, ti, ei in train_loader:
                 optimizer.zero_grad()
-                if self.copula is not None:
-                    loss = conditional_weibull_loss(self.model, xi, ti, ei, elbo=True, copula=self.copula)
+                
+                params = self.model.forward(xi) # run forward pass
+                if multi_event:
+                    f, s = self.compute_risks_multi(params, ti, self.model.risks)
+                    loss = conditional_weibull_loss_multi(f, s, ei, self.model.risks, self.device)
                 else:
-                    if multi:
-                        loss = conditional_weibull_loss_multi(self.model, xi, ti, ei, self.device)
-                    else:
-                        loss = conditional_weibull_loss(self.model, xi, ti, ei)
+                    f, s = self.compute_risks(params, ti, self.model.risks)
+                    loss = conditional_weibull_loss(f, s, ei, self.model.risks)
                         
                 loss.backward()
-                
-                #if use_clipping:
-                #   torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-                    
-                if (copula_grad_multiplier) and (self.copula is not None):
-                    if isinstance(self.copula, Nested_Convex_Copula):
-                        for p in self.copula.parameters()[:-2]:
-                            p.grad = (p.grad * copula_grad_multiplier).clip(-1 * copula_grad_clip, 1 *copula_grad_clip)
-                    else:
-                        for p in self.copula.parameters():
-                            p.grad = (p.grad * copula_grad_multiplier).clip(-1 * copula_grad_clip, 1 *copula_grad_clip)
-                
                 optimizer.step()
                 
-                if self.copula is not None:
-                    if isinstance(self.copula, Nested_Convex_Copula):
-                        for p in self.copula.parameters()[-2]:
-                            if p < 0.01:
-                                with torch.no_grad():
-                                    p = torch.clamp(p, 0.01, 100)
-                    else:
-                        for p in self.copula.parameters():
-                            if p < 0.01:
-                                with torch.no_grad():
-                                    p = torch.clamp(p, 0.01, 100)
-            
                 total_train_loss += loss.item()
-                num_batches += 1
         
-            avg_train_loss = total_train_loss / num_batches
-            
+            avg_train_loss = total_train_loss / len(train_loader)
+
+            # Validation step
             self.model.eval()
+            total_valid_loss = 0
+            
             with torch.no_grad():
-                if self.copula is not None:
-                    val_loss = conditional_weibull_loss(self.model, valid_dict['X'].to(self.device),
-                                                        valid_dict['T'].to(self.device), valid_dict['E'].to(self.device),
-                                                        elbo=True, copula=self.copula)
-                else:
-                    if multi:
-                        val_loss = conditional_weibull_loss_multi(self.model, valid_dict['X'].to(self.device),
-                                                                  valid_dict['T'].to(self.device),
-                                                                  valid_dict['E'].to(self.device), self.device)
+                for xi, ti, ei in valid_loader:
+                    params = self.model.forward(xi) # run forward pass
+                    if multi_event:
+                        f, s = self.compute_risks_multi(params, ti, self.model.risks)
+                        loss = conditional_weibull_loss_multi(f, s, ei, self.model.risks, self.device)
                     else:
-                        val_loss = conditional_weibull_loss(self.model, valid_dict['X'].to(self.device),
-                                                            valid_dict['T'].to(self.device), valid_dict['E'].to(self.device))
+                        f, s = self.compute_risks(params, ti, self.model.risks)
+                        loss = conditional_weibull_loss(f, s, ei, self.model.risks)
+                    
+                    total_valid_loss += loss.item()
+                
+            avg_valid_loss = total_valid_loss / len(valid_loader)
                 
             if use_wandb:
-                wandb.log({"val_loss": val_loss})
+                wandb.log({"train_loss": avg_train_loss})
+                wandb.log({"val_loss": avg_valid_loss})
 
             if verbose:
-                if self.copula is not None:
-                    if isinstance(self.copula, Nested_Convex_Copula):
-                        params = [np.around(float(param), 5) for param in self.copula.parameters()[:-2]]
-                    else:
-                        params = [np.around(float(param), 5) for param in self.copula.parameters()]
-                    print(itr, "/", n_epochs, "train_loss: ", round(avg_train_loss, 4),
-                        "val_loss: ", round(val_loss.item(), 4),
-                        "min_val_loss: ", round(best_val_loss.item(), 4),
-                        "copula: ", params)
-                else:
-                    print(itr, "/", n_epochs, "train_loss: ", round(avg_train_loss, 4),
-                        "val_loss: ", round(val_loss.item(), 4),
-                        "min_val_loss: ", round(best_val_loss.item(), 4))
+                print(itr, "/", n_epochs,
+                      "train_loss: ", round(avg_train_loss, 4),
+                      "val_loss: ", round(avg_valid_loss, 4))
 
             # Check for early stopping
-            if val_loss < best_val_loss - min_delta:
-                best_val_loss = val_loss
+            if avg_valid_loss < best_val_loss - min_delta:
+                best_val_loss = avg_valid_loss
                 epochs_no_improve = 0
-                if self.copula is not None:
-                    best_theta = [p.detach().clone().cpu() for p in self.copula.parameters()]
             else:
                 epochs_no_improve += 1
-
             if epochs_no_improve >= patience:
                 print(f"Early stopping at iteration {itr}, best val loss: {best_val_loss}")
                 break
-            
-        if self.copula is not None:
-            self.copula.set_params(best_theta)
-                    
+        
+    def compute_risks(self, params, ti, n_risks):
+        f_risks = []
+        s_risks = []
+        ti = ti.reshape(-1,1).expand(-1, self.model.k) #(n, k)
+        for i in range(self.model.risks):
+            k = params[i][0]
+            b = params[i][1]
+            gate = nn.LogSoftmax(dim=1)(params[i][2])
+            s = - (torch.pow(torch.exp(b)*ti, torch.exp(k)))
+            f = k + b + ((torch.exp(k)-1)*(b+torch.log(ti)))
+            f = f + s
+            s = (s + gate)
+            s = torch.logsumexp(s, dim=1) #log_survival
+            f = (f + gate)
+            f = torch.logsumexp(f, dim=1) #log_density
+            f_risks.append(f) #(n,3) each column for one risk
+            s_risks.append(s)
+        f = torch.stack(f_risks, dim=1)
+        s = torch.stack(s_risks, dim=1)
+        return f, s
+    
+    def compute_risks_multi(self, params, ti, n_risks):
+        f_risks = []
+        s_risks = []
+        for i in range(self.model.risks):
+            t = ti[:,i].reshape(-1,1).expand(-1, self.model.k) #(n, k)
+            k = params[i][0]
+            b = params[i][1]
+            gate = nn.LogSoftmax(dim=1)(params[i][2])
+            s = - (torch.pow(torch.exp(b)*t, torch.exp(k)))
+            f = k + b + ((torch.exp(k)-1)*(b+torch.log(t)))
+            f = f + s
+            s = (s + gate)
+            s = torch.logsumexp(s, dim=1)#log_survival
+            f = (f + gate)
+            f = torch.logsumexp(f, dim=1)#log_density
+            f_risks.append(f)#(n,3) each column for one risk
+            s_risks.append(s)
+        f = torch.stack(f_risks, dim=1)
+        s = torch.stack(s_risks, dim=1)
+        return f, s
+
     def predict(self, x_test, time_bins, risk=0):
         t = list(time_bins.cpu().numpy())
         params = self.model.forward(x_test)
@@ -244,4 +255,3 @@ class MENSA:
             cdfs.append(lcdfs.detach().cpu().numpy())
         
         return np.exp(np.array(cdfs)).T
-                    
