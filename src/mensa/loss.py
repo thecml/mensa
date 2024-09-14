@@ -18,7 +18,7 @@ def conditional_weibull_loss(f, s, e, n_risks):
         loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3) + torch.sum(e4 * p4)
         loss = -loss/e.shape[0]
     elif n_risks == 3:
-        p1 = f[:,0] + s[:,1] + s[:,2] 
+        p1 = f[:,0] + s[:,1] + s[:,2]
         p2 = s[:,0] + f[:,1] + s[:,2]
         p3 = s[:,0] + s[:,1] + f[:,2]
         e1 = (e == 0) * 1.0
@@ -38,10 +38,12 @@ def conditional_weibull_loss(f, s, e, n_risks):
         e2 = (e == 0) * 1.0
         loss = torch.sum(e1 * f[:,0]) + torch.sum(e2 * s[:,0]) 
         loss = -loss/e.shape[0]
+    else:
+        raise NotImplementedError()
     return loss
 
 # Conditional Weibull loss for multi-event
-def conditional_weibull_loss_multi(f, s, e, n_risks, device):
+def conditional_weibull_loss_multi(f, s, e, n_risks):
     if n_risks == 3:
         p1 = f[:,0] + f[:,1] + f[:,2] # [1 1 1]
         p2 = s[:,0] + s[:,1] + s[:,2] # [0 0 0]
@@ -52,14 +54,14 @@ def conditional_weibull_loss_multi(f, s, e, n_risks, device):
         p7 = s[:,0] + f[:,1] + f[:,2] # [0 1 1]
         p8 = f[:,0] + s[:,1] + f[:,2] # [1 0 1]
         
-        e1 = (e == torch.tensor([1., 1., 1.], device=device)).all(dim=1)
-        e2 = (e == torch.tensor([0., 0., 0.], device=device)).all(dim=1)
-        e3 = (e == torch.tensor([1., 0., 0.], device=device)).all(dim=1)
-        e4 = (e == torch.tensor([0., 1., 0.], device=device)).all(dim=1)
-        e5 = (e == torch.tensor([0., 0., 1.], device=device)).all(dim=1)
-        e6 = (e == torch.tensor([1., 1., 0.], device=device)).all(dim=1)
-        e7 = (e == torch.tensor([0., 1., 1.], device=device)).all(dim=1)
-        e8 = (e == torch.tensor([1., 0., 1.], device=device)).all(dim=1)
+        e1 = (e[:, 0] == 1) & (e[:, 1] == 1) & (e[:, 2] == 1)
+        e2 = (e[:, 0] == 0) & (e[:, 1] == 0) & (e[:, 2] == 0)
+        e3 = (e[:, 0] == 1) & (e[:, 1] == 0) & (e[:, 2] == 0)
+        e4 = (e[:, 0] == 0) & (e[:, 1] == 1) & (e[:, 2] == 0)
+        e5 = (e[:, 0] == 0) & (e[:, 1] == 0) & (e[:, 2] == 1)
+        e6 = (e[:, 0] == 1) & (e[:, 1] == 1) & (e[:, 2] == 0)
+        e7 = (e[:, 0] == 0) & (e[:, 1] == 1) & (e[:, 2] == 1)
+        e8 = (e[:, 0] == 1) & (e[:, 1] == 0) & (e[:, 2] == 1)
 
         loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3) \
              + torch.sum(e4 * p4) + torch.sum(e5 * p5) + torch.sum(e6 * p6) \
@@ -83,22 +85,22 @@ def conditional_weibull_loss_multi(f, s, e, n_risks, device):
         p15 = f[:,0] + s[:,1] + f[:,2] + f[:,3] # [1 0 1 1]
         p16 = s[:,0] + f[:,1] + f[:,2] + f[:,3] # [0 1 1 1]
 
-        e1 = (e == torch.tensor([1., 1., 1., 1.], device=device)).all(dim=1)
-        e2 = (e == torch.tensor([0., 0., 0., 0.], device=device)).all(dim=1)
-        e3 = (e == torch.tensor([1., 0., 0., 0.], device=device)).all(dim=1)
-        e4 = (e == torch.tensor([0., 1., 0., 0.], device=device)).all(dim=1)
-        e5 = (e == torch.tensor([0., 0., 1., 0.], device=device)).all(dim=1)
-        e6 = (e == torch.tensor([0., 0., 0., 1.], device=device)).all(dim=1)
-        e7 = (e == torch.tensor([1., 1., 0., 0.], device=device)).all(dim=1)
-        e8 = (e == torch.tensor([1., 0., 1., 0.], device=device)).all(dim=1)
-        e9 = (e == torch.tensor([1., 0., 0., 1.], device=device)).all(dim=1)
-        e10 = (e == torch.tensor([0., 1., 1., 0.], device=device)).all(dim=1)
-        e11 = (e == torch.tensor([0., 1., 0., 1.], device=device)).all(dim=1)
-        e12 = (e == torch.tensor([0., 0., 1., 1.], device=device)).all(dim=1)
-        e13 = (e == torch.tensor([1., 1., 1., 0.], device=device)).all(dim=1)
-        e14 = (e == torch.tensor([1., 1., 0., 1.], device=device)).all(dim=1)
-        e15 = (e == torch.tensor([1., 0., 1., 1.], device=device)).all(dim=1)
-        e16 = (e == torch.tensor([0., 1., 1., 1.], device=device)).all(dim=1)
+        e1  = (e[:, 0] == 1) & (e[:, 1] == 1) & (e[:, 2] == 1) & (e[:, 3] == 1)
+        e2  = (e[:, 0] == 0) & (e[:, 1] == 0) & (e[:, 2] == 0) & (e[:, 3] == 0)
+        e3  = (e[:, 0] == 1) & (e[:, 1] == 0) & (e[:, 2] == 0) & (e[:, 3] == 0)
+        e4  = (e[:, 0] == 0) & (e[:, 1] == 1) & (e[:, 2] == 0) & (e[:, 3] == 0)
+        e5  = (e[:, 0] == 0) & (e[:, 1] == 0) & (e[:, 2] == 1) & (e[:, 3] == 0)
+        e6  = (e[:, 0] == 0) & (e[:, 1] == 0) & (e[:, 2] == 0) & (e[:, 3] == 1)
+        e7  = (e[:, 0] == 1) & (e[:, 1] == 1) & (e[:, 2] == 0) & (e[:, 3] == 0)
+        e8  = (e[:, 0] == 1) & (e[:, 1] == 0) & (e[:, 2] == 1) & (e[:, 3] == 0)
+        e9  = (e[:, 0] == 1) & (e[:, 1] == 0) & (e[:, 2] == 0) & (e[:, 3] == 1)
+        e10 = (e[:, 0] == 0) & (e[:, 1] == 1) & (e[:, 2] == 1) & (e[:, 3] == 0)
+        e11 = (e[:, 0] == 0) & (e[:, 1] == 1) & (e[:, 2] == 0) & (e[:, 3] == 1)
+        e12 = (e[:, 0] == 0) & (e[:, 1] == 0) & (e[:, 2] == 1) & (e[:, 3] == 1)
+        e13 = (e[:, 0] == 1) & (e[:, 1] == 1) & (e[:, 2] == 1) & (e[:, 3] == 0)
+        e14 = (e[:, 0] == 1) & (e[:, 1] == 1) & (e[:, 2] == 0) & (e[:, 3] == 1)
+        e15 = (e[:, 0] == 1) & (e[:, 1] == 0) & (e[:, 2] == 1) & (e[:, 3] == 1)
+        e16 = (e[:, 0] == 0) & (e[:, 1] == 1) & (e[:, 2] == 1) & (e[:, 3] == 1)
 
         loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3) \
             + torch.sum(e4 * p4) + torch.sum(e5 * p5) + torch.sum(e6 * p6) \

@@ -117,7 +117,7 @@ class MENSA:
         
         self.model.to(self.device)
         min_delta = 0.001
-        best_val_loss = float('inf')
+        best_valid_loss = float('inf')
         epochs_no_improve = 0
         
         for itr in range(n_epochs):
@@ -131,7 +131,7 @@ class MENSA:
                 params = self.model.forward(xi) # run forward pass
                 if multi_event:
                     f, s = self.compute_risks_multi(params, ti, self.model.risks)
-                    loss = conditional_weibull_loss_multi(f, s, ei, self.model.risks, self.device)
+                    loss = conditional_weibull_loss_multi(f, s, ei, self.model.risks)
                 else:
                     f, s = self.compute_risks(params, ti, self.model.risks)
                     loss = conditional_weibull_loss(f, s, ei, self.model.risks)
@@ -152,7 +152,7 @@ class MENSA:
                     params = self.model.forward(xi) # run forward pass
                     if multi_event:
                         f, s = self.compute_risks_multi(params, ti, self.model.risks)
-                        loss = conditional_weibull_loss_multi(f, s, ei, self.model.risks, self.device)
+                        loss = conditional_weibull_loss_multi(f, s, ei, self.model.risks)
                     else:
                         f, s = self.compute_risks(params, ti, self.model.risks)
                         loss = conditional_weibull_loss(f, s, ei, self.model.risks)
@@ -163,21 +163,21 @@ class MENSA:
                 
             if use_wandb:
                 wandb.log({"train_loss": avg_train_loss})
-                wandb.log({"val_loss": avg_valid_loss})
+                wandb.log({"valid_loss": avg_valid_loss})
 
             if verbose:
                 print(itr, "/", n_epochs,
                       "train_loss: ", round(avg_train_loss, 4),
-                      "val_loss: ", round(avg_valid_loss, 4))
+                      "valid_loss: ", round(avg_valid_loss, 4))
 
             # Check for early stopping
-            if avg_valid_loss < best_val_loss - min_delta:
-                best_val_loss = avg_valid_loss
+            if avg_valid_loss < best_valid_loss - min_delta:
+                best_valid_loss = avg_valid_loss
                 epochs_no_improve = 0
             else:
                 epochs_no_improve += 1
             if epochs_no_improve >= patience:
-                print(f"Early stopping at iteration {itr}, best val loss: {best_val_loss}")
+                print(f"Early stopping at iteration {itr}, best valid loss: {best_valid_loss}")
                 break
         
     def compute_risks(self, params, ti, n_risks):
