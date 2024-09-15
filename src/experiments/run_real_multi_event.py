@@ -155,7 +155,6 @@ if __name__ == "__main__":
                 preds = pd.DataFrame(event_preds[i], columns=bin_locations)
                 all_preds.append(preds)
         elif model_name == "mensa":
-            model_preds = model.predict(test_dict['X'], time_bins)
             all_preds = []
             for i in range(n_events):
                 model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)
