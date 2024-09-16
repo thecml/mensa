@@ -129,11 +129,11 @@ if __name__ == "__main__":
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            lr_dict = {'network': lr, 'copula':lr}
+            lr_dict = {'network': lr}
             model = MENSA(n_features, layers=layers, n_events=n_events,
-                          n_dists=n_dists, copula=None, device=device)
+                          n_dists=n_dists, device=device)
             model.fit(train_dict, valid_dict, lr_dict=lr_dict, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, multi=True, verbose=False)
+                      patience=10, batch_size=batch_size, verbose=True)
         else:
             raise NotImplementedError()
         
@@ -155,7 +155,6 @@ if __name__ == "__main__":
                 preds = pd.DataFrame(event_preds[i], columns=bin_locations)
                 all_preds.append(preds)
         elif model_name == "mensa":
-            model_preds = model.predict(test_dict['X'], time_bins)
             all_preds = []
             for i in range(n_events):
                 model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)

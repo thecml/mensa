@@ -258,13 +258,6 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         n_features = data_config['n_features']
         adm_censoring_time = data_config['adm_censoring_time']
         
-        thetas = [kendall_tau_to_theta(copula_names[i], k_taus[i]) for i in range(3)]
-        copula_parameters = [
-            {"type": copula_names[0], "weight": 1 / 3, "theta": thetas[0]},
-            {"type": copula_names[1], "weight": 1 / 3, "theta": thetas[1]},
-            {"type": copula_names[2], "weight": 1 / 3, "theta": thetas[2]}
-        ]
-
         X = torch.rand((n_samples, n_features), device=device, dtype=dtype)
         
         if linear:
@@ -279,15 +272,28 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
             dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e3]*n_hidden,
                                          gamma=[gamma_e3]*n_hidden, device=device, dtype=dtype)
 
-        u_e1, u_e2, u_e3 = simulation.simu_mixture(3, n_samples, copula_parameters)
-        u = torch.from_numpy(u_e1).type(dtype).reshape(-1,1)
-        v = torch.from_numpy(u_e2).type(dtype).reshape(-1,1)
-        w = torch.from_numpy(u_e3).type(dtype).reshape(-1,1)
-        uv = torch.cat([u,v,w], axis=1).to(device)
+        if copula_names is None or all(v == 0 for v in k_taus):
+            rng = np.random.default_rng(0)
+            u = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
+            v = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
+            w = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
+            uvw = torch.stack([u, v, w], dim=1)
+        else:
+            thetas = [kendall_tau_to_theta(copula_names[i], k_taus[i]) for i in range(3)]
+            copula_parameters = [
+                {"type": copula_names[0], "weight": 1 / 3, "theta": thetas[0]},
+                {"type": copula_names[1], "weight": 1 / 3, "theta": thetas[1]},
+                {"type": copula_names[2], "weight": 1 / 3, "theta": thetas[2]}
+            ]
+            u_e1, u_e2, u_e3 = simulation.simu_mixture(3, n_samples, copula_parameters)
+            u = torch.from_numpy(u_e1).type(dtype).reshape(-1,1)
+            v = torch.from_numpy(u_e2).type(dtype).reshape(-1,1)
+            w = torch.from_numpy(u_e3).type(dtype).reshape(-1,1)
+            uvw = torch.cat([u,v,w], axis=1).to(device)
         
-        t1_times = dgp1.rvs(X, uv[:,0]).cpu()
-        t2_times = dgp2.rvs(X, uv[:,1]).cpu()
-        t3_times = dgp3.rvs(X, uv[:,2]).cpu()
+        t1_times = dgp1.rvs(X, uvw[:,0]).cpu()
+        t2_times = dgp2.rvs(X, uvw[:,1]).cpu()
+        t3_times = dgp3.rvs(X, uvw[:,2]).cpu()
         
         # Make adm. censoring
         event_times = np.stack([t1_times, t2_times, t3_times], axis=1)
