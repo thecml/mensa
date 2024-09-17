@@ -132,10 +132,10 @@ class MENSA:
                 
                 params = self.model.forward(xi) # run forward pass
                 if multi_event:
-                    f, s = self.compute_risks_multi(params, ti, self.model.n_events)
+                    f, s = self.compute_risks_multi(params, ti)
                     loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_events)
                 else:
-                    f, s = self.compute_risks(params, ti, self.model.n_events)
+                    f, s = self.compute_risks(params, ti)
                     loss = conditional_weibull_loss(f, s, ei, self.model.n_events)
                         
                 loss.backward()
@@ -153,10 +153,10 @@ class MENSA:
                 for xi, ti, ei in valid_loader:
                     params = self.model.forward(xi) # run forward pass
                     if multi_event:
-                        f, s = self.compute_risks_multi(params, ti, self.model.n_events)
+                        f, s = self.compute_risks_multi(params, ti)
                         loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_events)
                     else:
-                        f, s = self.compute_risks(params, ti, self.model.n_events)
+                        f, s = self.compute_risks(params, ti)
                         loss = conditional_weibull_loss(f, s, ei, self.model.n_events)
                     
                     total_valid_loss += loss.item()
@@ -181,10 +181,10 @@ class MENSA:
                 print(f"Early stopping at iteration {itr}, best valid loss: {best_valid_loss}")
                 break
         
-    def compute_risks(self, params, ti, n_risks):
+    def compute_risks(self, params, ti):
         f_risks = []
         s_risks = []
-        ti = ti.reshape(-1,1).expand(-1, self.model.n_dists) #(n, k)
+        ti = ti.reshape(-1,1).expand(-1, self.model.n_dists)
         for i in range(self.model.n_events):
             k = params[i][0]
             b = params[i][1]
@@ -193,20 +193,20 @@ class MENSA:
             f = k + b + ((torch.exp(k)-1)*(b+torch.log(ti)))
             f = f + s
             s = (s + gate)
-            s = torch.logsumexp(s, dim=1) #log_survival
+            s = torch.logsumexp(s, dim=1)
             f = (f + gate)
-            f = torch.logsumexp(f, dim=1) #log_density
-            f_risks.append(f) #(n,3) each column for one risk
+            f = torch.logsumexp(f, dim=1)
+            f_risks.append(f)
             s_risks.append(s)
         f = torch.stack(f_risks, dim=1)
         s = torch.stack(s_risks, dim=1)
         return f, s
     
-    def compute_risks_multi(self, params, ti, n_risks):
+    def compute_risks_multi(self, params, ti):
         f_risks = []
         s_risks = []
         for i in range(self.model.n_events):
-            t = ti[:,i].reshape(-1,1).expand(-1, self.model.n_dists) #(n, k)
+            t = ti[:,i].reshape(-1,1).expand(-1, self.model.n_dists)
             k = params[i][0]
             b = params[i][1]
             gate = nn.LogSoftmax(dim=1)(params[i][2])
@@ -214,10 +214,10 @@ class MENSA:
             f = k + b + ((torch.exp(k)-1)*(b+torch.log(t)))
             f = f + s
             s = (s + gate)
-            s = torch.logsumexp(s, dim=1)#log_survival
+            s = torch.logsumexp(s, dim=1)
             f = (f + gate)
-            f = torch.logsumexp(f, dim=1)#log_density
-            f_risks.append(f)#(n,3) each column for one risk
+            f = torch.logsumexp(f, dim=1)
+            f_risks.append(f)
             s_risks.append(s)
         f = torch.stack(f_risks, dim=1)
         s = torch.stack(s_risks, dim=1)
@@ -226,8 +226,7 @@ class MENSA:
     def predict(self, x_test, time_bins, risk=0):
         """
         Courtesy of https://github.com/autonlab/DeepSurvivalMachines
-        """    
-    
+        """
         t = list(time_bins.cpu().numpy())
         params = self.model.forward(x_test)
         

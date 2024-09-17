@@ -1,7 +1,7 @@
 """
 run_real_multi_event.py
 ====================================
-Models: ["deepsurv", 'hierarch', 'mensa']
+Models: ['deepsurv', 'hierarch', 'mensa']
 """
 
 # 3rd party
@@ -45,7 +45,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'hierarch', 'mensa']
+MODELS = ['deepsurv', 'hierarch', 'mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
