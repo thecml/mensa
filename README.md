@@ -16,7 +16,7 @@ The code was tested in virtual environment with Python 3.9 and PyTorch 1.13.1.
 1. First, install the required packages specified in the [Requirements.txt](https://github.com/thecml/mensa/blob/main/requirements.txt) file.
 2. Install the src directory by runnning: pip install -e .
 3. Refer to config.py to set appropriate paths. By default, the results are in results folder.
-4. This [Demo Notebook](https://github.com/thecml/mensa/blob/main/src/notebooks/demo.ipynb) shows practical examples on how to train MENSA.
+4. This [Demo Notebook](https://github.com/thecml/mensa/blob/main/notebooks/demo.ipynb) shows practical examples on how to train MENSA.
 5. To reproduce the paper results, please first obtain the evaluated datasets. Rotterdam is provided in the /data directory. The MIMIC-IV, SEER and PRO-ACT datasets need to be downloaded from their respective website and preprocessed according to the description in the Supplementary Material. The experiments can then be performed by running the bash scripts in /scripts.
 
 License
