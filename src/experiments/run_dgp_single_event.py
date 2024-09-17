@@ -169,9 +169,8 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             model = MENSA(n_features, layers=layers, n_events=2, device=device)
-            lr_dict = {'network': lr}
             model.fit(train_dict, valid_dict, optimizer='adam', verbose=False, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, lr_dict=lr_dict)
+                      patience=10, batch_size=batch_size, learning_rate=lr)
         elif model_name == "dgp":
             pass
         else:
