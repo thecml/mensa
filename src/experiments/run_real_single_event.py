@@ -149,9 +149,8 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             model = MENSA(n_features, layers=layers, n_dists=n_dists, n_events=2, device=device)
-            lr_dict = {'network': lr}
             model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, lr_dict=lr_dict)
+                      patience=10, batch_size=batch_size, learning_rate=lr)
         else:
             raise NotImplementedError()
         

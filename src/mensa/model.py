@@ -9,7 +9,7 @@ from tqdm import trange
 
 from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi
 
-def create_representation(inputdim, layers, activation, bias=True):
+def create_representation(input_dim, layers, activation, bias=True):
     if activation == 'ReLU6':
         act = nn.ReLU6()
     elif activation == 'ReLU':
@@ -20,7 +20,7 @@ def create_representation(inputdim, layers, activation, bias=True):
         act = nn.Tanh()
 
     modules = []
-    prevdim = inputdim
+    prevdim = input_dim
 
     for hidden in layers:
         modules.append(nn.Linear(prevdim, hidden, bias=bias))
@@ -29,68 +29,75 @@ def create_representation(inputdim, layers, activation, bias=True):
 
     return nn.Sequential(*modules)
 
-class DeepSurvivalMachinesTorch(torch.nn.Module):
+class MLP(torch.nn.Module):
     """"
-    k: number of distributions
-    temp: 1000 default, temprature for softmax
-    discount: not used yet 
+    input_dim: the input dimension, i.e., number of features.
+    num_dists: number of Weibull distributions.
+    layers: layers and size of the network, e.g., [32, 32].
+    temp: 1000 default, temperature for softmax function.
+    num_events: number of events (K).
+    discount: not used yet.
     """
-    def __init__(self, inputdim, k, layers, temp, risks, discount=1.0):
-        super(DeepSurvivalMachinesTorch, self).__init__()
+    def __init__(self, input_dim, n_dists, layers, temp, n_events, discount=1.0):
+        super(MLP, self).__init__()
 
-        self.k = k
+        self.n_dists = n_dists
         self.temp = float(temp)
         self.discount = float(discount)
         
-        self.risks = risks
+        self.n_events = n_events
 
         if layers is None: layers = []
         self.layers = layers
 
-        if len(layers) == 0: lastdim = inputdim
+        if len(layers) == 0: lastdim = input_dim
         else: lastdim = layers[-1]
 
         self.act = nn.SELU()
-        self.shape = nn.Parameter(-torch.ones(self.k * risks)) #(k * risk)
-        self.scale = nn.Parameter(-torch.ones(self.k * risks))
+        self.shape = nn.Parameter(-torch.ones(self.n_dists * n_events))
+        self.scale = nn.Parameter(-torch.ones(self.n_dists * n_events))
 
-        self.gate = nn.Linear(lastdim, self.k * self.risks, bias=False)
-        self.scaleg = nn.Linear(lastdim, self.k * self.risks, bias=True)
-        self.shapeg = nn.Linear(lastdim, self.k * self.risks, bias=True)
-        self.embedding = create_representation(inputdim, layers, 'ReLU6') # ReLU6
+        self.gate = nn.Linear(lastdim, self.n_dists * self.n_events, bias=False)
+        self.scaleg = nn.Linear(lastdim, self.n_dists * self.n_events, bias=True)
+        self.shapeg = nn.Linear(lastdim, self.n_dists * self.n_events, bias=True)
+        self.embedding = create_representation(input_dim, layers, 'ReLU6')
 
     def forward(self, x):
         xrep = self.embedding(x)
         dim = x.shape[0]
-        shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim,-1), min=-10, max=10)
-        scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim,-1), min=-10, max=10)
+        shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim, -1), min=-10, max=10)
+        scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim, -1), min=-10, max=10)
         gate = self.gate(xrep) / self.temp
         outcomes = []
-        for i in range(self.risks):
-            outcomes.append((shape[:,i*self.k:(i+1)* self.k], scale[:,i*self.k:(i+1)* self.k], gate[:,i*self.k:(i+1)* self.k]))
-            
+        for i in range(self.n_events):
+            outcomes.append((shape[:,i*self.n_dists:(i+1)*self.n_dists],
+                             scale[:,i*self.n_dists:(i+1)*self.n_dists],
+                             gate[:,i*self.n_dists:(i+1)*self.n_dists]))
         return outcomes
         
 class MENSA:
-    def __init__(self, n_features, n_events, n_dists=5,
-                 layers=[32, 32], device='cuda'):
-        
+    """
+    This is a wrapper class for the actual model that implements a convenient fit() function.
+    n_features: number of features
+    n_events: number of events (K)
+    n_dists: number of Weibull distributions
+    layers: layers and size of the network, e.g., [32, 32].
+    device: device to use, e.g., cpu or cuda
+    """
+    def __init__(self, n_features, n_events, n_dists=5, layers=[32, 32], device='cpu'):
         self.n_features = n_features
-        
         self.n_events = n_events
         self.device = device
-        self.model = DeepSurvivalMachinesTorch(n_features, n_dists, layers, 1000,
-                                               risks=n_events)
+        self.model = MLP(n_features, n_dists, layers, temp=1000, n_events=n_events)
         
     def get_model(self):
         return self.model
     
     def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=20000, 
-            patience=100, optimizer='adam', weight_decay=0.005,
-            lr_dict={'network': 5e-4}, betas=(0.9, 0.999),
-            use_wandb=False, verbose=False):
+            patience=100, optimizer='adam', weight_decay=0.005, learning_rate=5e-4,
+            betas=(0.9, 0.999), use_wandb=False, verbose=False):
 
-        optim_dict = [{'params': self.model.parameters(), 'lr': lr_dict['network']}]
+        optim_dict = [{'params': self.model.parameters(), 'lr': learning_rate}]
         
         if optimizer == 'adam':
             optimizer = torch.optim.Adam(optim_dict, betas=betas, weight_decay=weight_decay)
@@ -125,11 +132,11 @@ class MENSA:
                 
                 params = self.model.forward(xi) # run forward pass
                 if multi_event:
-                    f, s = self.compute_risks_multi(params, ti, self.model.risks)
-                    loss = conditional_weibull_loss_multi(f, s, ei, self.model.risks)
+                    f, s = self.compute_risks_multi(params, ti, self.model.n_events)
+                    loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_events)
                 else:
-                    f, s = self.compute_risks(params, ti, self.model.risks)
-                    loss = conditional_weibull_loss(f, s, ei, self.model.risks)
+                    f, s = self.compute_risks(params, ti, self.model.n_events)
+                    loss = conditional_weibull_loss(f, s, ei, self.model.n_events)
                         
                 loss.backward()
                 optimizer.step()
@@ -146,11 +153,11 @@ class MENSA:
                 for xi, ti, ei in valid_loader:
                     params = self.model.forward(xi) # run forward pass
                     if multi_event:
-                        f, s = self.compute_risks_multi(params, ti, self.model.risks)
-                        loss = conditional_weibull_loss_multi(f, s, ei, self.model.risks)
+                        f, s = self.compute_risks_multi(params, ti, self.model.n_events)
+                        loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_events)
                     else:
-                        f, s = self.compute_risks(params, ti, self.model.risks)
-                        loss = conditional_weibull_loss(f, s, ei, self.model.risks)
+                        f, s = self.compute_risks(params, ti, self.model.n_events)
+                        loss = conditional_weibull_loss(f, s, ei, self.model.n_events)
                     
                     total_valid_loss += loss.item()
                 
@@ -177,8 +184,8 @@ class MENSA:
     def compute_risks(self, params, ti, n_risks):
         f_risks = []
         s_risks = []
-        ti = ti.reshape(-1,1).expand(-1, self.model.k) #(n, k)
-        for i in range(self.model.risks):
+        ti = ti.reshape(-1,1).expand(-1, self.model.n_dists) #(n, k)
+        for i in range(self.model.n_events):
             k = params[i][0]
             b = params[i][1]
             gate = nn.LogSoftmax(dim=1)(params[i][2])
@@ -198,8 +205,8 @@ class MENSA:
     def compute_risks_multi(self, params, ti, n_risks):
         f_risks = []
         s_risks = []
-        for i in range(self.model.risks):
-            t = ti[:,i].reshape(-1,1).expand(-1, self.model.k) #(n, k)
+        for i in range(self.model.n_events):
+            t = ti[:,i].reshape(-1,1).expand(-1, self.model.n_dists) #(n, k)
             k = params[i][0]
             b = params[i][1]
             gate = nn.LogSoftmax(dim=1)(params[i][2])
@@ -217,6 +224,10 @@ class MENSA:
         return f, s
 
     def predict(self, x_test, time_bins, risk=0):
+        """
+        Courtesy of https://github.com/autonlab/DeepSurvivalMachines
+        """    
+    
         t = list(time_bins.cpu().numpy())
         params = self.model.forward(x_test)
         
@@ -236,7 +247,7 @@ class MENSA:
             t = t_horz[:, j]
             lcdfs = []
 
-            for g in range(self.model.k):
+            for g in range(self.model.n_dists):
 
                 k = k_[:, g]
                 b = b_[:, g]
