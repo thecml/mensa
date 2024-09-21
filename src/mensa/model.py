@@ -7,7 +7,7 @@ import numpy as np
 
 from tqdm import trange
 
-from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi
+from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi, safe_log
 
 def create_representation(input_dim, layers, activation, bias=True):
     if activation == 'ReLU6':
@@ -190,7 +190,7 @@ class MENSA:
             b = params[i][1]
             gate = nn.LogSoftmax(dim=1)(params[i][2])
             s = - (torch.pow(torch.exp(b)*ti, torch.exp(k)))
-            f = k + b + ((torch.exp(k)-1)*(b+torch.log(ti)))
+            f = k + b + ((torch.exp(k)-1)*(b+safe_log(ti)))
             f = f + s
             s = (s + gate)
             s = torch.logsumexp(s, dim=1)
@@ -211,7 +211,7 @@ class MENSA:
             b = params[i][1]
             gate = nn.LogSoftmax(dim=1)(params[i][2])
             s = - (torch.pow(torch.exp(b)*t, torch.exp(k)))
-            f = k + b + ((torch.exp(k)-1)*(b+torch.log(t)))
+            f = k + b + ((torch.exp(k)-1)*(b+safe_log(t)))
             f = f + s
             s = (s + gate)
             s = torch.logsumexp(s, dim=1)
