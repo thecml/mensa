@@ -54,7 +54,7 @@ if __name__ == "__main__":
                 for i, metric_name in enumerate(metric_names):
                     metric_result = results[metric_name]
                     if metric_name == "DCalib":
-                        d_calib = calculate_d_calib(df, model_name, dataset_name, event_id)
+                        d_calib = calculate_d_calib(df, model_name, dataset_name, event_id+1)
                         text += f"{d_calib}"
                     else:
                         mean = f"%.{N_DECIMALS}f" % round(np.mean(metric_result), N_DECIMALS)
