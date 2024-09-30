@@ -354,6 +354,7 @@ class ALSMultiDataLoader(BaseDataLoader):
                     & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)] # min time
         df = df.loc[(df['Speech_Observed'] <= 1000) & (df['Swallowing_Observed'] <= 1000)
                     & (df['Handwriting_Observed'] <= 1000) & (df['Walking_Observed'] <= 1000)] # max time
+        df['El_escorial'] = df['El_escorial'].replace('Possible', 'Probable') # Replace "Possible" with "Probable"
         events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
         self.X = df.drop(columns_to_drop, axis=1)
         self.columns = list(self.X.columns)
