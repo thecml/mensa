@@ -20,7 +20,7 @@ def conditional_weibull_loss(f, s, e, n_risks):
         e1 = (e == 0) * 1.0
         e2 = (e == 1) * 1.0
         e3 = (e == 2) * 1.0
-        e4 = (e == 2) * 1.0
+        e4 = (e == 3) * 1.0
         loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3) + torch.sum(e4 * p4)
         loss = -loss/e.shape[0]
     elif n_risks == 3:
