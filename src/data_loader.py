@@ -968,7 +968,7 @@ def get_data_loader(dataset_name:str) -> BaseDataLoader:
         return CompetingRiskSyntheticDataLoader()
     elif dataset_name == "synthetic_me":
         return MultiEventSyntheticDataLoader()
-    elif dataset_name == "embt_me":
+    elif dataset_name == "ebmt_me":
         return EbmtDataLoader()   
     elif dataset_name == "rotterdam_me":
         return RotterdamMultiDataLoader()

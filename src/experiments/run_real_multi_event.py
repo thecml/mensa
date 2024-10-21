@@ -145,7 +145,7 @@ if __name__ == "__main__":
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            if dataset_name == 'embt_me':
+            if dataset_name == 'ebmt_me':
                 trajectories = [(2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)]
             elif dataset_name == 'rotterdam_me':
                 trajectories = [(1, 0)]
