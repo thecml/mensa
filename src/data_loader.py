@@ -845,6 +845,106 @@ class MimicCompetingDataLoader(BaseDataLoader):
             
         return dicts[0], dicts[1], dicts[2]
 
+class EbmtDataLoader(BaseDataLoader):
+    """
+    Data loader for Ebmt dataset (ME)
+    """
+    def load_data(self, n_samples:int = None):
+        '''
+        t and e order, followed by arf, shock, death
+        '''
+        df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, 'ebmt.csv'), index_col=0)
+
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
+                            
+        columns_to_drop = [col for col in df.columns if
+                           any(substring in col for substring in ['_event', '_time', 'sample_id'])]
+        self.events_names = ['2', '3', '4', '5', '6'] 
+        self.X_columns = ['match_no gender mismatch', 'proph_yes', 'year_1990-1994', 'year_1995-1998', 'agecl_<=20', 'agecl_>40']
+        self.E_columns = [substring + '_event' for substring in self.events_names]
+        self.T_columns = [substring + '_time' for substring in self.events_names]        
+        self.columns = list(self.X_columns)
+        self.X = df[self.X_columns]
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+        
+        self.n_events = 5
+        self.df = df
+        self.trajectories = [(2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)]
+        # 2 < 4, 2 < 5, 2 < 6, 3 < 4 , 3< 5, 3 < 6, 4 < 5, 4 < 6
+        # 0 < 2, 0 < 3, 0 < 4, 1 < 2, 1 < 3, 1 < 4, 2 < 3, 2 < 4
+        # (2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)        
+        return self
+
+    def split_data(self, train_size: float, valid_size: float,
+                   test_size: float, dtype=torch.float64, random_state=0):
+        # print ('self.df', self.df)
+        self.df['time'] = self.df['2_time']
+        df_train, df_valid, df_test = make_stratified_split(self.df, stratify_colname='time', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            random_state=random_state)
+        
+        dataframes = [df_train, df_valid, df_test]
+        dicts = []
+        for dataframe in dataframes:
+            data_dict = dict()
+            data_dict['X'] = dataframe[self.X_columns].values
+            data_dict['E'] = dataframe[self.E_columns].astype(np.int64).values
+            data_dict['T'] = dataframe[self.T_columns].astype(np.int64).values
+            dicts.append(data_dict)
+            
+        return dicts[0], dicts[1], dicts[2]       
+
+class RotterdamMultiDataLoader(BaseDataLoader):
+    """
+    Data loader for Rotterdam dataset (ME)
+    """
+    def load_data(self, n_samples:int = None):
+        '''
+        Events: 0 censor, 1 death, 2 recur
+        '''
+        df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
+        size_mapping = {
+            '<=20': 10,
+            '20-50': 35,
+            '>50': 75
+        }
+        # Apply mapping
+        df['size_map'] = df['size'].replace(size_mapping)
+        self.df = df
+        self.X = df.drop(['pid', 'size', 'rtime', 'recur', 'dtime', 'death'], axis=1)
+        self.columns = list(self.X.columns)
+        self.X_columns = self.X.columns
+        self.E_columns = ['recur', 'death']
+        self.T_columns = ['rtime', 'dtime']       
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+        self.n_events = 2
+        self.trajectories = [(1, 0)]
+        return self
+        
+    def split_data(self, train_size: float, valid_size: float,
+                   test_size: float, dtype=torch.float64, random_state=0):
+        self.df['time'] = self.df['dtime']
+        df_train, df_valid, df_test = make_stratified_split(self.df, stratify_colname='time', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            random_state=random_state)
+        
+        dataframes = [df_train, df_valid, df_test]
+        dicts = []
+        for dataframe in dataframes:
+            data_dict = dict()
+            data_dict['X'] = dataframe[self.X_columns].values
+            data_dict['E'] = dataframe[self.E_columns].astype(np.int64).values
+            data_dict['T'] = dataframe[self.T_columns].astype(np.int64).values
+            dicts.append(data_dict)
+            
+        return dicts[0], dicts[1], dicts[2]       
+
+    
 def get_data_loader(dataset_name:str) -> BaseDataLoader:
     if dataset_name == "seer_se":
         return SeerSingleDataLoader()
@@ -868,6 +968,10 @@ def get_data_loader(dataset_name:str) -> BaseDataLoader:
         return CompetingRiskSyntheticDataLoader()
     elif dataset_name == "synthetic_me":
         return MultiEventSyntheticDataLoader()
+    elif dataset_name == "embt_me":
+        return EbmtDataLoader()   
+    elif dataset_name == "rotterdam_me":
+        return RotterdamMultiDataLoader()
     else:
         raise ValueError("Dataset not found")
         
