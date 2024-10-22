@@ -49,22 +49,32 @@ def conditional_weibull_loss(f, s, e, n_risks):
     return loss
 
 # Conditional Weibull loss for multi-event
+# def conditional_weibull_loss_multi(f, s, e, n_risks: int):    
+#     permutations = generate_boolean_permutations(n_risks)
+#     loss = 0.0
+#     batch_size = e.shape[0]
+#     for permutation in permutations:
+#         temp_p = torch.zeros(batch_size, device=f.device, dtype=f.dtype)
+#         temp_e = torch.ones(batch_size, device=e.device, dtype=torch.bool)
+#         for idx, bool_num in enumerate(permutation):            
+#             if bool_num:
+#                 temp_p += f[:, idx]
+#                 temp_e &= e[:, idx] == 1
+#             else:
+#                 temp_p += s[:, idx]
+#                 temp_e &= e[:, idx] == 0
+#         # Only accumulate loss where temp_e is True
+#         if temp_e.any():
+#             loss += torch.sum(temp_p[temp_e])
+#     loss = -loss / batch_size
+#     return loss
+
 def conditional_weibull_loss_multi(f, s, e, n_risks: int):    
-    permutations = generate_boolean_permutations(n_risks)
     loss = 0.0
-    batch_size = e.shape[0]
-    for permutation in permutations:
-        temp_p = torch.zeros(batch_size, device=f.device, dtype=f.dtype)
-        temp_e = torch.ones(batch_size, device=e.device, dtype=torch.bool)
-        for idx, bool_num in enumerate(permutation):            
-            if bool_num:
-                temp_p += f[:, idx]
-                temp_e &= e[:, idx] == 1
-            else:
-                temp_p += s[:, idx]
-                temp_e &= e[:, idx] == 0
-        # Only accumulate loss where temp_e is True
-        if temp_e.any():
-            loss += torch.sum(temp_p[temp_e])
-    loss = -loss / batch_size
+    for k in range(n_risks):
+        temp = (e[:, k] == 1)          
+        loss += torch.sum(temp*f[:, k].T)
+        loss += torch.sum(~temp*s[:, k].T)        
+    loss = -loss / e.shape[0]
     return loss
+
