@@ -943,35 +943,35 @@ class RotterdamMultiDataLoader(BaseDataLoader):
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]       
-
     
-def get_data_loader(dataset_name:str) -> BaseDataLoader:
-    if dataset_name == "seer_se":
-        return SeerSingleDataLoader()
-    elif dataset_name == "mimic_se":
-        return MimicSingleDataLoader()
-    elif dataset_name == "mimic_cr":
-        return MimicCompetingDataLoader()
-    elif dataset_name == "seer_cr":
-        return SeerCompetingDataLoader()
-    elif dataset_name == "als_me":
-        return ALSMultiDataLoader()
-    elif dataset_name == "mimic_me":
-        return MimicMultiDataLoader()
-    elif dataset_name == "mimic_cr":
-        return MimicCompetingDataLoader()        
-    elif dataset_name == "rotterdam_cr":
-        return RotterdamCompetingDataLoader()
-    elif dataset_name == "synthetic_se":
-        return SingleEventSyntheticDataLoader()
-    elif dataset_name == "synthetic_cr":
-        return CompetingRiskSyntheticDataLoader()
-    elif dataset_name == "synthetic_me":
-        return MultiEventSyntheticDataLoader()
-    elif dataset_name == "ebmt_me":
-        return EbmtDataLoader()   
-    elif dataset_name == "rotterdam_me":
-        return RotterdamMultiDataLoader()
+def get_data_loader(dataset_name: str) -> BaseDataLoader:
+    if dataset_name in ["synthetic_se", "seer_se", "mimic_se"]:
+        if dataset_name == "synthetic_se":
+            return SingleEventSyntheticDataLoader()
+        elif dataset_name == "seer_se":
+            return SeerSingleDataLoader()
+        elif dataset_name == "mimic_se":
+            return MimicSingleDataLoader()
+    elif dataset_name in ["synthetic_cr", "mimic_cr", "seer_cr", "rotterdam_cr"]:
+        if dataset_name == "synthetic_cr":
+            return CompetingRiskSyntheticDataLoader()
+        elif dataset_name == "mimic_cr":
+            return MimicCompetingDataLoader()
+        elif dataset_name == "seer_cr":
+            return SeerCompetingDataLoader()
+        elif dataset_name == "rotterdam_cr":
+            return RotterdamCompetingDataLoader()
+    elif dataset_name in ["als_me", "mimic_me", "synthetic_me", "ebmt_me", "rotterdam_me"]:
+        if dataset_name == "als_me":
+            return ALSMultiDataLoader()
+        elif dataset_name == "mimic_me":
+            return MimicMultiDataLoader()
+        elif dataset_name == "synthetic_me":
+            return MultiEventSyntheticDataLoader()
+        elif dataset_name == "ebmt_me":
+            return EbmtDataLoader()
+        elif dataset_name == "rotterdam_me":
+            return RotterdamMultiDataLoader()
     else:
         raise ValueError("Dataset not found")
         
