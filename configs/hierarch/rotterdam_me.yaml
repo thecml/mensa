@@ -1,0 +1,13 @@
+num_events: 2
+num_bins: 56
+terminal_events: []
+discrete: False
+event_ranks: {0: [1], 1: []} #0 is recurrence, 1 is death
+event_groups: {
+                0: [0, 1],
+                1: [1]
+              }
+min_time: 1
+max_time: 56
+min_epoch: 1
+max_epoch: 1000

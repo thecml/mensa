@@ -137,7 +137,7 @@ class MENSA:
                 else:
                     f, s = self.compute_risks(params, ti)
                     loss = conditional_weibull_loss(f, s, ei, self.model.n_events)
-                        
+
                 loss.backward()
                 optimizer.step()
                 
