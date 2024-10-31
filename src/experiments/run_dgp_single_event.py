@@ -17,7 +17,6 @@ import warnings
 import argparse
 import os
 from scipy.interpolate import interp1d
-from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
 from data_loader import SingleEventSyntheticDataLoader
@@ -27,7 +26,6 @@ from utility.data import dotdict
 from utility.config import load_config
 from mensa.model import MENSA
 from utility.data import format_data_deephit_single
-from copula import Convex_bivariate
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
@@ -52,7 +50,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["cox", "rsf", "deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "dgp"]
+MODELS = ["cox", "rsf", "deepsurv", "deephit", "mtlr", "dsm", "mensa", "dgp"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
