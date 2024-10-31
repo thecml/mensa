@@ -1,0 +1,16 @@
+num_events: 5
+num_bins: 56
+terminal_events: []
+discrete: False
+event_ranks: {0: [2, 3, 4], 1: [2, 3, 4], 2: [3, 4], 3: [], 4: []} #0 Rec, 1 AE, 2 AE & Rec, 3 Relpase, 4 Death
+event_groups: {
+                0: [0, 1],
+                1: [2, 3, 4],
+                2: [3, 4],
+                3: [],
+                4: [],                
+              }
+min_time: 1
+max_time: 56
+min_epoch: 1
+max_epoch: 1000

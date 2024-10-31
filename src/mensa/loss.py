@@ -11,42 +11,42 @@ def generate_boolean_permutations(n):
     return permutations
 
 # Conditional Weibull loss for single-event and competing risks
-def conditional_weibull_loss(f, s, e, n_risks):
-    if n_risks == 4:
-        p1 = f[:,0] + s[:,1] + s[:,2] + s[:,3]
-        p2 = s[:,0] + f[:,1] + s[:,2] + s[:,3]
-        p3 = s[:,0] + s[:,1] + f[:,2] + s[:,3]
-        p4 = s[:,0] + s[:,1] + s[:,2] + f[:,3]
-        e1 = (e == 0) * 1.0
-        e2 = (e == 1) * 1.0
-        e3 = (e == 2) * 1.0
-        e4 = (e == 3) * 1.0
-        loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3) + torch.sum(e4 * p4)
-        loss = -loss/e.shape[0]
-    elif n_risks == 3:
-        p1 = f[:,0] + s[:,1] + s[:,2]
-        p2 = s[:,0] + f[:,1] + s[:,2]
-        p3 = s[:,0] + s[:,1] + f[:,2]
-        e1 = (e == 0) * 1.0
-        e2 = (e == 1) * 1.0
-        e3 = (e == 2) * 1.0
-        loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3)
-        loss = -loss/e.shape[0]
-    elif n_risks == 2:
-        p1 = f[:,0] + s[:,1]
-        p2 = s[:,0] + f[:,1]
-        e1 = (e == 1) * 1.0
-        e2 = (e == 0) * 1.0
-        loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) 
-        loss = -loss/e.shape[0]
-    elif n_risks == 1:
-        e1 = (e == 1) * 1.0
-        e2 = (e == 0) * 1.0
-        loss = torch.sum(e1 * f[:,0]) + torch.sum(e2 * s[:,0]) 
-        loss = -loss/e.shape[0]
-    else:
-        raise NotImplementedError()
-    return loss
+# def conditional_weibull_loss(f, s, e, n_risks):
+#     if n_risks == 4:
+#         p1 = f[:,0] + s[:,1] + s[:,2] + s[:,3]
+#         p2 = s[:,0] + f[:,1] + s[:,2] + s[:,3]
+#         p3 = s[:,0] + s[:,1] + f[:,2] + s[:,3]
+#         p4 = s[:,0] + s[:,1] + s[:,2] + f[:,3]
+#         e1 = (e == 0) * 1.0
+#         e2 = (e == 1) * 1.0
+#         e3 = (e == 2) * 1.0
+#         e4 = (e == 3) * 1.0
+#         loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3) + torch.sum(e4 * p4)
+#         loss = -loss/e.shape[0]
+#     elif n_risks == 3:
+#         p1 = f[:,0] + s[:,1] + s[:,2]
+#         p2 = s[:,0] + f[:,1] + s[:,2]
+#         p3 = s[:,0] + s[:,1] + f[:,2]
+#         e1 = (e == 0) * 1.0
+#         e2 = (e == 1) * 1.0
+#         e3 = (e == 2) * 1.0
+#         loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) + torch.sum(e3 * p3)
+#         loss = -loss/e.shape[0]
+#     elif n_risks == 2:
+#         p1 = f[:,0] + s[:,1]
+#         p2 = s[:,0] + f[:,1]
+#         e1 = (e == 1) * 1.0
+#         e2 = (e == 0) * 1.0
+#         loss = torch.sum(e1 * p1) + torch.sum(e2 * p2) 
+#         loss = -loss/e.shape[0]
+#     elif n_risks == 1:
+#         e1 = (e == 1) * 1.0
+#         e2 = (e == 0) * 1.0
+#         loss = torch.sum(e1 * f[:,0]) + torch.sum(e2 * s[:,0]) 
+#         loss = -loss/e.shape[0]
+#     else:
+#         raise NotImplementedError()
+#     return loss
 
 # Conditional Weibull loss for multi-event
 # def conditional_weibull_loss_multi(f, s, e, n_risks: int):    
@@ -72,9 +72,18 @@ def conditional_weibull_loss(f, s, e, n_risks):
 def conditional_weibull_loss_multi(f, s, e, n_risks: int):    
     loss = 0.0
     for k in range(n_risks):
-        temp = (e[:, k] == 1)          
+        temp = (e[:, k] == k)          
         loss += torch.sum(temp*f[:, k].T)
         loss += torch.sum(~temp*s[:, k].T)        
     loss = -loss / e.shape[0]
     return loss
 
+
+def conditional_weibull_loss(f, s, e, n_risks: int):    
+    loss = 0.0
+    for k in range(n_risks):
+        temp = (e == k)
+        loss += torch.sum(temp*f[:, k].T)
+        loss += torch.sum(~temp*s[:, k].T)        
+    loss = -loss / e.shape[0]
+    return loss
