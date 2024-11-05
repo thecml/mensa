@@ -5,11 +5,10 @@ from typing import List
 from pathlib import Path
 import config as cfg
 import numpy as np
-from hierarchical.data_settings import *
 from pycop import simulation
 from utility.data import kendall_tau_to_theta
 from utility.survival import make_stratified_split
-from dgp import *
+from dgp import DGP_Weibull_linear, DGP_Weibull_nonlinear
 import torch
 import random
 from data import mimic_feature_selection 
@@ -339,7 +338,7 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
             
         return dicts[0], dicts[1], dicts[2]
 
-class ALSMultiDataLoader(BaseDataLoader):
+class PROACTMultiDataLoader(BaseDataLoader):
     """
     Data loader for ALS dataset (ME). Use the PRO-ACT dataset.
     """
@@ -960,9 +959,9 @@ def get_data_loader(dataset_name: str) -> BaseDataLoader:
             return SeerCompetingDataLoader()
         elif dataset_name == "rotterdam_cr":
             return RotterdamCompetingDataLoader()
-    elif dataset_name in ["als_me", "mimic_me", "synthetic_me", "ebmt_me", "rotterdam_me"]:
-        if dataset_name == "als_me":
-            return ALSMultiDataLoader()
+    elif dataset_name in ["proact_me", "mimic_me", "synthetic_me", "ebmt_me", "rotterdam_me"]:
+        if dataset_name == "proact_me":
+            return PROACTMultiDataLoader()
         elif dataset_name == "mimic_me":
             return MimicMultiDataLoader()
         elif dataset_name == "synthetic_me":
