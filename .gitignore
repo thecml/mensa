@@ -7,11 +7,8 @@ __pycache__/
 *.so
 
 # Data
-/data/seer_processed.csv
-/data/PROACT_*
-/data/als.csv
-/data/mimic*
-/data/pat_to_visit.csv
+data/*.csv
+data/*.gz
 
 # Results
 results/*.csv
