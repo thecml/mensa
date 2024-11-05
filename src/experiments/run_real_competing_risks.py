@@ -18,7 +18,7 @@ from scipy.interpolate import interp1d
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
-from utility.survival import (make_time_bins, preprocess_data)
+from utility.survival import (convert_to_structured, make_time_bins, preprocess_data)
 from utility.data import dotdict
 from utility.config import load_config
 from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch)
@@ -27,7 +27,7 @@ from data_loader import get_data_loader
 from mensa.model import MENSA
 
 # SOTA
-from sota_models import (make_deephit_cr, make_dsm_model, train_deepsurv_model,
+from sota_models import (make_cox_model, make_coxboost_model, make_deephit_cr, make_dsm_model, make_rsf_model, train_deepsurv_model,
                          make_deepsurv_prediction, DeepSurv, make_deephit_cr, train_deephit_model)
 from utility.mtlr import train_mtlr_cr
 from hierarchical import util
@@ -49,7 +49,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
+MODELS = ["coxph", "coxboost", "rsf", "deepsurv", 'deephit', 'mtlrcr', 'dsm']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -88,17 +88,47 @@ if __name__ == "__main__":
 
     # Evaluate models
     for model_name in MODELS:
-        if model_name == "deepsurv":
+        if model_name == "coxph":
+            config = dotdict(cfg.COXPH_PARAMS)
+            trained_models = []
+            for i in range(n_events):
+                train_times = train_dict['T'].cpu().numpy()
+                train_events = (train_dict['E'].cpu().numpy() == i+1)*1.0
+                y_train = convert_to_structured(train_times, train_events)
+                model = make_cox_model(config)
+                model.fit(train_dict['X'].cpu(), y_train)
+                trained_models.append(model)
+        elif model_name == "coxboost":
+            config = dotdict(cfg.COXBOOST_PARAMS)
+            trained_models = []
+            for i in range(n_events):
+                train_times = train_dict['T'].cpu().numpy()
+                train_events = (train_dict['E'].cpu().numpy() == i+1)*1.0
+                y_train = convert_to_structured(train_times, train_events)
+                model = make_coxboost_model(config)
+                model.fit(train_dict['X'].cpu(), y_train)
+                trained_models.append(model)
+        elif model_name == "rsf":
+            config = dotdict(cfg.RSF_PARAMS)
+            trained_models = []
+            for i in range(n_events):
+                train_times = train_dict['T'].cpu().numpy()
+                train_events = (train_dict['E'].cpu().numpy() == i+1)*1.0
+                y_train = convert_to_structured(train_times, train_events)
+                model = make_rsf_model(config)
+                model.fit(train_dict['X'].cpu(), y_train)
+                trained_models.append(model)
+        elif model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
             trained_models = []
             for i in range(n_events):
-                model = DeepSurv(in_features=n_features, config=config)
                 data_train = pd.DataFrame(train_dict['X'].cpu().numpy())
                 data_train['time'] = train_dict['T'].cpu().numpy()
                 data_train['event'] = (train_dict['E'].cpu().numpy() == i+1)*1.0
                 data_valid = pd.DataFrame(valid_dict['X'].cpu().numpy())
                 data_valid['time'] = valid_dict['T'].cpu().numpy()
                 data_valid['event'] = (valid_dict['E'].cpu().numpy() == i+1)*1.0
+                model = DeepSurv(in_features=n_features, config=config)
                 model = train_deepsurv_model(model, data_train, data_valid, time_bins, config=config,
                                              random_state=0, reset_model=True, device=device, dtype=dtype)
                 trained_models.append(model)
@@ -166,7 +196,17 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Compute survival function
-        if model_name == "deepsurv":
+        if model_name in ['coxph', 'coxboost', 'rsf']:
+            all_preds = []
+            for trained_model in trained_models:
+                model_preds = trained_model.predict_survival_function(test_dict['X'].cpu())
+                model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
+                spline = interp1d(time_bins.cpu().numpy(), model_preds,
+                                  kind='linear', fill_value='extrapolate')
+                preds = pd.DataFrame(spline(time_bins.cpu().numpy()),
+                                     columns=time_bins.cpu().numpy())
+                all_preds.append(preds)
+        elif model_name == "deepsurv":
             all_preds = []
             for trained_model in trained_models:
                 preds, time_bins_model = make_deepsurv_prediction(trained_model, test_dict['X'].to(device),

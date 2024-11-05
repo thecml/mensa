@@ -49,7 +49,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
 # MODELS = ['deepsurv', 'hierarch', 'mensa']
-MODELS = ['hierarch', 'mensa', 'mensa_trajectory'] #, 'hierarch']
+#MODELS = ['deepsurv', 'hierarch', 'mensa', 'mensa_trajectory'] #, 'hierarch']
+MODELS = ['deepsurv']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

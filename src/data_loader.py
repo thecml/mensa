@@ -343,23 +343,23 @@ class PROACTMultiDataLoader(BaseDataLoader):
     Data loader for ALS dataset (ME). Use the PRO-ACT dataset.
     """
     def load_data(self, n_samples:int = None):
-        df = pd.read_csv(f'{cfg.DATA_DIR}/als.csv', index_col=0)
+        df = pd.read_csv(f'{cfg.DATA_DIR}/proact_processed.csv', index_col=0)
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
-        columns_to_drop = [col for col in df.columns if
-                           any(substring in col for substring in ['Observed', 'Event'])]
-        df = df.loc[(df['Speech_Observed'] > 0) & (df['Swallowing_Observed'] > 0)
-                    & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)] # min time
-        df = df.loc[(df['Speech_Observed'] <= 1000) & (df['Swallowing_Observed'] <= 1000)
-                    & (df['Handwriting_Observed'] <= 1000) & (df['Walking_Observed'] <= 1000)] # max time
-        df['El_escorial'] = df['El_escorial'].replace('Possible', 'Probable') # Replace "Possible" with "Probable"
-        events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
-        self.X = df.drop(columns_to_drop, axis=1)
+        label_cols = [col for col in df.columns if any(substring in col for substring in ['Event', 'TTE'])]
+        event_names = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
+        for event_name in event_names:
+            df = df.loc[(df[f'TTE_{event_name}'] > 0) & (df[f'TTE_{event_name}'] <= 365)] # 1 - 365
+        df = df.drop(df.filter(like='_Strength').columns, axis=1) # Drop strength tests
+        df = df.drop('Race_Caucasian', axis=1) # Drop race information
+        df = df.drop('El_escorial', axis=1) # Drop el_escorial
+        df = df.drop(['Height', 'Weight', 'BMI'], axis=1) # Drop height/weight/bmi
+        self.X = df.drop(label_cols, axis=1)
         self.columns = list(self.X.columns)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
-        times = [df[f'{event_col}_Observed'].values for event_col in events]
-        events = [df[f'{event_col}_Event'].values for event_col in events]
+        times = [df[f'TTE_{event_col}'].values for event_col in event_names]
+        events = [df[f'Event_{event_col}'].values for event_col in event_names]
         self.y_t = np.stack((times[0], times[1], times[2], times[3]), axis=1)
         self.y_e = np.stack((events[0], events[1], events[2], events[3]), axis=1)
         self.n_events = 4
