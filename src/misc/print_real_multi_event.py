@@ -36,7 +36,7 @@ if __name__ == "__main__":
     df = pd.read_csv(path)
     df = df.round(N_DECIMALS).fillna(0)
     
-    dataset_names = ["als_me"]
+    dataset_names = ["proact_me"]
     model_names = ["deepsurv", 'hierarch', 'mensa']
     metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"]
     n_events = 4

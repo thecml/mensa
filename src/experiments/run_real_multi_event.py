@@ -49,13 +49,14 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
 # MODELS = ['deepsurv', 'hierarch', 'mensa']
-MODELS = ['hierarch', 'mensa', 'mensa_trajectory'] #, 'hierarch']
+#MODELS = ['deepsurv', 'hierarch', 'mensa', 'mensa_trajectory'] #, 'hierarch']
+MODELS = ['deepsurv']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='als_me')
+    parser.add_argument('--dataset_name', type=str, default='proact_me')
     
     args = parser.parse_args()
     seed = args.seed

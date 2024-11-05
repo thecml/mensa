@@ -29,7 +29,7 @@ HIERARCH_PARAMS = {
     'verbose': True
 }
 
-COX_PARAMS = {
+COXPH_PARAMS = {
     'alpha': 0,
     'ties': 'breslow',
     'n_iter': 100,

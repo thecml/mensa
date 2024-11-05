@@ -17,7 +17,6 @@ import warnings
 import argparse
 import os
 from scipy.interpolate import interp1d
-from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
 from data_loader import SingleEventSyntheticDataLoader
@@ -27,15 +26,14 @@ from utility.data import dotdict
 from utility.config import load_config
 from mensa.model import MENSA
 from utility.data import format_data_deephit_single
-from copula import Convex_bivariate
 
 # SOTA
 from dcsurvival.dirac_phi import DiracPhi
 from dcsurvival.survival import DCSurvival
 from dcsurvival.model import train_dcsurvival_model
-from sota_models import (make_cox_model, make_coxnet_model, make_coxboost_model,
-                         make_dsm_model, make_rsf_model, train_deepsurv_model,
-                         make_deepsurv_prediction, DeepSurv, make_deephit_single, train_deephit_model)
+from sota_models import (make_cox_model, make_coxboost_model, make_dsm_model,
+                         make_rsf_model, train_deepsurv_model, make_deepsurv_prediction,
+                         DeepSurv, make_deephit_single, train_deephit_model)
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
@@ -52,7 +50,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["cox", "rsf", "deepsurv", "deephit", "mtlr", "dsm", "dcsurvival", "mensa", "dgp"]
+MODELS = ["coxph", "coxboost", "rsf", "deepsurv", 'deephit', "mtlr", "dsm", "mensa", "dgp"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -93,12 +91,8 @@ if __name__ == "__main__":
     # Evaluate each model
     for model_name in MODELS:
         if model_name == "cox":
-            config = dotdict(cfg.COX_PARAMS)
+            config = dotdict(cfg.COXPH_PARAMS)
             model = make_cox_model(config)
-            model.fit(X_train, y_train)
-        elif model_name == "coxnet":
-            config = dotdict(cfg.COXNET_PARAMS)
-            model = make_coxnet_model(config)
             model.fit(X_train, y_train)
         elif model_name == "coxboost":
             config = dotdict(cfg.COXBOOST_PARAMS)
@@ -178,7 +172,7 @@ if __name__ == "__main__":
         
         # Compute survival function
         n_samples = test_dict['X'].shape[0]
-        if model_name in ['cox', 'coxnet', "coxboost", 'rsf']:
+        if model_name in ['cox', "coxboost", 'rsf']:
             model_preds = model.predict_survival_function(X_test)
             model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
         elif model_name == 'dsm':

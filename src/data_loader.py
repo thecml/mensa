@@ -5,11 +5,10 @@ from typing import List
 from pathlib import Path
 import config as cfg
 import numpy as np
-from hierarchical.data_settings import *
 from pycop import simulation
 from utility.data import kendall_tau_to_theta
 from utility.survival import make_stratified_split
-from dgp import *
+from dgp import DGP_Weibull_linear, DGP_Weibull_nonlinear
 import torch
 import random
 from data import mimic_feature_selection 
@@ -75,7 +74,6 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         alpha_e2 = data_config['alpha_e2']
         gamma_e1 = data_config['gamma_e1']
         gamma_e2 = data_config['gamma_e2']
-        n_hidden = data_config['n_hidden']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
         
@@ -85,10 +83,10 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             dgp1 = DGP_Weibull_linear(n_features, alpha_e1, gamma_e1, device, dtype)
             dgp2 = DGP_Weibull_linear(n_features, alpha_e2, gamma_e2, device, dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1]*n_hidden,
-                                         gamma=[gamma_e1]*n_hidden, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2]*n_hidden,
-                                         gamma=[gamma_e2]*n_hidden, device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_nonlinear(n_features, alpha=alpha_e1,
+                                         gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, alpha=alpha_e2,
+                                         gamma=gamma_e2, device=device, dtype=dtype)
             
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -340,28 +338,28 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
             
         return dicts[0], dicts[1], dicts[2]
 
-class ALSMultiDataLoader(BaseDataLoader):
+class PROACTMultiDataLoader(BaseDataLoader):
     """
     Data loader for ALS dataset (ME). Use the PRO-ACT dataset.
     """
     def load_data(self, n_samples:int = None):
-        df = pd.read_csv(f'{cfg.DATA_DIR}/als.csv', index_col=0)
+        df = pd.read_csv(f'{cfg.DATA_DIR}/proact_processed.csv', index_col=0)
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
-        columns_to_drop = [col for col in df.columns if
-                           any(substring in col for substring in ['Observed', 'Event'])]
-        df = df.loc[(df['Speech_Observed'] > 0) & (df['Swallowing_Observed'] > 0)
-                    & (df['Handwriting_Observed'] > 0) & (df['Walking_Observed'] > 0)] # min time
-        df = df.loc[(df['Speech_Observed'] <= 1000) & (df['Swallowing_Observed'] <= 1000)
-                    & (df['Handwriting_Observed'] <= 1000) & (df['Walking_Observed'] <= 1000)] # max time
-        df['El_escorial'] = df['El_escorial'].replace('Possible', 'Probable') # Replace "Possible" with "Probable"
-        events = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
-        self.X = df.drop(columns_to_drop, axis=1)
+        label_cols = [col for col in df.columns if any(substring in col for substring in ['Event', 'TTE'])]
+        event_names = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
+        for event_name in event_names:
+            df = df.loc[(df[f'TTE_{event_name}'] > 0) & (df[f'TTE_{event_name}'] <= 365)] # 1 - 365
+        df = df.drop(df.filter(like='_Strength').columns, axis=1) # Drop strength tests
+        df = df.drop('Race_Caucasian', axis=1) # Drop race information
+        df = df.drop('El_escorial', axis=1) # Drop el_escorial
+        df = df.drop(['Height', 'Weight', 'BMI'], axis=1) # Drop height/weight/bmi
+        self.X = df.drop(label_cols, axis=1)
         self.columns = list(self.X.columns)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
-        times = [df[f'{event_col}_Observed'].values for event_col in events]
-        events = [df[f'{event_col}_Event'].values for event_col in events]
+        times = [df[f'TTE_{event_col}'].values for event_col in event_names]
+        events = [df[f'Event_{event_col}'].values for event_col in event_names]
         self.y_t = np.stack((times[0], times[1], times[2], times[3]), axis=1)
         self.y_e = np.stack((events[0], events[1], events[2], events[3]), axis=1)
         self.n_events = 4
@@ -943,35 +941,35 @@ class RotterdamMultiDataLoader(BaseDataLoader):
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]       
-
     
-def get_data_loader(dataset_name:str) -> BaseDataLoader:
-    if dataset_name == "seer_se":
-        return SeerSingleDataLoader()
-    elif dataset_name == "mimic_se":
-        return MimicSingleDataLoader()
-    elif dataset_name == "mimic_cr":
-        return MimicCompetingDataLoader()
-    elif dataset_name == "seer_cr":
-        return SeerCompetingDataLoader()
-    elif dataset_name == "als_me":
-        return ALSMultiDataLoader()
-    elif dataset_name == "mimic_me":
-        return MimicMultiDataLoader()
-    elif dataset_name == "mimic_cr":
-        return MimicCompetingDataLoader()        
-    elif dataset_name == "rotterdam_cr":
-        return RotterdamCompetingDataLoader()
-    elif dataset_name == "synthetic_se":
-        return SingleEventSyntheticDataLoader()
-    elif dataset_name == "synthetic_cr":
-        return CompetingRiskSyntheticDataLoader()
-    elif dataset_name == "synthetic_me":
-        return MultiEventSyntheticDataLoader()
-    elif dataset_name == "ebmt_me":
-        return EbmtDataLoader()   
-    elif dataset_name == "rotterdam_me":
-        return RotterdamMultiDataLoader()
+def get_data_loader(dataset_name: str) -> BaseDataLoader:
+    if dataset_name in ["synthetic_se", "seer_se", "mimic_se"]:
+        if dataset_name == "synthetic_se":
+            return SingleEventSyntheticDataLoader()
+        elif dataset_name == "seer_se":
+            return SeerSingleDataLoader()
+        elif dataset_name == "mimic_se":
+            return MimicSingleDataLoader()
+    elif dataset_name in ["synthetic_cr", "mimic_cr", "seer_cr", "rotterdam_cr"]:
+        if dataset_name == "synthetic_cr":
+            return CompetingRiskSyntheticDataLoader()
+        elif dataset_name == "mimic_cr":
+            return MimicCompetingDataLoader()
+        elif dataset_name == "seer_cr":
+            return SeerCompetingDataLoader()
+        elif dataset_name == "rotterdam_cr":
+            return RotterdamCompetingDataLoader()
+    elif dataset_name in ["proact_me", "mimic_me", "synthetic_me", "ebmt_me", "rotterdam_me"]:
+        if dataset_name == "proact_me":
+            return PROACTMultiDataLoader()
+        elif dataset_name == "mimic_me":
+            return MimicMultiDataLoader()
+        elif dataset_name == "synthetic_me":
+            return MultiEventSyntheticDataLoader()
+        elif dataset_name == "ebmt_me":
+            return EbmtDataLoader()
+        elif dataset_name == "rotterdam_me":
+            return RotterdamMultiDataLoader()
     else:
         raise ValueError("Dataset not found")
         
