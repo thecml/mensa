@@ -21,7 +21,7 @@ from SurvivalEVAL.Evaluator import LifelinesEvaluator
 from utility.survival import (make_time_bins, preprocess_data)
 from utility.data import dotdict
 from utility.config import load_config
-from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch)
+from utility.data import (format_data_deephit_competing, format_hierarchical_data_cr, calculate_layer_size_hierarch)
 from utility.evaluation import global_C_index, local_C_index
 from data_loader import get_data_loader
 from mensa.model import MENSA

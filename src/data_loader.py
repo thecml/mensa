@@ -13,10 +13,6 @@ import torch
 import random
 from data import mimic_feature_selection 
 
-np.random.seed(0)
-torch.manual_seed(0)
-random.seed(0)
-
 class BaseDataLoader(ABC):
     """
     Base class for data loaders.
@@ -61,6 +57,38 @@ class BaseDataLoader(ABC):
 
     def _get_cat_features(self, data) -> List[str]:
         return data.select_dtypes(['object']).columns.tolist()
+
+
+def get_data_loader(dataset_name: str) -> BaseDataLoader:
+    if dataset_name in ["synthetic_se", "seer_se", "mimic_se"]:
+        if dataset_name == "synthetic_se":
+            return SingleEventSyntheticDataLoader()
+        elif dataset_name == "seer_se":
+            return SeerSingleDataLoader()
+        elif dataset_name == "mimic_se":
+            return MimicSingleDataLoader()
+    elif dataset_name in ["synthetic_cr", "mimic_cr", "seer_cr", "rotterdam_cr"]:
+        if dataset_name == "synthetic_cr":
+            return CompetingRiskSyntheticDataLoader()
+        elif dataset_name == "mimic_cr":
+            return MimicCompetingDataLoader()
+        elif dataset_name == "seer_cr":
+            return SeerCompetingDataLoader()
+        elif dataset_name == "rotterdam_cr":
+            return RotterdamCompetingDataLoader()
+    elif dataset_name in ["proact_me", "mimic_me", "synthetic_me", "ebmt_me", "rotterdam_me"]:
+        if dataset_name == "proact_me":
+            return PROACTMultiDataLoader()
+        elif dataset_name == "mimic_me":
+            return MimicMultiDataLoader()
+        elif dataset_name == "synthetic_me":
+            return MultiEventSyntheticDataLoader()
+        elif dataset_name == "ebmt_me":
+            return EBMTDataLoader()
+        elif dataset_name == "rotterdam_me":
+            return RotterdamMultiDataLoader()
+    else:
+        raise ValueError("Dataset not found")
 
 class SingleEventSyntheticDataLoader(BaseDataLoader):
     def load_data(self, data_config, copula_name='clayton', k_tau=0,
@@ -575,60 +603,7 @@ class MimicSingleDataLoader(BaseDataLoader):
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
-
-class SupportSingleDataLoader(BaseDataLoader):
-    """
-    Data loader for SUPPORT dataset (SE)
-    """
-    def load_data(self, n_samples:int = None) -> None:
-        path = Path.joinpath(cfg.DATA_DIR, 'support.feather')
-        data = pd.read_feather(path)
-
-        if n_samples:
-            data = data.sample(n=n_samples, random_state=0)
-
-        data = data.loc[data['duration'] > 0]
-
-        outcomes = data.copy()
-        outcomes['event'] =  data['event']
-        outcomes['time'] = data['duration']
-        outcomes = outcomes[['event', 'time']]
-
-        num_feats =  ['x0', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6',
-                      'x7', 'x8', 'x9', 'x10', 'x11', 'x12', 'x13']
-
-        self.num_features = num_feats
-        self.cat_features = []
-        self.X = pd.DataFrame(data[num_feats], dtype=np.float64)
-        self.columns = self.X.columns
-        self.n_events = 1
-        
-        self.y_e = outcomes['event']
-        self.y_t = outcomes['time']
-
-        return self
     
-    def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
-        df = pd.DataFrame(self.X)
-        df['event'] = self.y_e
-        df['time'] = self.y_t
-    
-        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
-                                                            frac_valid=valid_size, frac_test=test_size,
-                                                            random_state=random_state)
-    
-        dataframes = [df_train, df_valid, df_test]
-        dicts = []
-        for dataframe in dataframes:
-            data_dict = dict()
-            data_dict['X'] = dataframe.drop(['event', 'time'], axis=1).to_numpy()
-            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.float64),dtype=dtype)
-            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float64), dtype=dtype)
-            dicts.append(data_dict)
-            
-        return dicts[0], dicts[1], dicts[2]
-
 class SeerCompetingDataLoader(BaseDataLoader):
     """
     Data loader for SEER dataset (CR)
@@ -843,9 +818,9 @@ class MimicCompetingDataLoader(BaseDataLoader):
             
         return dicts[0], dicts[1], dicts[2]
 
-class EbmtDataLoader(BaseDataLoader):
+class EBMTDataLoader(BaseDataLoader):
     """
-    Data loader for Ebmt dataset (ME)
+    Data loader for EBMT dataset (ME)
     """
     def load_data(self, n_samples:int = None):
         '''
@@ -866,6 +841,9 @@ class EbmtDataLoader(BaseDataLoader):
         self.X = df[self.X_columns]
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
+        
+        self.y_t = np.stack((df['2_time'], df['3_time'], df['4_time'], df['5_time'], df['6_time']), axis=1)
+        self.y_e = np.stack((df['2_event'], df['3_event'], df['4_event'], df['5_event'], df['6_event']), axis=1)
         
         self.n_events = 5
         self.df = df
@@ -903,6 +881,7 @@ class RotterdamMultiDataLoader(BaseDataLoader):
         Events: 0 censor, 1 death, 2 recur
         '''
         df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
+        
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
         size_mapping = {
@@ -917,7 +896,9 @@ class RotterdamMultiDataLoader(BaseDataLoader):
         self.columns = list(self.X.columns)
         self.X_columns = self.X.columns
         self.E_columns = ['recur', 'death']
-        self.T_columns = ['rtime', 'dtime']       
+        self.T_columns = ['rtime', 'dtime']
+        self.y_t = np.stack((df['rtime'], df['dtime']), axis=1)
+        self.y_e = np.stack((df['recur'], df['death']), axis=1)
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
         self.n_events = 2
@@ -941,35 +922,3 @@ class RotterdamMultiDataLoader(BaseDataLoader):
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]       
-    
-def get_data_loader(dataset_name: str) -> BaseDataLoader:
-    if dataset_name in ["synthetic_se", "seer_se", "mimic_se"]:
-        if dataset_name == "synthetic_se":
-            return SingleEventSyntheticDataLoader()
-        elif dataset_name == "seer_se":
-            return SeerSingleDataLoader()
-        elif dataset_name == "mimic_se":
-            return MimicSingleDataLoader()
-    elif dataset_name in ["synthetic_cr", "mimic_cr", "seer_cr", "rotterdam_cr"]:
-        if dataset_name == "synthetic_cr":
-            return CompetingRiskSyntheticDataLoader()
-        elif dataset_name == "mimic_cr":
-            return MimicCompetingDataLoader()
-        elif dataset_name == "seer_cr":
-            return SeerCompetingDataLoader()
-        elif dataset_name == "rotterdam_cr":
-            return RotterdamCompetingDataLoader()
-    elif dataset_name in ["proact_me", "mimic_me", "synthetic_me", "ebmt_me", "rotterdam_me"]:
-        if dataset_name == "proact_me":
-            return PROACTMultiDataLoader()
-        elif dataset_name == "mimic_me":
-            return MimicMultiDataLoader()
-        elif dataset_name == "synthetic_me":
-            return MultiEventSyntheticDataLoader()
-        elif dataset_name == "ebmt_me":
-            return EbmtDataLoader()
-        elif dataset_name == "rotterdam_me":
-            return RotterdamMultiDataLoader()
-    else:
-        raise ValueError("Dataset not found")
-        
