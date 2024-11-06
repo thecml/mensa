@@ -51,9 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-# MODELS = ['deepsurv', 'hierarch', 'mensa']
-#MODELS = ['deepsurv', 'hierarch', 'mensa', 'mensa_trajectory'] #, 'hierarch']
-MODELS = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "mtlr", "dsm" , "hierarch", 'mensa', 'mensa_trajectory']
+MODELS = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "mtlr", "dsm" , "hierarch", 'mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -209,125 +207,54 @@ if __name__ == "__main__":
             model = MENSA(n_features, layers=layers, n_events=n_events,
                           n_dists=n_dists, device=device)
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, verbose=True)
-        elif model_name == "mensa_trajectory":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
-            n_epochs = config['n_epochs']
-            n_dists = config['n_dists']
-            lr = config['lr']
-            batch_size = config['batch_size']
-            layers = config['layers']
-            if dataset_name == 'ebmt_me':
-                trajectories = [(2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)]
-            elif dataset_name == 'rotterdam_me':
-                trajectories = [(1, 0)]
-            else:
-                trajectories = []
-            model = MENSA_trajectory(n_features, layers=layers, n_events=n_events,
-                                     n_dists=n_dists, trajectories=trajectories, device=device)
-            model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, verbose=True)          
+                      patience=10, batch_size=batch_size, verbose=False)
         else:
             raise NotImplementedError()
         
-        # Compute survival function
-        if model_name in ["coxph", "coxboost", "rsf"]:
-            all_preds = []
+    
+        # Print number of trainable params.
+        sum_params = 0
+        if model_name == "coxph":
             for trained_model in trained_models:
-                model_preds = trained_model.predict_survival_function(test_dict['X'].cpu())
-                model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
-                spline = interp1d(time_bins.cpu().numpy(), model_preds,
-                                  kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins.cpu().numpy()),
-                                     columns=time_bins.cpu().numpy())
-                all_preds.append(preds)
+                sum_params += len(trained_model.coef_)
+        elif model_name == "coxboost":
+            for trained_model in trained_models:
+                num_trees = trained_model.n_estimators
+                max_depth = trained_model.max_depth
+                params_per_tree = (2 ** (max_depth + 1)) - 1
+                total_params = num_trees * params_per_tree
+                sum_params += total_params
+        elif model_name == "rsf":
+            for trained_model in trained_models:
+                num_trees = trained_model.n_estimators
+                max_depth = trained_model.max_depth
+                params_per_tree = (2 ** (max_depth + 1)) - 1
+                total_params = num_trees * params_per_tree
+                sum_params += total_params
         elif model_name == "deepsurv":
-            all_preds = []
             for trained_model in trained_models:
-                preds, time_bins_model = make_deepsurv_prediction(trained_model, test_dict['X'].to(device),
-                                                                  config=config, dtype=dtype)
-                spline = interp1d(time_bins_model.cpu().numpy(), preds.cpu().numpy(),
-                                  kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins.cpu().numpy()), columns=time_bins.cpu().numpy())
-                all_preds.append(preds)
+                total_params = sum(p.numel() for p in trained_model.parameters() if p.requires_grad)
+                sum_params += total_params
         elif model_name == "deephit":
-            all_preds = []
             for trained_model in trained_models:
-                model_preds = model.predict_surv(test_dict['X']).cpu()
-                all_preds.append(preds)
+                total_params = sum(p.numel() for p in trained_model.net.parameters() if p.requires_grad)
+                sum_params += total_params
         elif model_name == "mtlr":
-            all_preds = []
             for trained_model in trained_models:
-                survival_outputs, _, _ = make_mtlr_prediction(trained_model, test_dict['X'].cpu(), time_bins, config)
-                model_preds = survival_outputs[:, 1:].cpu()
-                all_preds.append(preds)
+                total_params = sum(p.numel() for p in trained_model.parameters() if p.requires_grad)
+                sum_params += total_params
         elif model_name == "dsm":
-            all_preds = []
             for trained_model in trained_models:
-                model_preds = model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()))
-                model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-                all_preds.append(model_preds)
+                total_params = sum(p.numel() for p in trained_model.torch_model.parameters() if p.requires_grad)
+                sum_params += total_params
         elif model_name == "hierarch":
-            event_preds = util.get_surv_curves(torch.tensor(test_data[0], dtype=dtype), model)
-            bin_locations = np.linspace(0, config['max_time'], event_preds[0].shape[1])
-            all_preds = []
-            for i in range(len(event_preds)):
-                preds = pd.DataFrame(event_preds[i], columns=bin_locations)
-                all_preds.append(preds)
+            sum_params += sum(p.numel() for p in model.main_layers[0].parameters() if p.requires_grad)
+            for i in range(n_events):
+                sum_params += sum(p.numel() for p in model.event_networks[i].parameters() if p.requires_grad)
         elif model_name == "mensa":
-            all_preds = []
-            for i in range(n_events):
-                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)
-                model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-                all_preds.append(model_preds)
-        elif model_name in ["mensa_trajectory"]:
-            all_preds = []
-            for i in range(n_events):
-                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)
-                model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-                all_preds.append(model_preds)                
+            sum_params += sum(p.numel() for p in model.model.parameters() if p.requires_grad)
         else:
             raise NotImplementedError()
         
-        # Test local and global CI
-        all_preds_arr = [df.to_numpy() for df in all_preds]
-        global_ci = global_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                                   test_dict['E'].cpu().numpy())
-        local_ci = local_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                                 test_dict['E'].cpu().numpy())
-                
-        # Make evaluation for each event
-        model_results = pd.DataFrame()
-        for event_id, surv_pred in enumerate(all_preds):
-            n_train_samples = len(train_dict['X'])
-            n_test_samples= len(test_dict['X'])
-            y_train_time = train_dict['T'][:,event_id]
-            y_train_event = train_dict['E'][:,event_id]
-            y_test_time = test_dict['T'][:,event_id]
-            y_test_event = test_dict['E'][:,event_id]
-            
-            lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
-                                                y_train_time, y_train_event)
-            
-            ci = lifelines_eval.concordance()[0]
-            ibs = lifelines_eval.integrated_brier_score()
-            mae_hinge = lifelines_eval.mae(method="Hinge")
-            mae_margin = lifelines_eval.mae(method="Margin")
-            mae_pseudo = lifelines_eval.mae(method="Pseudo_obs")
-            d_calib = lifelines_eval.d_calibration()[0]
-            
-            metrics = [ci, ibs, mae_hinge, mae_margin, mae_pseudo, d_calib, global_ci, local_ci]
-            print(metrics)
-            res_sr = pd.Series([model_name, dataset_name, seed, event_id+1] + metrics,
-                                index=["ModelName", "DatasetName", "Seed", "EvenId", "CI", "IBS",
-                                       "MAEH", "MAEM", "MAEPO", "DCalib", "GlobalCI", "LocalCI"])
-            model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
-            
-        # Save results
-        filename = f"{cfg.RESULTS_DIR}/real_me.csv"
-        if os.path.exists(filename):
-            results = pd.read_csv(filename)
-        else:
-            results = pd.DataFrame(columns=model_results.columns)
-        results = results.append(model_results, ignore_index=True)
-        results.to_csv(filename, index=False)
+        print(f"{model_name}: {sum_params}")
+        

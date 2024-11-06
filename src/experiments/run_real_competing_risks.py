@@ -21,7 +21,7 @@ from SurvivalEVAL.Evaluator import LifelinesEvaluator
 from utility.survival import (convert_to_structured, make_time_bins, preprocess_data)
 from utility.data import dotdict
 from utility.config import load_config
-from utility.data import (format_data_deephit_cr, format_hierarchical_data_cr, calculate_layer_size_hierarch)
+from utility.data import (format_data_deephit_competing, format_hierarchical_data_cr, calculate_layer_size_hierarch)
 from utility.evaluation import global_C_index, local_C_index
 from data_loader import get_data_loader
 from mensa.model import MENSA
@@ -140,7 +140,7 @@ if __name__ == "__main__":
                 time_bins_dh = torch.concat([time_bins_dh, max_time], dim=0)
             model = make_deephit_cr(in_features=n_features, out_features=len(time_bins_dh),
                                     num_risks=n_events, duration_index=time_bins_dh, config=config)
-            train_data, valid_data, out_features, duration_index = format_data_deephit_cr(train_dict, valid_dict, time_bins_dh)
+            train_data, valid_data, out_features, duration_index = format_data_deephit_competing(train_dict, valid_dict, time_bins_dh)
             model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
                                         (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
         elif model_name == "hierarch":
