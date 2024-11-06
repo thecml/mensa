@@ -210,7 +210,6 @@ if __name__ == "__main__":
                       patience=10, batch_size=batch_size, verbose=False)
         else:
             raise NotImplementedError()
-        
     
         # Print number of trainable params.
         sum_params = 0
