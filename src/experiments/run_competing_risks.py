@@ -1,5 +1,5 @@
 """
-run_real_competing_risks.py
+run_competing_risks.py
 ====================================
 Models: ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
 """
@@ -290,7 +290,7 @@ if __name__ == "__main__":
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
             
         # Save results
-        filename = f"{cfg.RESULTS_DIR}/real_cr.csv"
+        filename = f"{cfg.RESULTS_DIR}/competing_risks.csv"
         if os.path.exists(filename):
             results = pd.read_csv(filename)
         else:

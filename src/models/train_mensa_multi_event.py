@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import sys, os
 sys.path.append(os.path.abspath('../'))
+
 import config as cfg
 import torch
 import random
@@ -110,7 +111,7 @@ if __name__ == "__main__":
         batch_size = config['batch_size']
         layers = config['layers']
         model = MENSA(n_features, layers=layers, n_events=n_events,
-                        n_dists=n_dists, device=device)
+                      n_dists=n_dists, device=device)
         model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
                     patience=10, batch_size=batch_size, verbose=True)
         
