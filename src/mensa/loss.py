@@ -78,7 +78,6 @@ def conditional_weibull_loss_multi(f, s, e, n_risks: int):
     loss = -loss / e.shape[0]
     return loss
 
-
 def conditional_weibull_loss(f, s, e, n_risks: int):    
     loss = 0.0
     for k in range(n_risks):

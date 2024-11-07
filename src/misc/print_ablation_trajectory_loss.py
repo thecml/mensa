@@ -8,7 +8,7 @@ from utility.model_helper import map_model_name
 
 N_DECIMALS = 2
 ALPHA = 0.05
-DATASET_NAME = "rotterdam_me"
+DATASET_NAME = "ebmt_me"
 
 def calculate_d_calib(df, model_name, dataset_name):
     results = df.loc[(df['DatasetName'] == dataset_name) & (df['ModelName'] == model_name)]
@@ -23,10 +23,10 @@ def calculate_d_calib(df, model_name, dataset_name):
     return result_string
 
 if __name__ == "__main__":
-    path = Path.joinpath(cfg.RESULTS_DIR, f"shared_layer.csv")
+    path = Path.joinpath(cfg.RESULTS_DIR, f"trajectory_loss.csv")
     df = pd.read_csv(path)
     
-    model_names = ["with_shared", "no_shared"]
+    model_names = ["with_trajectory", "no_trajectory"]
     metric_names = ["CI", "IBS", "MAE", "GlobalCI", "LocalCI", "DCalib"]
     n_events = 4
     
@@ -36,10 +36,10 @@ if __name__ == "__main__":
                   .groupby(['EventId'])[['CI', 'IBS', 'MAE', 'GlobalCI', 'LocalCI']].mean() # take average across seeds, not Dcal
         if results.empty:
             break
-        if model_name == "with_shared":
-            model_name_display = "& Using " + r"$\Phi(X)$" + " &" 
+        if model_name == "with_trajectory":
+            model_name_display = "& Using " + r"$\mathcal{L}_T$" + " &"
         else:
-            model_name_display = "& Without " + r"$\Phi(X)$" + " &"
+            model_name_display = "& Without " + r"$\mathcal{L}_T$" + " &"
         text += f"{model_name_display} "
         for i, metric_name in enumerate(metric_names):
             if metric_name == "DCalib":

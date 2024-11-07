@@ -8,6 +8,7 @@ Models: ['deepsurv', 'hierarch', 'mensa']
 import pandas as pd
 import numpy as np
 import sys, os
+
 sys.path.append(os.path.abspath('../'))
 
 import config as cfg
@@ -27,6 +28,7 @@ from utility.data import calculate_layer_size_hierarch
 from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
 from mensa.model_seperate import MENSASeperate
+from mensa.model_trajectory import MENSA_trajectory
 
 # SOTA
 from sota_models import (train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
@@ -48,8 +50,8 @@ torch.set_default_dtype(dtype)
 # Setup device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-DATASET = "rotterdam_me"
-USE_SHARED = [True, False]
+DATASET = "ebmt_me"
+USE_TRAJECTORY = [False]
 SEEDS = [0, 1, 2, 3, 4]
 
 if __name__ == "__main__":
@@ -70,7 +72,7 @@ if __name__ == "__main__":
         X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
         X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
         X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
-                                                num_features, as_array=True)
+                                                  num_features, as_array=True)
         train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
         train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int64)
         train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int64)
@@ -88,7 +90,7 @@ if __name__ == "__main__":
         time_bins = make_time_bins(train_dict['T'].cpu(), event=None, dtype=dtype).to(device)
         time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
         
-        for use_shared in USE_SHARED:
+        for use_trajectory in USE_TRAJECTORY:
             # Train model
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{DATASET.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
@@ -96,12 +98,16 @@ if __name__ == "__main__":
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            if use_shared:
+            if use_trajectory:
+                if DATASET == 'ebmt_me':
+                    trajectories = [(2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)]
+                elif DATASET == 'rotterdam_me':
+                    trajectories = [(1, 0)]
+                model = MENSA_trajectory(n_features, layers=layers, n_events=n_events,
+                                         n_dists=n_dists, trajectories=trajectories, device=device)
+            else:
                 model = MENSA(n_features, layers=layers, n_events=n_events,
                               n_dists=n_dists, device=device)
-            else:
-                model = MENSASeperate(n_features, layers=layers, n_events=n_events,
-                                      n_dists=n_dists, device=device)
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
                       patience=10, batch_size=batch_size, verbose=True)
             
@@ -139,10 +145,10 @@ if __name__ == "__main__":
                 
                 metrics = [ci, ibs, mae, d_calib, global_ci, local_ci]
                 
-                if use_shared:
-                    model_name = "with_shared"
+                if use_trajectory:
+                    model_name = "with_trajectory"
                 else:
-                    model_name = "no_shared"
+                    model_name = "no_trajectory"
                 
                 res_sr = pd.Series([model_name, DATASET, seed, event_id+1] + metrics,
                                     index=["ModelName", "DatasetName", "Seed", "EventId",
@@ -150,7 +156,7 @@ if __name__ == "__main__":
                 model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
                 
             # Save results
-            filename = f"{cfg.RESULTS_DIR}/shared_layer.csv"
+            filename = f"{cfg.RESULTS_DIR}/trajectory_loss.csv"
             if os.path.exists(filename):
                 results = pd.read_csv(filename)
             else:
