@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import sys, os
 sys.path.append(os.path.abspath('../'))
+
 import config as cfg
 import torch
 import random
@@ -24,8 +25,9 @@ from utility.data import dotdict
 from utility.config import load_config
 from utility.data import calculate_layer_size_hierarch
 from utility.evaluation import global_C_index, local_C_index
-from mensa.model import MENSA
-from mensa.model_trajectory import MENSA_trajectory
+#from mensa.model import MENSA
+#from mensa.model_trajectory import MENSA_trajectory
+from mensa.model_seperate import MENSASeperate
 
 # SOTA
 from sota_models import (train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
@@ -109,7 +111,7 @@ if __name__ == "__main__":
         lr = config['lr']
         batch_size = config['batch_size']
         layers = config['layers']
-        model = MENSA(n_features, layers=layers, n_events=n_events,
+        model = MENSASeperate(n_features, layers=layers, n_events=n_events,
                         n_dists=n_dists, device=device)
         model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
                     patience=10, batch_size=batch_size, verbose=True)

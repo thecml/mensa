@@ -46,7 +46,7 @@ dtype = torch.float64
 torch.set_default_dtype(dtype)
 
 SEED = 0
-DATASET = "rotterdam_cr"
+DATASET = "seer_cr"
 
 # Setup device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
