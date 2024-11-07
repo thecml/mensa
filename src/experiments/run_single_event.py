@@ -1,5 +1,5 @@
 """
-run_real_single_event.py
+run_single_event.py
 ====================================
 Datasets: seer_se, support_se, mimic_se
 Models: ["deepsurv", "deephit", "dsm", "mtlr", "mensa"]
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='seer_se')
+    parser.add_argument('--dataset_name', type=str, default='synthetic_se')
     
     args = parser.parse_args()
     seed = args.seed
@@ -59,23 +59,29 @@ if __name__ == "__main__":
     
     # Load and split data
     dl = get_data_loader(dataset_name)
-    dl = dl.load_data()
+    if dataset_name == "synthetic_se":
+        data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_se.yaml")
+        dl = dl.load_data(data_config=data_config, linear=False, copula_name="clayton",
+                          k_tau=0.5, device=device, dtype=dtype)
+    else:
+        dl = dl.load_data()
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=seed)
     
     # Preprocess data
-    cat_features = dl.cat_features
-    num_features = dl.num_features
-    n_events = dl.n_events
-    X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
-    X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
-    X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
-    X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
-                                              num_features, as_array=True)
-    train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
-    valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
-    test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
-    n_samples = train_dict['X'].shape[0]
+    if dataset_name != "synthetic_se":
+        cat_features = dl.cat_features
+        num_features = dl.num_features
+        n_events = dl.n_events
+        X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
+        X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
+        X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
+        X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
+                                                  num_features, as_array=True)
+        train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
+        valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
+        test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
+        n_samples = train_dict['X'].shape[0]
     
     # Make time bins
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
@@ -184,7 +190,7 @@ if __name__ == "__main__":
         elif model_name == "deephit":
             model_preds = model.predict_surv(test_dict['X']).cpu().numpy()
         elif model_name == "mensa":
-            model_preds = model.predict(test_dict['X'], time_bins, risk=0) # use event preds
+            model_preds = model.predict(test_dict['X'], time_bins, risk=1) # use event preds
         else:
             raise NotImplementedError()
         
@@ -214,7 +220,7 @@ if __name__ == "__main__":
         model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
             
         # Save results
-        filename = f"{cfg.RESULTS_DIR}/real_se.csv"
+        filename = f"{cfg.RESULTS_DIR}/single_event.csv"
         if os.path.exists(filename):
             results = pd.read_csv(filename)
         else:

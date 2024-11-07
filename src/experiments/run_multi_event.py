@@ -1,5 +1,5 @@
 """
-run_real_multi_event.py
+run_multi_event.py
 ====================================
 Models: ['deepsurv', 'hierarch', 'mensa']
 """
@@ -324,7 +324,7 @@ if __name__ == "__main__":
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
             
         # Save results
-        filename = f"{cfg.RESULTS_DIR}/real_me.csv"
+        filename = f"{cfg.RESULTS_DIR}/multi_event.csv"
         if os.path.exists(filename):
             results = pd.read_csv(filename)
         else:

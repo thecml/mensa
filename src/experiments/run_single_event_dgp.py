@@ -1,5 +1,5 @@
 """
-run_synthetic_se_event.py
+run_single_event_dgp.py
 ====================================
 Experiment 1.1
 
@@ -220,7 +220,7 @@ if __name__ == "__main__":
                                index=["ModelName", "Seed", "Linear", "Copula", "KTau", "L1"])
         
         # Save results
-        filename = f"{cfg.RESULTS_DIR}/synthetic_se.csv"
+        filename = f"{cfg.RESULTS_DIR}/single_event_dgp.csv"
         if os.path.exists(filename):
             results = pd.read_csv(filename)
         else:
