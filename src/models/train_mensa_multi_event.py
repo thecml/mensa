@@ -49,7 +49,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 SEED = 0
-DATASET = "proact_me"
+DATASET = "ebmt_me"
 USE_TRAJECTORY = False
 
 if __name__ == "__main__":
