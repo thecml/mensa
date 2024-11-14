@@ -7,7 +7,7 @@ import config as cfg
 import numpy as np
 from pycop import simulation
 from utility.data import kendall_tau_to_theta
-from utility.survival import make_stratified_split
+from utility.survival import make_stratified_split, make_multi_event_stratified_column
 from dgp import DGP_Weibull_linear, DGP_Weibull_nonlinear
 import torch
 import random
@@ -345,9 +345,7 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         df['t1'] = self.y_t[:,0]
         df['t2'] = self.y_t[:,1]
         df['t3'] = self.y_t[:,2]
-        df['time'] = self.y_t[:,0] # split on first time
-        
-        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='multi', frac_train=train_size,
                                                             frac_valid=valid_size, frac_test=test_size,
                                                             random_state=random_state)
         
@@ -404,9 +402,7 @@ class PROACTMultiDataLoader(BaseDataLoader):
         df['t2'] = self.y_t[:,1]
         df['t3'] = self.y_t[:,2]
         df['t4'] = self.y_t[:,3]
-        df['time'] = self.y_t[:,0] # split on first time
-        
-        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='multi', frac_train=train_size,
                                                             frac_valid=valid_size, frac_test=test_size,
                                                             random_state=random_state)
         
@@ -470,10 +466,8 @@ class MimicMultiDataLoader(BaseDataLoader):
         df['t1'] = self.y_t[:,0]
         df['t2'] = self.y_t[:,1]
         df['t3'] = self.y_t[:,2]
-        df['time'] = self.y_t[:,0] # split on first time
-        
-        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='time', frac_train=train_size,
-                                                            frac_valid=valid_size, frac_test=test_size,
+        df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='multi', frac_train=train_size,
+                                                            frac_valid=valid_size, frac_test=test_size, n_events=3,
                                                             random_state=random_state)
         
         dataframes = [df_train, df_valid, df_test]
@@ -482,7 +476,7 @@ class MimicMultiDataLoader(BaseDataLoader):
         dicts = []
         for dataframe in dataframes:
             data_dict = dict()
-            data_dict['X'] = dataframe.drop(event_cols + time_cols + ['time'], axis=1).values
+            data_dict['X'] = dataframe.drop(event_cols + time_cols, axis=1).values
             data_dict['E'] = np.stack([dataframe['e1'].values, dataframe['e2'].values,
                                        dataframe['e3'].values], axis=1).astype(np.int64)
             data_dict['T'] = np.stack([dataframe['t1'].values, dataframe['t2'].values,
@@ -835,8 +829,8 @@ class EBMTDataLoader(BaseDataLoader):
                            any(substring in col for substring in ['_event', '_time', 'sample_id'])]
         self.events_names = ['2', '3', '4', '5', '6'] 
         self.X_columns = ['match_no gender mismatch', 'proph_yes', 'year_1990-1994', 'year_1995-1998', 'agecl_<=20', 'agecl_>40']
-        self.E_columns = [substring + '_event' for substring in self.events_names]
-        self.T_columns = [substring + '_time' for substring in self.events_names]        
+        self.E_columns = ['e1', 'e2', 'e3' ,'e4', 'e5']
+        self.T_columns = ['t1', 't2', 't3' ,'t4', 't5']
         self.columns = list(self.X_columns)
         self.X = df[self.X_columns]
         self.num_features = self._get_num_features(self.X)
@@ -847,6 +841,9 @@ class EBMTDataLoader(BaseDataLoader):
         
         self.n_events = 5
         self.df = df
+        self.df = self.df.rename(columns={'2_time': 't1', '3_time': 't2', '4_time': 't3', '5_time': 't4', '6_time': 't5',
+                                          '2_event': 'e1', '3_event': 'e2', '4_event': 'e3', '5_event': 'e4', '6_event': 'e5'})
+        
         self.trajectories = [(2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)]
         # 2 < 4, 2 < 5, 2 < 6, 3 < 4 , 3< 5, 3 < 6, 4 < 5, 4 < 6
         # 0 < 2, 0 < 3, 0 < 4, 1 < 2, 1 < 3, 1 < 4, 2 < 3, 2 < 4
@@ -855,11 +852,9 @@ class EBMTDataLoader(BaseDataLoader):
 
     def split_data(self, train_size: float, valid_size: float,
                    test_size: float, dtype=torch.float64, random_state=0):
-        # print ('self.df', self.df)
-        self.df['time'] = self.df['2_time']
-        df_train, df_valid, df_test = make_stratified_split(self.df, stratify_colname='time', frac_train=train_size,
+        df_train, df_valid, df_test = make_stratified_split(self.df, stratify_colname='multi', frac_train=train_size,
                                                             frac_valid=valid_size, frac_test=test_size,
-                                                            random_state=random_state)
+                                                            n_events=self.n_events, random_state=random_state)
         
         dataframes = [df_train, df_valid, df_test]
         dicts = []
@@ -892,11 +887,12 @@ class RotterdamMultiDataLoader(BaseDataLoader):
         # Apply mapping
         df['size_map'] = df['size'].replace(size_mapping)
         self.df = df
+        self.df = self.df.rename(columns={'rtime': 't1', 'dtime': 't2', 'recur': 'e1', 'death': 'e2'})
         self.X = df.drop(['pid', 'size', 'rtime', 'recur', 'dtime', 'death'], axis=1)
         self.columns = list(self.X.columns)
         self.X_columns = self.X.columns
-        self.E_columns = ['recur', 'death']
-        self.T_columns = ['rtime', 'dtime']
+        self.E_columns = ['e1', 'e2']
+        self.T_columns = ['t1', 't2']
         self.y_t = np.stack((df['rtime'], df['dtime']), axis=1)
         self.y_e = np.stack((df['recur'], df['death']), axis=1)
         self.num_features = self._get_num_features(self.X)
@@ -907,10 +903,9 @@ class RotterdamMultiDataLoader(BaseDataLoader):
         
     def split_data(self, train_size: float, valid_size: float,
                    test_size: float, dtype=torch.float64, random_state=0):
-        self.df['time'] = self.df['dtime']
-        df_train, df_valid, df_test = make_stratified_split(self.df, stratify_colname='time', frac_train=train_size,
+        df_train, df_valid, df_test = make_stratified_split(self.df, stratify_colname='multi', frac_train=train_size,
                                                             frac_valid=valid_size, frac_test=test_size,
-                                                            random_state=random_state)
+                                                            n_events=self.n_events, random_state=random_state)
         
         dataframes = [df_train, df_valid, df_test]
         dicts = []

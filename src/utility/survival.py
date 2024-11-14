@@ -290,6 +290,7 @@ def make_stratified_split(
         frac_train: float = 0.5,
         frac_valid: float = 0.0,
         frac_test: float = 0.5,
+        n_events: int = 0,
         random_state: int = None
 ) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
     '''Courtesy of https://github.com/shi-ang/BNN-ISD/tree/main'''
@@ -313,6 +314,16 @@ def make_stratified_split(
         t = np.digitize(t, bins, right=True)
         e = df["event"]
         stra_lab = np.stack([t, e], axis=1)
+    elif stratify_colname == "multi":
+        stra_lab = []
+        for i in range(n_events):
+            t = df[f"t{i+1}"]
+            e = df[f"e{i+1}"]
+            bins = np.linspace(start=t.min(), stop=t.max(), num=20)
+            t = np.digitize(t, bins, right=True)
+            stra_lab.append(e)
+            stra_lab.append(t)
+        stra_lab = np.stack(stra_lab, axis=1)
     else:
         raise ValueError("unrecognized stratify policy")
 
@@ -329,6 +340,19 @@ def make_stratified_split(
     df_test = pd.DataFrame(data=x_test, columns=columns)
     assert len(df) == len(df_train) + len(df_val) + len(df_test)
     return df_train, df_val, df_test
+
+def make_multi_event_stratified_column(times):
+    N, d = times.shape[0], times.shape[1]
+    num_elements_per_column = N // d
+    remaining_elements = N % d
+    result = []
+    for i in range(d):
+        if i < remaining_elements:
+            result.extend(times[:num_elements_per_column + 1, i])
+        else:
+            result.extend(times[:num_elements_per_column, i])
+    result_array = np.array(result)
+    return result_array
 
 def make_stratification_label(df):
     t = df["Survival_time"]
