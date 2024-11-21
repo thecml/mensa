@@ -92,29 +92,21 @@ def conditional_weibull_ranking_loss(f, s, e, t, n_risks):
     loss = 0.0
     total_pairs = 0
 
-    for k in range(0, n_risks):  # Loop over each event
-        event_indices = torch.where(e == k)[0]
-        event_times = t[event_indices]
-        event_risk_scores = risk_scores[event_indices, k]
-
-        # Skip if fewer than 2 events for this type
-        if len(event_indices) < 2:
-            continue
-
-        # Create all pairs (i, j) where i != j
-        time_diffs = event_times[:, None] - event_times[None, :]  # Pairwise differences
-        valid_pairs = time_diffs < 0  # Ensure t[i] < t[j]
+    for k in range(n_risks):  # Loop over each event
+        # Get indices where the event occurred for risk k
+        event_indices = torch.where(e == k)[0]  # Now event_indices contains actual indices (not a mask)
+        event_times = t[event_indices]  # Filter times
+        event_risk_scores = risk_scores[event_indices, k]  # Filter risk scores
         
-        # Compute pairwise losses for valid pairs
-        risk_diffs = event_risk_scores[:, None] - event_risk_scores[None, :]  # Pairwise differences
-        pair_losses = torch.clamp(1 - risk_diffs, min=0)  # Hinge loss
-        
-        # Mask invalid pairs
-        pair_losses = pair_losses * valid_pairs
+        # Iterate over all pairs (i, j) with t[i] < t[j]
+        for i in range(len(event_indices)):  # Iterate over filtered indices
+            for j in range(i + 1, len(event_indices)):
+                t_i, t_j = event_times[i], event_times[j]
 
-        # Accumulate loss and count valid pairs
-        loss += pair_losses.sum()
-        total_pairs += valid_pairs.sum().item()
+                if t_i < t_j:  # Ensure i dies before j
+                    pair_loss = torch.clamp(1 - (event_risk_scores[i] - event_risk_scores[j]), min=0)
+                    loss += pair_loss
+                    total_pairs += 1
 
     # Normalize by the total number of valid pairs
     loss = loss / total_pairs if total_pairs > 0 else 0.0

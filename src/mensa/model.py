@@ -136,8 +136,9 @@ class MENSA:
                     loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_events)
                 else:
                     f, s = self.compute_risks(params, ti)
-                    loss = conditional_weibull_loss(f, s, ei, self.model.n_events)
-                    loss += conditional_weibull_ranking_loss(f, s, ei, ti, self.model.n_events)
+                    loss1 = conditional_weibull_loss(f, s, ei, self.model.n_events)
+                    loss2 = conditional_weibull_ranking_loss(f, s, ei, ti, self.model.n_events)
+                    loss = 1.0 * loss1 + 0.1 * loss2
 
                 loss.backward()
                 optimizer.step()
