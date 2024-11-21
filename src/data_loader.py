@@ -375,6 +375,7 @@ class PROACTMultiDataLoader(BaseDataLoader):
         label_cols = [col for col in df.columns if any(substring in col for substring in ['Event', 'TTE'])]
         event_names = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
         for event_name in event_names:
+            df = df.loc[(df[f'Event_{event_name}'] == 0) | (df[f'Event_{event_name}'] == 1)] # drop left-censored
             df = df.loc[(df[f'TTE_{event_name}'] > 0) & (df[f'TTE_{event_name}'] <= 365)] # 1 - 365
         df = df.drop(df.filter(like='_Strength').columns, axis=1) # Drop strength tests
         df = df.drop('Race_Caucasian', axis=1) # Drop race information
