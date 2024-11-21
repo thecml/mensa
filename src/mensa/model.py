@@ -7,7 +7,7 @@ import numpy as np
 
 from tqdm import trange
 
-from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi, safe_log
+from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi, conditional_weibull_ranking_loss, safe_log
 
 def create_representation(input_dim, layers, activation, bias=True):
     if activation == 'ReLU6':
@@ -137,6 +137,7 @@ class MENSA:
                 else:
                     f, s = self.compute_risks(params, ti)
                     loss = conditional_weibull_loss(f, s, ei, self.model.n_events)
+                    loss += conditional_weibull_ranking_loss(f, s, ei, ti, self.model.n_events)
 
                 loss.backward()
                 optimizer.step()

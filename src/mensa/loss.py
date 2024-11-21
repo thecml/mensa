@@ -86,3 +86,36 @@ def conditional_weibull_loss(f, s, e, n_risks: int):
         loss += torch.sum(~temp*s[:, k].T)        
     loss = -loss / e.shape[0]
     return loss
+
+def conditional_weibull_ranking_loss(f, s, e, t, n_risks):
+    risk_scores = -f
+    loss = 0.0
+    total_pairs = 0
+
+    for k in range(0, n_risks):  # Loop over each event
+        event_indices = torch.where(e == k)[0]
+        event_times = t[event_indices]
+        event_risk_scores = risk_scores[event_indices, k]
+
+        # Skip if fewer than 2 events for this type
+        if len(event_indices) < 2:
+            continue
+
+        # Create all pairs (i, j) where i != j
+        time_diffs = event_times[:, None] - event_times[None, :]  # Pairwise differences
+        valid_pairs = time_diffs < 0  # Ensure t[i] < t[j]
+        
+        # Compute pairwise losses for valid pairs
+        risk_diffs = event_risk_scores[:, None] - event_risk_scores[None, :]  # Pairwise differences
+        pair_losses = torch.clamp(1 - risk_diffs, min=0)  # Hinge loss
+        
+        # Mask invalid pairs
+        pair_losses = pair_losses * valid_pairs
+
+        # Accumulate loss and count valid pairs
+        loss += pair_losses.sum()
+        total_pairs += valid_pairs.sum().item()
+
+    # Normalize by the total number of valid pairs
+    loss = loss / total_pairs if total_pairs > 0 else 0.0
+    return loss
