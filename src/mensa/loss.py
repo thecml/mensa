@@ -88,7 +88,7 @@ def conditional_weibull_loss(f, s, e, n_risks: int):
     return loss
 
 def conditional_weibull_ranking_loss(f, s, e, t, n_risks):
-    risk_scores = -f
+    risk_scores = -s
     loss = 0.0
     total_pairs = 0
 
