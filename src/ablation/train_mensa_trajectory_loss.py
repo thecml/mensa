@@ -27,8 +27,6 @@ from utility.config import load_config
 from utility.data import calculate_layer_size_hierarch
 from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
-from mensa.model_seperate import MENSASeperate
-from mensa.model_trajectory import MENSA_trajectory
 
 # SOTA
 from sota_models import (train_deepsurv_model, make_deepsurv_prediction, DeepSurv)

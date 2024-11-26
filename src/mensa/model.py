@@ -238,11 +238,11 @@ class MENSA:
         k = params[i][0]
         b = params[i][1]
         gate = nn.LogSoftmax(dim=1)(params[i][2])
-        s = - (torch.pow(torch.exp(b)*t, torch.exp(k)))
+        s = -(torch.pow(torch.exp(b)*t, torch.exp(k)))
         s = (s + gate)
         s = torch.logsumexp(s, dim=1)#log_survival
         condition = torch.logical_and(ei[:, i] == 1, ei[:, j] == 1)
-        result = -torch.sum(condition*s)/ei.shape[0]
+        result = -torch.sum(condition*s) / ei.shape[0]
         return result
     
     def compute_risks_multi(self, params, ti):

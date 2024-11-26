@@ -150,19 +150,6 @@ if __name__ == "__main__":
             model = train_mtlr_model(model, data_train, data_valid, time_bins.cpu().numpy(),
                                      config, random_state=0, dtype=dtype,
                                      reset_model=True, device=device)
-        elif model_name == "dcsurvival":
-            config = dotdict(cfg.DCSURVIVAL_PARAMS)
-            depth = config['depth']
-            widths = config['widths']
-            lc_w_range = config['lc_w_range']
-            shift_w_range = config['shift_w_range']
-            learning_rate = config['learning_rate']
-            phi = DiracPhi(depth, widths, lc_w_range, shift_w_range, device, tol=1e-14).to(device)
-            model = DCSurvival(phi, device, num_features=n_features, tol=1e-14).to(device)
-            model = train_dcsurvival_model(model, train_dict['X'], valid_dict['X'],
-                                           train_dict['T'], train_dict['E'],
-                                           valid_dict['T'], valid_dict['E'],
-                                           num_epochs=1000, learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
@@ -200,9 +187,6 @@ if __name__ == "__main__":
             model_preds = survival_outputs[:, 1:].cpu().numpy()
         elif model_name == "deephit":
             model_preds = model.predict_surv(test_dict['X']).cpu().numpy()
-        elif model_name == "dcsurvival":
-            model_preds = predict_survival_function(model, test_dict['X'].to(device),
-                                                    time_bins, device=device).cpu().numpy()
         elif model_name == "mensa":
             model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=0) # use event preds
         elif model_name == "dgp":
