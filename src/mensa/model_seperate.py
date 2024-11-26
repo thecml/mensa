@@ -68,18 +68,14 @@ class MLP(torch.nn.Module):
     def forward(self, x):
         dim = x.shape[0]
         outcomes = []
-
         for i in range(self.n_events):
             xrep = self.embeddings[i](x)
-
             shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim, -1), min=-10, max=10)
             scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim, -1), min=-10, max=10)
             gate = self.gate(xrep) / self.temp
-            
             outcomes.append((shape[:, i * self.n_dists:(i + 1) * self.n_dists],
                                 scale[:, i * self.n_dists:(i + 1) * self.n_dists],
                                 gate[:, i * self.n_dists:(i + 1) * self.n_dists]))
-
         return outcomes
         
 class MENSASeperate:

@@ -39,6 +39,7 @@ warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
 np.random.seed(0)
 torch.manual_seed(0)
+torch.cuda.manual_seed_all(0)
 random.seed(0)
 
 # Set precision
@@ -53,43 +54,49 @@ USE_SHARED = [True, False]
 SEEDS = [0, 1, 2, 3, 4]
 
 if __name__ == "__main__":
-    for seed in SEEDS:
-        # Load and split data
-        dl = get_data_loader(DATASET)
-        dl = dl.load_data()
-        train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
-                                                          random_state=seed)
-        n_events = dl.n_events
-        
-        # Preprocess data
-        cat_features = dl.cat_features
-        num_features = dl.num_features
-        event_cols = [f'e{i+1}' for i in range(n_events)]
-        time_cols = [f't{i+1}' for i in range(n_events)]
-        X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
-        X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
-        X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
-        X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
-                                                num_features, as_array=True)
-        train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
-        train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int64)
-        train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int64)
-        valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
-        valid_dict['E'] = torch.tensor(valid_dict['E'], device=device, dtype=torch.int64)
-        valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.int64)
-        test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
-        test_dict['E'] = torch.tensor(test_dict['E'], device=device, dtype=torch.int64)
-        test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.int64)
-        
-        n_samples = train_dict['X'].shape[0]
-        n_features = train_dict['X'].shape[1]
-        
-        # Make time bins
-        time_bins = make_time_bins(train_dict['T'].cpu(), event=None, dtype=dtype).to(device)
-        time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
-        
-        for use_shared in USE_SHARED:
-            # Train model
+    for use_shared in USE_SHARED:
+        for seed in SEEDS:
+            # Reset seeds
+            np.random.seed(0)
+            torch.manual_seed(0)
+            torch.cuda.manual_seed_all(0)
+            random.seed(0)
+            
+            # Load and split data
+            dl = get_data_loader(DATASET)
+            dl = dl.load_data()
+            train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
+                                                            random_state=seed)
+            n_events = dl.n_events
+            
+            # Preprocess data
+            cat_features = dl.cat_features
+            num_features = dl.num_features
+            event_cols = [f'e{i+1}' for i in range(n_events)]
+            time_cols = [f't{i+1}' for i in range(n_events)]
+            X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
+            X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
+            X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
+            X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
+                                                    num_features, as_array=True)
+            train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
+            train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int64)
+            train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int64)
+            valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
+            valid_dict['E'] = torch.tensor(valid_dict['E'], device=device, dtype=torch.int64)
+            valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.int64)
+            test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
+            test_dict['E'] = torch.tensor(test_dict['E'], device=device, dtype=torch.int64)
+            test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.int64)
+            
+            n_samples = train_dict['X'].shape[0]
+            n_features = train_dict['X'].shape[1]
+            
+            # Make time bins
+            time_bins = make_time_bins(train_dict['T'].cpu(), event=None, dtype=dtype).to(device)
+            time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
+            
+            # Make model
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{DATASET.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
             n_dists = config['n_dists']
@@ -100,10 +107,12 @@ if __name__ == "__main__":
                 model = MENSA(n_features, layers=layers, n_events=n_events,
                               n_dists=n_dists, device=device)
             else:
-                model = MENSASeperate(n_features, layers=layers, n_events=n_events,
-                                      n_dists=n_dists, device=device)
+                model = MENSA(n_features, layers=layers, n_events=n_events,
+                              n_dists=n_dists, use_shared=False, device=device)
+            
+            # Train model
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, verbose=True)
+                    patience=10, batch_size=batch_size, verbose=True)
             
             # Make predictions
             all_preds = []
@@ -146,7 +155,7 @@ if __name__ == "__main__":
                 
                 res_sr = pd.Series([model_name, DATASET, seed, event_id+1] + metrics,
                                     index=["ModelName", "DatasetName", "Seed", "EventId",
-                                           "CI", "IBS", "MAE", "DCalib", "GlobalCI", "LocalCI"])
+                                        "CI", "IBS", "MAE", "DCalib", "GlobalCI", "LocalCI"])
                 model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
                 
             # Save results

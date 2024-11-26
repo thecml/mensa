@@ -38,7 +38,7 @@ class MLP(torch.nn.Module):
     num_events: number of events (K).
     discount: not used yet.
     """
-    def __init__(self, input_dim, n_dists, layers, temp, n_events, discount=1.0):
+    def __init__(self, input_dim, n_dists, layers, temp, n_events, use_shared=True, discount=1.0):
         super(MLP, self).__init__()
 
         self.n_dists = n_dists
@@ -60,19 +60,38 @@ class MLP(torch.nn.Module):
         self.gate = nn.Linear(lastdim, self.n_dists * self.n_events, bias=False)
         self.scaleg = nn.Linear(lastdim, self.n_dists * self.n_events, bias=True)
         self.shapeg = nn.Linear(lastdim, self.n_dists * self.n_events, bias=True)
-        self.embedding = create_representation(input_dim, layers, 'ReLU6')
+        
+        self.use_shared = use_shared
+        
+        if self.use_shared:
+            self.embedding = create_representation(input_dim, layers, 'ReLU6')
+        else:
+            self.embeddings = nn.ModuleList([
+                create_representation(input_dim, layers, 'ReLU6') for _ in range(n_events)
+            ])
 
     def forward(self, x):
-        xrep = self.embedding(x)
-        dim = x.shape[0]
-        shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim, -1), min=-10, max=10)
-        scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim, -1), min=-10, max=10)
-        gate = self.gate(xrep) / self.temp
         outcomes = []
-        for i in range(self.n_events):
-            outcomes.append((shape[:,i*self.n_dists:(i+1)*self.n_dists],
-                             scale[:,i*self.n_dists:(i+1)*self.n_dists],
-                             gate[:,i*self.n_dists:(i+1)*self.n_dists]))
+        if self.use_shared:
+            xrep = self.embedding(x)
+            dim = x.shape[0]
+            shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim, -1), min=-10, max=10)
+            scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim, -1), min=-10, max=10)
+            gate = self.gate(xrep) / self.temp
+            for i in range(self.n_events):
+                outcomes.append((shape[:,i*self.n_dists:(i+1)*self.n_dists],
+                                scale[:,i*self.n_dists:(i+1)*self.n_dists],
+                                gate[:,i*self.n_dists:(i+1)*self.n_dists]))
+        else:
+            dim = x.shape[0]
+            for i in range(self.n_events):
+                xrep = self.embeddings[i](x)
+                shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim, -1), min=-10, max=10)
+                scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim, -1), min=-10, max=10)
+                gate = self.gate(xrep) / self.temp
+                outcomes.append((shape[:, i * self.n_dists:(i + 1) * self.n_dists],
+                                    scale[:, i * self.n_dists:(i + 1) * self.n_dists],
+                                    gate[:, i * self.n_dists:(i + 1) * self.n_dists]))
         return outcomes
         
 class MENSA:
@@ -84,11 +103,18 @@ class MENSA:
     layers: layers and size of the network, e.g., [32, 32].
     device: device to use, e.g., cpu or cuda
     """
-    def __init__(self, n_features, n_events, n_dists=5, layers=[32, 32], device='cpu'):
+    def __init__(self, n_features, n_events, n_dists=5,
+                 layers=[32, 32], use_shared=True,
+                 trajectories=[], device='cpu'):
         self.n_features = n_features
         self.n_events = n_events
         self.device = device
-        self.model = MLP(n_features, n_dists, layers, temp=1000, n_events=n_events)
+        
+        self.use_shared = use_shared
+        self.trajectories = trajectories
+        
+        self.model = MLP(n_features, n_dists, layers, temp=1000,
+                         n_events=n_events, use_shared=use_shared)
         
     def get_model(self):
         return self.model
@@ -134,6 +160,8 @@ class MENSA:
                 if multi_event:
                     f, s = self.compute_risks_multi(params, ti)
                     loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_events)
+                    for trajectory in self.trajectories:
+                        loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params) 
                 else:
                     f, s = self.compute_risks(params, ti)
                     loss = conditional_weibull_loss(f, s, ei, self.model.n_events)
@@ -155,6 +183,8 @@ class MENSA:
                     if multi_event:
                         f, s = self.compute_risks_multi(params, ti)
                         loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_events)
+                        for trajectory in self.trajectories:
+                            loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params) 
                     else:
                         f, s = self.compute_risks(params, ti)
                         loss = conditional_weibull_loss(f, s, ei, self.model.n_events)
@@ -201,6 +231,19 @@ class MENSA:
         f = torch.stack(f_risks, dim=1)
         s = torch.stack(s_risks, dim=1)
         return f, s
+    
+    def compute_risk_trajectory(self, i, j, ti, ei, params): 
+        # eg: i = 2, j = 0, j happen before i, S_i(T_j)
+        t = ti[:,j].reshape(-1,1).expand(-1, self.model.n_dists) #(n, k)
+        k = params[i][0]
+        b = params[i][1]
+        gate = nn.LogSoftmax(dim=1)(params[i][2])
+        s = - (torch.pow(torch.exp(b)*t, torch.exp(k)))
+        s = (s + gate)
+        s = torch.logsumexp(s, dim=1)#log_survival
+        condition = torch.logical_and(ei[:, i] == 1, ei[:, j] == 1)
+        result = -torch.sum(condition*s)/ei.shape[0]
+        return result
     
     def compute_risks_multi(self, params, ti):
         f_risks = []

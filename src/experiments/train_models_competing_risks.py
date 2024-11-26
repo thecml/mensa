@@ -39,6 +39,7 @@ warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
 np.random.seed(0)
 torch.manual_seed(0)
+torch.cuda.manual_seed_all(0)
 random.seed(0)
 
 # Set precision
@@ -88,6 +89,12 @@ if __name__ == "__main__":
 
     # Evaluate models
     for model_name in MODELS:
+        # Reset seeds
+        np.random.seed(0)
+        torch.manual_seed(0)
+        torch.cuda.manual_seed_all(0)
+        random.seed(0)
+        
         if model_name == "coxph":
             config = dotdict(cfg.COXPH_PARAMS)
             trained_models = []

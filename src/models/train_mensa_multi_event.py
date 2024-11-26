@@ -113,7 +113,7 @@ if __name__ == "__main__":
         model = MENSA(n_features, layers=layers, n_events=n_events,
                       n_dists=n_dists, device=device)
         model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                    patience=10, batch_size=batch_size, verbose=True)
+                  patience=10, batch_size=batch_size, verbose=True)
         
         # Make predictions
         all_preds = []

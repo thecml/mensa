@@ -19,6 +19,6 @@ dataset_names=('synthetic_se', 'seer_se' 'mimic_se')
 for seed in "${seeds[@]}"; do
     for dataset_name in "${dataset_names[@]}"; do
         echo "Running with seed=$seed, dataset_name=$dataset_name"
-        python3 $base_path/../src/experiments/run_real_single_event.py --seed "$seed" --dataset_name "$dataset_name"
+        python3 $base_path/../src/experiments/train_models_single_event.py --seed "$seed" --dataset_name "$dataset_name"
     done
 done

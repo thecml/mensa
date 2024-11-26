@@ -40,6 +40,7 @@ warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
 np.random.seed(0)
 torch.manual_seed(0)
+torch.cuda.manual_seed_all(0)
 random.seed(0)
 
 # Setup precision
@@ -90,6 +91,12 @@ if __name__ == "__main__":
     
     # Evaluate each model
     for model_name in MODELS:
+        # Reset seeds
+        np.random.seed(0)
+        torch.manual_seed(0)
+        torch.cuda.manual_seed_all(0)
+        random.seed(0)
+        
         if model_name == "cox":
             config = dotdict(cfg.COXPH_PARAMS)
             model = make_cox_model(config)

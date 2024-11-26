@@ -390,6 +390,7 @@ class PROACTMultiDataLoader(BaseDataLoader):
         self.y_t = np.stack((times[0], times[1], times[2], times[3]), axis=1)
         self.y_e = np.stack((events[0], events[1], events[2], events[3]), axis=1)
         self.n_events = 4
+        self.trajectories = []
         return self
 
     def split_data(self, train_size: float, valid_size: float,
@@ -866,7 +867,7 @@ class EBMTDataLoader(BaseDataLoader):
             data_dict['T'] = dataframe[self.T_columns].astype(np.int64).values
             dicts.append(data_dict)
             
-        return dicts[0], dicts[1], dicts[2]       
+        return dicts[0], dicts[1], dicts[2] 
 
 class RotterdamMultiDataLoader(BaseDataLoader):
     """
