@@ -64,8 +64,10 @@ if __name__ == "__main__":
             # Load and split data
             dl = get_data_loader(DATASET)
             dl = dl.load_data()
+            trajectories = dl.trajectories
+            
             train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
-                                                            random_state=seed)
+                                                              random_state=seed)
             n_events = dl.n_events
             
             # Preprocess data
@@ -104,19 +106,21 @@ if __name__ == "__main__":
             layers = config['layers']
             if use_shared:
                 model = MENSA(n_features, layers=layers, n_events=n_events,
-                              n_dists=n_dists, device=device)
+                              n_dists=n_dists, trajectories=trajectories,
+                              device=device)
             else:
                 model = MENSA(n_features, layers=layers, n_events=n_events,
-                              n_dists=n_dists, use_shared=False, device=device)
+                              n_dists=n_dists, use_shared=False,
+                              trajectories=trajectories, device=device)
             
             # Train model
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                    patience=10, batch_size=batch_size, verbose=True)
+                      patience=10, batch_size=batch_size, verbose=True)
             
             # Make predictions
             all_preds = []
             for i in range(n_events):
-                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)
+                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
                 model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
                 all_preds.append(model_preds)
             

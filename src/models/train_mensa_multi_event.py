@@ -92,10 +92,7 @@ if __name__ == "__main__":
     lr = config['lr']
     batch_size = config['batch_size']
     layers = config['layers']
-    if DATASET == 'ebmt_me':
-        trajectories = [(2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)]
-    elif DATASET == 'rotterdam_me':
-        trajectories = [(1, 0)]
+    trajectories = config['trajectories']
     model = MENSA(n_features, layers=layers, n_events=n_events,
                   n_dists=n_dists, trajectories=trajectories, device=device)
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
@@ -104,7 +101,7 @@ if __name__ == "__main__":
     # Make predictions
     all_preds = []
     for i in range(n_events):
-        model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)
+        model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
         model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
         all_preds.append(model_preds)
     

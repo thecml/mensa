@@ -827,8 +827,6 @@ class EBMTDataLoader(BaseDataLoader):
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
                             
-        columns_to_drop = [col for col in df.columns if
-                           any(substring in col for substring in ['_event', '_time', 'sample_id'])]
         self.events_names = ['2', '3', '4', '5', '6'] 
         self.X_columns = ['match_no gender mismatch', 'proph_yes', 'year_1990-1994', 'year_1995-1998', 'agecl_<=20', 'agecl_>40']
         self.E_columns = ['e1', 'e2', 'e3' ,'e4', 'e5']

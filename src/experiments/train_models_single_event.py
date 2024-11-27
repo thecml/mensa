@@ -66,6 +66,7 @@ if __name__ == "__main__":
                           k_tau=0.5, device=device, dtype=dtype)
     else:
         dl = dl.load_data()
+        
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=seed)
     
@@ -165,7 +166,7 @@ if __name__ == "__main__":
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            model = MENSA(n_features, layers=layers, n_dists=n_dists, n_events=2, device=device)
+            model = MENSA(n_features, layers=layers, n_dists=n_dists, n_events=1, device=device)
             model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
                       patience=10, batch_size=batch_size, learning_rate=lr)
         else:

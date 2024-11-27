@@ -27,7 +27,6 @@ from utility.config import load_config
 from utility.data import calculate_layer_size_hierarch
 from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
-from mensa.model_trajectory import MENSA_trajectory
 
 # SOTA
 from sota_models import (make_cox_model, make_coxboost_model, make_deephit_single, make_dsm_model,
@@ -54,7 +53,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # Define models
 # MODELS = ['deepsurv', 'hierarch', 'mensa']
 #MODELS = ['deepsurv', 'hierarch', 'mensa', 'mensa_trajectory'] #, 'hierarch']
-MODELS = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "mtlr", "dsm" , "hierarch", 'mensa', 'mensa_trajectory']
+MODELS = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "mtlr", "dsm" , "hierarch", 'mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -213,27 +212,11 @@ if __name__ == "__main__":
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
+            trajectories = config['trajectories']
             model = MENSA(n_features, layers=layers, n_events=n_events,
-                          n_dists=n_dists, device=device)
+                          n_dists=n_dists, trajectories=trajectories, device=device)
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
                       patience=10, batch_size=batch_size, verbose=True)
-        elif model_name == "mensa_trajectory":
-            config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
-            n_epochs = config['n_epochs']
-            n_dists = config['n_dists']
-            lr = config['lr']
-            batch_size = config['batch_size']
-            layers = config['layers']
-            if dataset_name == 'ebmt_me':
-                trajectories = [(2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)]
-            elif dataset_name == 'rotterdam_me':
-                trajectories = [(1, 0)]
-            else:
-                trajectories = []
-            model = MENSA_trajectory(n_features, layers=layers, n_events=n_events,
-                                     n_dists=n_dists, trajectories=trajectories, device=device)
-            model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, verbose=True)          
         else:
             raise NotImplementedError()
         
@@ -284,15 +267,9 @@ if __name__ == "__main__":
         elif model_name == "mensa":
             all_preds = []
             for i in range(n_events):
-                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)
+                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
                 model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
                 all_preds.append(model_preds)
-        elif model_name in ["mensa_trajectory"]:
-            all_preds = []
-            for i in range(n_events):
-                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)
-                model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-                all_preds.append(model_preds)                
         else:
             raise NotImplementedError()
         

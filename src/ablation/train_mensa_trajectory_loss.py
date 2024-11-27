@@ -49,7 +49,7 @@ torch.set_default_dtype(dtype)
 # Setup device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-DATASET = "rotterdam_me"
+DATASET = "rotterdam_me" # rotterdam/ebmt
 USE_TRAJECTORY = [True, False]
 SEEDS = [0]
 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
             X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
             X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
             X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
-                                                    num_features, as_array=True)
+                                                      num_features, as_array=True)
             train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
             train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int64)
             train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int64)
@@ -118,7 +118,7 @@ if __name__ == "__main__":
             # Make predictions
             all_preds = []
             for i in range(n_events):
-                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)
+                model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
                 model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
                 all_preds.append(model_preds)
             
