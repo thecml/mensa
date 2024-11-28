@@ -456,6 +456,7 @@ class MimicMultiDataLoader(BaseDataLoader):
         self.y_t = np.stack((times[0], times[1], times[2]), axis=1)
         self.y_e = np.stack((events[0], events[1], events[2]), axis=1)
         self.n_events = 3
+        self.trajectories = []
         
         return self
 

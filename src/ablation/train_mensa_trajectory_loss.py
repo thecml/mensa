@@ -46,12 +46,11 @@ if __name__ == "__main__":
     
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--use_trajectory', action='store_true') # store_true = False by default
-    parser.add_argument('--dataset_name', type=str, default='ebmt_me')
+    parser.add_argument('--dataset_name', type=str, default='rotterdam_me')
     
     args = parser.parse_args()
     seed = args.seed
-    #use_trajectory = args.use_trajectory
-    use_trajectory = True
+    use_trajectory = args.use_trajectory
     dataset_name = args.dataset_name
     
     # Load and split data

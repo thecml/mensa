@@ -45,7 +45,7 @@ if __name__ == "__main__":
     
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--use_shared', action='store_true') # store_true = False by default
-    parser.add_argument('--dataset_name', type=str, default='rotterdam_me')
+    parser.add_argument('--dataset_name', type=str, default='proact_me')
     
     args = parser.parse_args()
     seed = args.seed
