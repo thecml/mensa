@@ -3,3 +3,4 @@ lr: 0.001
 n_epochs: 1000
 n_dists: 3
 batch_size: 32
+weight_decay: 0.001

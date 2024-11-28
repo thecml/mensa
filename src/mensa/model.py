@@ -140,7 +140,7 @@ class MENSA:
         return self.model
     
     def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=20000, 
-            patience=100, optimizer='adam', weight_decay=0.005, learning_rate=5e-4,
+            patience=100, optimizer='adam', weight_decay=0.001, learning_rate=5e-4,
             betas=(0.9, 0.999), use_wandb=False, verbose=False):
 
         optim_dict = [{'params': self.model.parameters(), 'lr': learning_rate}]
