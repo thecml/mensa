@@ -12,10 +12,10 @@ if [ -f "$results_path" ]; then
   rm $results_path
 fi
 
+seeds=(0 1 2 3 4)
+k_taus=(0.0 0.25 0.50 0.75)
 copula_names=("clayton" "frank")
 linear=("True" "False")
-k_taus=(0.0 0.25 0.50 0.75)
-seeds=(0 1 2 3 4)
 
 for copula_name in "${copula_names[@]}"; do
     for lin in "${linear[@]}"; do
