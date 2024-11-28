@@ -23,7 +23,7 @@ for copula_name in "${copula_names[@]}"; do
             for seed in "${seeds[@]}"; do
                 echo "Running with seed=$seed, k_tau=$k_tau, copula_name=$copula_name, linear=$lin"
                 if [ "$lin" = "True" ]; then
-                    python3 $base_path/../src/experiments/train_models_single_event_dgp.py --seed "$seed" --k_tau "$k_tau" --copula_name "$copula_name" --linear "$lin"
+                    python3 $base_path/../src/experiments/train_models_single_event_dgp.py --seed "$seed" --k_tau "$k_tau" --copula_name "$copula_name" --linear
                 else
                     python3 $base_path/../src/experiments/train_models_single_event_dgp.py --seed "$seed" --k_tau "$k_tau" --copula_name "$copula_name"
                 fi

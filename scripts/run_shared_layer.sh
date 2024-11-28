@@ -22,7 +22,7 @@ for seed in "${seeds[@]}"; do
         for dataset_name in "${dataset_names[@]}"; do
             echo "Running with seed=$seed, use_shared=$us, dataset_name=$dataset_name"
             if [ "$us" = "True" ]; then
-                python3 $base_path/../src/ablation/train_mensa_shared_layer.py --seed "$seed" --use_shared "$us" --dataset_name "$dataset_name"
+                python3 $base_path/../src/ablation/train_mensa_shared_layer.py --seed "$seed" --use_shared --dataset_name "$dataset_name"
             else
                 python3 $base_path/../src/ablation/train_mensa_shared_layer.py --seed "$seed" --dataset_name "$dataset_name"
             fi
