@@ -241,3 +241,4 @@ best.pth
 src/tuning/screenlog.0
 results/survival_l1.pdf
 results/als_performance.pdf
+results/proact_isd_mixtures.pdf

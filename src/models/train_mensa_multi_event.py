@@ -61,6 +61,7 @@ if __name__ == "__main__":
     # Preprocess data
     cat_features = dl.cat_features
     num_features = dl.num_features
+    trajectories = dl.trajectories
     event_cols = [f'e{i+1}' for i in range(n_events)]
     time_cols = [f't{i+1}' for i in range(n_events)]
     X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
@@ -92,10 +93,9 @@ if __name__ == "__main__":
     lr = config['lr']
     batch_size = config['batch_size']
     layers = config['layers']
-    trajectories = config['trajectories']
     weight_decay = config['weight_decay']
     model = MENSA(n_features, layers=layers, n_events=n_events,
-                  n_dists=n_dists, trajectories=trajectories, device=device)
+                  n_dists=5, trajectories=trajectories, device=device)
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
               weight_decay=weight_decay, patience=10, batch_size=batch_size,
               verbose=True)
