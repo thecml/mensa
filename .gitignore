@@ -239,5 +239,4 @@ src/tuning/.tune_mensa_model.py.swp
 data/rotterdam.csv
 best.pth
 src/tuning/screenlog.0
-results/survival_l1.pdf
-results/als_performance.pdf
+plots/proact_isd_mixtures.pdf

@@ -40,6 +40,7 @@ warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
 np.random.seed(0)
 torch.manual_seed(0)
+torch.cuda.manual_seed_all(0)
 random.seed(0)
 
 # Setup precision
@@ -58,7 +59,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--k_tau', type=float, default=0.25)
     parser.add_argument('--copula_name', type=str, default="clayton")
-    parser.add_argument('--linear', type=bool, default=False)
+    parser.add_argument('--linear', action='store_true') # store_true = False by default
     
     args = parser.parse_args()
     seed = args.seed
@@ -90,7 +91,13 @@ if __name__ == "__main__":
     
     # Evaluate each model
     for model_name in MODELS:
-        if model_name == "cox":
+        # Reset seeds
+        np.random.seed(0)
+        torch.manual_seed(0)
+        torch.cuda.manual_seed_all(0)
+        random.seed(0)
+        
+        if model_name == "coxph":
             config = dotdict(cfg.COXPH_PARAMS)
             model = make_cox_model(config)
             model.fit(X_train, y_train)
@@ -143,28 +150,17 @@ if __name__ == "__main__":
             model = train_mtlr_model(model, data_train, data_valid, time_bins.cpu().numpy(),
                                      config, random_state=0, dtype=dtype,
                                      reset_model=True, device=device)
-        elif model_name == "dcsurvival":
-            config = dotdict(cfg.DCSURVIVAL_PARAMS)
-            depth = config['depth']
-            widths = config['widths']
-            lc_w_range = config['lc_w_range']
-            shift_w_range = config['shift_w_range']
-            learning_rate = config['learning_rate']
-            phi = DiracPhi(depth, widths, lc_w_range, shift_w_range, device, tol=1e-14).to(device)
-            model = DCSurvival(phi, device, num_features=n_features, tol=1e-14).to(device)
-            model = train_dcsurvival_model(model, train_dict['X'], valid_dict['X'],
-                                           train_dict['T'], train_dict['E'],
-                                           valid_dict['T'], valid_dict['E'],
-                                           num_epochs=1000, learning_rate=learning_rate, device=device)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            model = MENSA(n_features, layers=layers, n_events=2, device=device)
-            model.fit(train_dict, valid_dict, optimizer='adam', verbose=False, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, learning_rate=lr)
+            weight_decay = config['weight_decay']
+            model = MENSA(n_features, layers=layers, n_events=1, device=device)
+            model.fit(train_dict, valid_dict, verbose=False, n_epochs=n_epochs,
+                      weight_decay=weight_decay, patience=10, batch_size=batch_size,
+                      learning_rate=lr)
         elif model_name == "dgp":
             pass
         else:
@@ -172,7 +168,7 @@ if __name__ == "__main__":
         
         # Compute survival function
         n_samples = test_dict['X'].shape[0]
-        if model_name in ['cox', "coxboost", 'rsf']:
+        if model_name in ['coxph', "coxboost", 'rsf']:
             model_preds = model.predict_survival_function(X_test)
             model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
         elif model_name == 'dsm':
@@ -193,11 +189,8 @@ if __name__ == "__main__":
             model_preds = survival_outputs[:, 1:].cpu().numpy()
         elif model_name == "deephit":
             model_preds = model.predict_surv(test_dict['X']).cpu().numpy()
-        elif model_name == "dcsurvival":
-            model_preds = predict_survival_function(model, test_dict['X'].to(device),
-                                                    time_bins, device=device).cpu().numpy()
         elif model_name == "mensa":
-            model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=0) # use event preds
+            model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=1) # use event preds
         elif model_name == "dgp":
             model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
             for i in range(time_bins.shape[0]):

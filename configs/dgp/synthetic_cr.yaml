@@ -4,7 +4,6 @@ alpha_e3: 16
 gamma_e1: 4
 gamma_e2: 3
 gamma_e3: 5
-n_hidden: 8
 n_events: 3
 n_samples: 20000
 n_features: 10

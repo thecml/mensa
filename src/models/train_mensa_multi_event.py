@@ -26,7 +26,6 @@ from utility.config import load_config
 from utility.data import calculate_layer_size_hierarch
 from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
-from mensa.model_trajectory import MENSA_trajectory
 
 # SOTA
 from sota_models import (train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
@@ -50,7 +49,6 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 SEED = 0
 DATASET = "ebmt_me"
-USE_TRAJECTORY = False
 
 if __name__ == "__main__":
     # Load and split data
@@ -63,6 +61,7 @@ if __name__ == "__main__":
     # Preprocess data
     cat_features = dl.cat_features
     num_features = dl.num_features
+    trajectories = dl.trajectories
     event_cols = [f'e{i+1}' for i in range(n_events)]
     time_cols = [f't{i+1}' for i in range(n_events)]
     X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
@@ -88,65 +87,51 @@ if __name__ == "__main__":
     time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
     
     # Evaluate models
-    if USE_TRAJECTORY:
-        config = load_config(cfg.MENSA_CONFIGS_DIR, f"{DATASET.partition('_')[0]}.yaml")
-        n_epochs = config['n_epochs']
-        n_dists = config['n_dists']
-        lr = config['lr']
-        batch_size = config['batch_size']
-        layers = config['layers']
-        if DATASET == 'ebmt_me':
-            trajectories = [(2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)]
-        elif DATASET == 'rotterdam_me':
-            trajectories = [(1, 0)]
-        model = MENSA_trajectory(n_features, layers=layers, n_events=n_events,
-                                 n_dists=n_dists, trajectories = trajectories, device=device)
-        model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                    patience=10, batch_size=batch_size, verbose=True)
-    else:
-        config = load_config(cfg.MENSA_CONFIGS_DIR, f"{DATASET.partition('_')[0]}.yaml")
-        n_epochs = config['n_epochs']
-        n_dists = config['n_dists']
-        lr = config['lr']
-        batch_size = config['batch_size']
-        layers = config['layers']
-        model = MENSA(n_features, layers=layers, n_events=n_events,
-                      n_dists=n_dists, device=device)
-        model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                    patience=10, batch_size=batch_size, verbose=True)
+    config = load_config(cfg.MENSA_CONFIGS_DIR, f"{DATASET.partition('_')[0]}.yaml")
+    n_epochs = config['n_epochs']
+    n_dists = config['n_dists']
+    lr = config['lr']
+    batch_size = config['batch_size']
+    layers = config['layers']
+    weight_decay = config['weight_decay']
+    model = MENSA(n_features, layers=layers, n_events=n_events,
+                  n_dists=n_dists, trajectories=trajectories, device=device)
+    model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
+              weight_decay=weight_decay, patience=10, batch_size=batch_size,
+              verbose=True)
         
-        # Make predictions
-        all_preds = []
-        for i in range(n_events):
-            model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)
-            model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-            all_preds.append(model_preds)
+    # Make predictions
+    all_preds = []
+    for i in range(n_events):
+        model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
+        model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
+        all_preds.append(model_preds)
+    
+    # Calculate local and global CI
+    all_preds_arr = [df.to_numpy() for df in all_preds]
+    global_ci = global_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
+                               test_dict['E'].cpu().numpy())
+    local_ci = local_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
+                             test_dict['E'].cpu().numpy())
+            
+    # Make evaluation for each event
+    model_results = pd.DataFrame()
+    for event_id, surv_pred in enumerate(all_preds):
+        n_train_samples = len(train_dict['X'])
+        n_test_samples= len(test_dict['X'])
+        y_train_time = train_dict['T'][:,event_id]
+        y_train_event = train_dict['E'][:,event_id]
+        y_test_time = test_dict['T'][:,event_id]
+        y_test_event = test_dict['E'][:,event_id]
         
-        # Calculate local and global CI
-        all_preds_arr = [df.to_numpy() for df in all_preds]
-        global_ci = global_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                                   test_dict['E'].cpu().numpy())
-        local_ci = local_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                                 test_dict['E'].cpu().numpy())
-                
-        # Make evaluation for each event
-        model_results = pd.DataFrame()
-        for event_id, surv_pred in enumerate(all_preds):
-            n_train_samples = len(train_dict['X'])
-            n_test_samples= len(test_dict['X'])
-            y_train_time = train_dict['T'][:,event_id]
-            y_train_event = train_dict['E'][:,event_id]
-            y_test_time = test_dict['T'][:,event_id]
-            y_test_event = test_dict['E'][:,event_id]
-            
-            lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
-                                                y_train_time, y_train_event)
-            
-            ci = lifelines_eval.concordance()[0]
-            ibs = lifelines_eval.integrated_brier_score()
-            mae = lifelines_eval.mae(method="Margin")
-            d_calib = lifelines_eval.d_calibration()[0]
-            
-            metrics = [ci, ibs, mae, d_calib, global_ci, local_ci]
-            print(metrics)
-            
+        lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
+                                            y_train_time, y_train_event)
+        
+        ci = lifelines_eval.concordance()[0]
+        ibs = lifelines_eval.integrated_brier_score()
+        mae = lifelines_eval.mae(method="Margin")
+        d_calib = lifelines_eval.d_calibration()[0]
+        
+        metrics = [ci, ibs, mae, d_calib, global_ci, local_ci]
+        print(metrics)
+        

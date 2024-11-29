@@ -2,6 +2,5 @@ alpha_e1: 17
 alpha_e2: 18
 gamma_e1: 5
 gamma_e2: 4
-n_hidden: 1
-n_samples: 5000
+n_samples: 10000
 n_features: 10

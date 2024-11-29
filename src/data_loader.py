@@ -375,7 +375,8 @@ class PROACTMultiDataLoader(BaseDataLoader):
         label_cols = [col for col in df.columns if any(substring in col for substring in ['Event', 'TTE'])]
         event_names = ['Speech', 'Swallowing', 'Handwriting', 'Walking']
         for event_name in event_names:
-            df = df.loc[(df[f'TTE_{event_name}'] > 0) & (df[f'TTE_{event_name}'] <= 365)] # 1 - 365
+            df = df.loc[(df[f'Event_{event_name}'] == 0) | (df[f'Event_{event_name}'] == 1)] # drop already occured
+            df = df.loc[(df[f'TTE_{event_name}'] > 0) & (df[f'TTE_{event_name}'] <= 500)] # 1 - 500
         df = df.drop(df.filter(like='_Strength').columns, axis=1) # Drop strength tests
         df = df.drop('Race_Caucasian', axis=1) # Drop race information
         df = df.drop('El_escorial', axis=1) # Drop el_escorial
@@ -389,6 +390,7 @@ class PROACTMultiDataLoader(BaseDataLoader):
         self.y_t = np.stack((times[0], times[1], times[2], times[3]), axis=1)
         self.y_e = np.stack((events[0], events[1], events[2], events[3]), axis=1)
         self.n_events = 4
+        self.trajectories = []
         return self
 
     def split_data(self, train_size: float, valid_size: float,
@@ -454,6 +456,7 @@ class MimicMultiDataLoader(BaseDataLoader):
         self.y_t = np.stack((times[0], times[1], times[2]), axis=1)
         self.y_e = np.stack((events[0], events[1], events[2]), axis=1)
         self.n_events = 3
+        self.trajectories = []
         
         return self
 
@@ -825,8 +828,6 @@ class EBMTDataLoader(BaseDataLoader):
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
                             
-        columns_to_drop = [col for col in df.columns if
-                           any(substring in col for substring in ['_event', '_time', 'sample_id'])]
         self.events_names = ['2', '3', '4', '5', '6'] 
         self.X_columns = ['match_no gender mismatch', 'proph_yes', 'year_1990-1994', 'year_1995-1998', 'agecl_<=20', 'agecl_>40']
         self.E_columns = ['e1', 'e2', 'e3' ,'e4', 'e5']
@@ -844,10 +845,10 @@ class EBMTDataLoader(BaseDataLoader):
         self.df = self.df.rename(columns={'2_time': 't1', '3_time': 't2', '4_time': 't3', '5_time': 't4', '6_time': 't5',
                                           '2_event': 'e1', '3_event': 'e2', '4_event': 'e3', '5_event': 'e4', '6_event': 'e5'})
         
-        self.trajectories = [(2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)]
+        self.trajectories = [(3, 1), (4, 1), (5, 1), (3, 2), (4, 2), (5, 2), (4, 3), (5, 3)]
         # 2 < 4, 2 < 5, 2 < 6, 3 < 4 , 3< 5, 3 < 6, 4 < 5, 4 < 6
         # 0 < 2, 0 < 3, 0 < 4, 1 < 2, 1 < 3, 1 < 4, 2 < 3, 2 < 4
-        # (2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)        
+        # (2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)
         return self
 
     def split_data(self, train_size: float, valid_size: float,
@@ -865,7 +866,7 @@ class EBMTDataLoader(BaseDataLoader):
             data_dict['T'] = dataframe[self.T_columns].astype(np.int64).values
             dicts.append(data_dict)
             
-        return dicts[0], dicts[1], dicts[2]       
+        return dicts[0], dicts[1], dicts[2] 
 
 class RotterdamMultiDataLoader(BaseDataLoader):
     """
@@ -898,7 +899,7 @@ class RotterdamMultiDataLoader(BaseDataLoader):
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
         self.n_events = 2
-        self.trajectories = [(1, 0)]
+        self.trajectories = [(2, 1)]
         return self
         
     def split_data(self, train_size: float, valid_size: float,

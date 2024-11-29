@@ -12,10 +12,10 @@ if [ -f "$results_path" ]; then
   rm $results_path
 fi
 
+seeds=(0 1 2 3 4)
+k_taus=(0.0 0.25 0.50 0.75)
 copula_names=("clayton" "frank")
 linear=("True" "False")
-k_taus=(0.0 0.25 0.50 0.75)
-seeds=(0 1 2 3 4)
 
 for copula_name in "${copula_names[@]}"; do
     for lin in "${linear[@]}"; do
@@ -23,9 +23,9 @@ for copula_name in "${copula_names[@]}"; do
             for seed in "${seeds[@]}"; do
                 echo "Running with seed=$seed, k_tau=$k_tau, copula_name=$copula_name, linear=$lin"
                 if [ "$lin" = "True" ]; then
-                    python3 $base_path/../src/experiments/run_dgp_single_event.py --seed "$seed" --k_tau "$k_tau" --copula_name "$copula_name" --linear "$lin"
+                    python3 $base_path/../src/experiments/train_models_single_event_dgp.py --seed "$seed" --k_tau "$k_tau" --copula_name "$copula_name" --linear
                 else
-                    python3 $base_path/../src/experiments/run_dgp_single_event.py --seed "$seed" --k_tau "$k_tau" --copula_name "$copula_name"
+                    python3 $base_path/../src/experiments/train_models_single_event_dgp.py --seed "$seed" --k_tau "$k_tau" --copula_name "$copula_name"
                 fi
             done
         done

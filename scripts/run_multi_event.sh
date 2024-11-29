@@ -14,11 +14,11 @@ if [ -f "$results_path" ]; then
 fi
 
 seeds=(0 1 2 3 4)
-dataset_names=('proact_me')
+dataset_names=('mimic_me' 'rotterdam_me' 'proact_me' 'ebmt_me')
 
 for seed in "${seeds[@]}"; do
     for dataset_name in "${dataset_names[@]}"; do
         echo "Running with seed=$seed, dataset_name=$dataset_name"
-        python3 $base_path/../src/experiments/run_real_multi_event.py --seed "$seed" --dataset_name "$dataset_name"
+        python3 $base_path/../src/experiments/train_models_multi_event.py --seed "$seed" --dataset_name "$dataset_name"
     done
 done

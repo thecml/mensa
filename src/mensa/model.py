@@ -9,6 +9,26 @@ from tqdm import trange
 
 from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi, safe_log
 
+def add_transient_state(data_dict):
+    # Modify 'E': Add 1 if all columns are 0, else 0
+    condition_e = (data_dict['E'] == 0).all(dim=1).unsqueeze(1)
+    new_column_e = condition_e.long()
+    data_dict['E'] = torch.cat([new_column_e, data_dict['E']], dim=1)
+    
+    # Modify 'T': Add the maximum or minimum value based on 'E'
+    max_values = data_dict['T'].max(dim=1, keepdim=True).values
+    
+    # If all 'E' columns are 0, take the maximum; otherwise, take the minimum of active events
+    new_column_t = torch.where(
+        condition_e,  # Condition: all 'E' columns are 0
+        max_values,   # If true, take maximum
+        torch.where(data_dict['E'][:, 1:] == 1, data_dict['T'], float('inf')).min(dim=1, keepdim=True).values
+    )
+    
+    data_dict['T'] = torch.cat([new_column_t, data_dict['T']], dim=1)
+    
+    return data_dict
+
 def create_representation(input_dim, layers, activation, bias=True):
     if activation == 'ReLU6':
         act = nn.ReLU6()
@@ -38,14 +58,14 @@ class MLP(torch.nn.Module):
     num_events: number of events (K).
     discount: not used yet.
     """
-    def __init__(self, input_dim, n_dists, layers, temp, n_events, discount=1.0):
+    def __init__(self, input_dim, n_dists, layers, temp, n_states, use_shared=True, discount=1.0):
         super(MLP, self).__init__()
 
         self.n_dists = n_dists
         self.temp = float(temp)
         self.discount = float(discount)
         
-        self.n_events = n_events
+        self.n_states = n_states
 
         if layers is None: layers = []
         self.layers = layers
@@ -54,25 +74,44 @@ class MLP(torch.nn.Module):
         else: lastdim = layers[-1]
 
         self.act = nn.SELU()
-        self.shape = nn.Parameter(-torch.ones(self.n_dists * n_events))
-        self.scale = nn.Parameter(-torch.ones(self.n_dists * n_events))
+        self.shape = nn.Parameter(-torch.ones(self.n_dists * n_states))
+        self.scale = nn.Parameter(-torch.ones(self.n_dists * n_states))
 
-        self.gate = nn.Linear(lastdim, self.n_dists * self.n_events, bias=False)
-        self.scaleg = nn.Linear(lastdim, self.n_dists * self.n_events, bias=True)
-        self.shapeg = nn.Linear(lastdim, self.n_dists * self.n_events, bias=True)
-        self.embedding = create_representation(input_dim, layers, 'ReLU6')
+        self.gate = nn.Linear(lastdim, self.n_dists * self.n_states, bias=False)
+        self.scaleg = nn.Linear(lastdim, self.n_dists * self.n_states, bias=True)
+        self.shapeg = nn.Linear(lastdim, self.n_dists * self.n_states, bias=True)
+        
+        self.use_shared = use_shared
+        
+        if self.use_shared:
+            self.embedding = create_representation(input_dim, layers, 'ReLU6')
+        else:
+            self.embeddings = nn.ModuleList([
+                create_representation(input_dim, layers, 'ReLU6') for _ in range(n_states)
+            ])
 
     def forward(self, x):
-        xrep = self.embedding(x)
-        dim = x.shape[0]
-        shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim, -1), min=-10, max=10)
-        scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim, -1), min=-10, max=10)
-        gate = self.gate(xrep) / self.temp
         outcomes = []
-        for i in range(self.n_events):
-            outcomes.append((shape[:,i*self.n_dists:(i+1)*self.n_dists],
-                             scale[:,i*self.n_dists:(i+1)*self.n_dists],
-                             gate[:,i*self.n_dists:(i+1)*self.n_dists]))
+        if self.use_shared:
+            xrep = self.embedding(x)
+            dim = x.shape[0]
+            shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim, -1), min=-10, max=10)
+            scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim, -1), min=-10, max=10)
+            gate = self.gate(xrep) / self.temp
+            for i in range(self.n_states):
+                outcomes.append((shape[:,i*self.n_dists:(i+1)*self.n_dists],
+                                scale[:,i*self.n_dists:(i+1)*self.n_dists],
+                                gate[:,i*self.n_dists:(i+1)*self.n_dists]))
+        else:
+            dim = x.shape[0]
+            for i in range(self.n_states):
+                xrep = self.embeddings[i](x)
+                shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim, -1), min=-10, max=10)
+                scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim, -1), min=-10, max=10)
+                gate = self.gate(xrep) / self.temp
+                outcomes.append((shape[:, i * self.n_dists:(i + 1) * self.n_dists],
+                                    scale[:, i * self.n_dists:(i + 1) * self.n_dists],
+                                    gate[:, i * self.n_dists:(i + 1) * self.n_dists]))
         return outcomes
         
 class MENSA:
@@ -84,17 +123,24 @@ class MENSA:
     layers: layers and size of the network, e.g., [32, 32].
     device: device to use, e.g., cpu or cuda
     """
-    def __init__(self, n_features, n_events, n_dists=5, layers=[32, 32], device='cpu'):
+    def __init__(self, n_features, n_events, n_dists=5,
+                 layers=[32, 32], use_shared=True,
+                 trajectories=[], device='cpu'):
         self.n_features = n_features
-        self.n_events = n_events
+        self.n_states = n_events + 1 # K + 1 states
         self.device = device
-        self.model = MLP(n_features, n_dists, layers, temp=1000, n_events=n_events)
+        
+        self.use_shared = use_shared
+        self.trajectories = trajectories
+        
+        self.model = MLP(n_features, n_dists, layers, temp=1000,
+                         n_states=self.n_states, use_shared=use_shared)
         
     def get_model(self):
         return self.model
     
     def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=20000, 
-            patience=100, optimizer='adam', weight_decay=0.005, learning_rate=5e-4,
+            patience=100, optimizer='adam', weight_decay=0.001, learning_rate=5e-4,
             betas=(0.9, 0.999), use_wandb=False, verbose=False):
 
         optim_dict = [{'params': self.model.parameters(), 'lr': learning_rate}]
@@ -105,6 +151,11 @@ class MENSA:
             optimizer = torch.optim.AdamW(optim_dict, betas=betas, weight_decay=weight_decay)
         
         multi_event = True if train_dict['T'].ndim > 1 else False
+        
+        # Added transient state for multi-event scenarios
+        if multi_event:
+            train_dict = add_transient_state(train_dict)
+            valid_dict = add_transient_state(valid_dict)
         
         train_loader = DataLoader(TensorDataset(train_dict['X'].to(self.device),
                                                 train_dict['T'].to(self.device),
@@ -133,10 +184,12 @@ class MENSA:
                 params = self.model.forward(xi) # run forward pass
                 if multi_event:
                     f, s = self.compute_risks_multi(params, ti)
-                    loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_events)
+                    loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states)
+                    for trajectory in self.trajectories:
+                        loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params) 
                 else:
                     f, s = self.compute_risks(params, ti)
-                    loss = conditional_weibull_loss(f, s, ei, self.model.n_events)
+                    loss = conditional_weibull_loss(f, s, ei, self.model.n_states)
 
                 loss.backward()
                 optimizer.step()
@@ -154,10 +207,12 @@ class MENSA:
                     params = self.model.forward(xi) # run forward pass
                     if multi_event:
                         f, s = self.compute_risks_multi(params, ti)
-                        loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_events)
+                        loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states)
+                        for trajectory in self.trajectories:
+                            loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params) 
                     else:
                         f, s = self.compute_risks(params, ti)
-                        loss = conditional_weibull_loss(f, s, ei, self.model.n_events)
+                        loss = conditional_weibull_loss(f, s, ei, self.model.n_states)
                     
                     total_valid_loss += loss.item()
                 
@@ -185,7 +240,7 @@ class MENSA:
         f_risks = []
         s_risks = []
         ti = ti.reshape(-1,1).expand(-1, self.model.n_dists)
-        for i in range(self.model.n_events):
+        for i in range(self.model.n_states):
             k = params[i][0]
             b = params[i][1]
             gate = nn.LogSoftmax(dim=1)(params[i][2])
@@ -202,10 +257,23 @@ class MENSA:
         s = torch.stack(s_risks, dim=1)
         return f, s
     
+    def compute_risk_trajectory(self, i, j, ti, ei, params): 
+        # eg: i = 2, j = 0, j happen before i, S_i(T_j)
+        t = ti[:,j].reshape(-1,1).expand(-1, self.model.n_dists) #(n, k)
+        k = params[i][0]
+        b = params[i][1]
+        gate = nn.LogSoftmax(dim=1)(params[i][2])
+        s = -(torch.pow(torch.exp(b)*t, torch.exp(k)))
+        s = (s + gate)
+        s = torch.logsumexp(s, dim=1)#log_survival
+        condition = torch.logical_and(ei[:, i] == 1, ei[:, j] == 1)
+        result = -torch.sum(condition*s) / ei.shape[0]
+        return result
+    
     def compute_risks_multi(self, params, ti):
         f_risks = []
         s_risks = []
-        for i in range(self.model.n_events):
+        for i in range(self.model.n_states):
             t = ti[:,i].reshape(-1,1).expand(-1, self.model.n_dists)
             k = params[i][0]
             b = params[i][1]

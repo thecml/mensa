@@ -7,7 +7,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
 def annotate_event(group, event_col):
-    event_observed = True if any(group[event_col] == 1) else False
+    event_observed = 1 if any(group[event_col] == 1) else 0
     if event_observed:
         delta_sum_observed = group.loc[group[event_col] == 1, 'ALSFRS_Delta'].iloc[0]
     else:
@@ -16,13 +16,13 @@ def annotate_event(group, event_col):
 
 def annotate_left_censoring(row, event_name):
     if row[f'TTE_{event_name}'] == 0: # check if left-censored
-        tte = random.randint(0, row['Diagnosis_Delta']) # occured between diagnosis and t=0
-        event_censored = True
+        tte = row['Onset_Delta'] # left-censored at onset time
+        event = -1
     else:
         tte = row[f'TTE_{event_name}']
-        event_censored = False
+        event = row[f'Event_{event_name}']
     return pd.Series({f'TTE_{event_name}': tte,
-                      f'Event_{event_name}': event_censored})
+                      f'Event_{event_name}': event})
 
 def convert_weight(row):
     if row['Weight_Units'] in ['Kilograms', 'kg']:
@@ -70,11 +70,11 @@ if __name__ == "__main__":
     # Sort ALSFRS scores by id and delta
     alsfrs_df = alsfrs_df.sort_values(by=['subject_id', 'ALSFRS_Delta'])
     
-    # Record diagnosis delta
-    diagnosis_delta = history_df[['subject_id', 'Diagnosis_Delta']].copy(deep=True)
-    diagnosis_delta['Diagnosis_Delta'] = diagnosis_delta['Diagnosis_Delta'].map(abs)
-    df = pd.merge(df, diagnosis_delta, on="subject_id", how='left')
-    df = df.dropna(subset='Diagnosis_Delta')
+    # Record onset delta
+    onset_delta = history_df[['subject_id', 'Onset_Delta']].copy(deep=True)
+    onset_delta['Onset_Delta'] = onset_delta['Onset_Delta'].map(abs)
+    df = pd.merge(df, onset_delta, on="subject_id", how='left')
+    df = df.dropna(subset='Onset_Delta')
     
     # Annotate events
     threshold = 2
@@ -85,6 +85,7 @@ if __name__ == "__main__":
         event_df = alsfrs_df.groupby('subject_id').apply(annotate_event, f'Event_{event_name}').reset_index()
         event_df = event_df.rename({'Delta_Observed': f'TTE_{event_name}', 'Event': f'Event_{event_name}'}, axis=1)
         df = pd.merge(df, event_df, on="subject_id", how='left')
+        df[[f'TTE_{event_name}', f'Event_{event_name}']] = df.apply(lambda x: annotate_left_censoring(x, event_name), axis=1)
         
     # Record total ALSFRS-R score at baseline
     df = pd.merge(df, alsfrs_df[['subject_id', 'ALSFRS_R_Total']] \
@@ -120,7 +121,7 @@ if __name__ == "__main__":
                                                            'Onset_Delta']].copy(deep=True)
     soo['Site_of_Onset'] = soo['Site_of_Onset'].str.replace('Onset: ', '', regex=False)
     soo['Site_of_Onset'] = soo['Site_of_Onset'].str.replace('Limb and Bulbar', 'LimbAndBulbar', regex=False)
-    df = pd.merge(df, soo, on="subject_id", how='left')
+    df = pd.merge(df, soo[['subject_id', 'Site_of_Onset']], on="subject_id", how='left')
     
     # Calculate disease progression rate
     df['DiseaseProgressionRate'] = (48 - df['ALSFRS_R_Total']) / (abs(df['Onset_Delta'])/30)

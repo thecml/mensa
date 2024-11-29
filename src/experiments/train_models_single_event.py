@@ -35,6 +35,7 @@ warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
 np.random.seed(0)
 torch.manual_seed(0)
+torch.cuda.manual_seed_all(0)
 random.seed(0)
 
 # Setup precision
@@ -65,6 +66,7 @@ if __name__ == "__main__":
                           k_tau=0.5, device=device, dtype=dtype)
     else:
         dl = dl.load_data()
+        
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=seed)
     
@@ -98,6 +100,12 @@ if __name__ == "__main__":
     
     # Evaluate each model
     for model_name in MODELS:
+        # Reset seeds
+        np.random.seed(0)
+        torch.manual_seed(0)
+        torch.cuda.manual_seed_all(0)
+        random.seed(0)
+        
         if model_name == "coxph":
             config = dotdict(cfg.COXPH_PARAMS)
             model = make_cox_model(config)
@@ -158,9 +166,11 @@ if __name__ == "__main__":
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            model = MENSA(n_features, layers=layers, n_dists=n_dists, n_events=2, device=device)
-            model.fit(train_dict, valid_dict, optimizer='adam', verbose=True, n_epochs=n_epochs,
-                      patience=10, batch_size=batch_size, learning_rate=lr)
+            weight_decay = config['weight_decay']
+            model = MENSA(n_features, layers=layers, n_dists=n_dists, n_events=1, device=device)
+            model.fit(train_dict, valid_dict, verbose=True, n_epochs=n_epochs,
+                      weight_decay=weight_decay, patience=10, batch_size=batch_size,
+                      learning_rate=lr)
         else:
             raise NotImplementedError()
         
