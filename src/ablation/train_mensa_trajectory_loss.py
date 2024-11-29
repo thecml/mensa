@@ -117,9 +117,9 @@ if __name__ == "__main__":
     # Calculate local and global CI
     all_preds_arr = [df.to_numpy() for df in all_preds]
     global_ci = global_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                               test_dict['E'].cpu().numpy())
+                               test_dict['E'].cpu().numpy(), weight=False)
     local_ci = local_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                             test_dict['E'].cpu().numpy())
+                             test_dict['E'].cpu().numpy(), weight=False)
     
     # Make evaluation for each event
     model_results = pd.DataFrame()

@@ -4,12 +4,12 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).absolute().parent.parent
 DATA_DIR = Path.joinpath(ROOT_DIR, "data")
 CONFIGS_DIR = Path.joinpath(ROOT_DIR, 'configs')
-RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 DATA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'data')
 HIERARCH_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'hierarch')
 DGP_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dgp')
 MENSA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mensa')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
+PLOTS_DIR = Path.joinpath(ROOT_DIR, 'plots')
 
 # This contains default parameters for the models
 HIERARCH_PARAMS = {

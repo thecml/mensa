@@ -6,9 +6,9 @@ import config as cfg
 import numpy as np
 from utility.model_helper import map_model_name
 
-N_DECIMALS = 3
+N_DECIMALS = 2
 ALPHA = 0.05
-DATASET_NAME = "rotterdam_me" # / rotterdam/ebmt
+DATASET_NAME = "ebmt_me" # rotterdam_me/ebmt_me
 
 def calculate_d_calib(df, model_name, dataset_name):
     results = df.loc[(df['DatasetName'] == dataset_name) & (df['ModelName'] == model_name)]

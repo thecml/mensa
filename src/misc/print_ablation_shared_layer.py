@@ -8,7 +8,7 @@ from utility.model_helper import map_model_name
 
 N_DECIMALS = 2
 ALPHA = 0.05
-DATASET_NAME = "rotterdam_me" # proact/rotterdam
+DATASET_NAME = "rotterdam_me" # proact_me/rotterdam_me
 
 def calculate_d_calib(df, model_name, dataset_name):
     results = df.loc[(df['DatasetName'] == dataset_name) & (df['ModelName'] == model_name)]
@@ -28,7 +28,6 @@ if __name__ == "__main__":
     
     model_names = ["with_shared", "no_shared"]
     metric_names = ["CI", "IBS", "MAE", "GlobalCI", "LocalCI", "DCalib"]
-    n_events = 4
     
     for model_name in model_names:
         text = ""
@@ -37,9 +36,9 @@ if __name__ == "__main__":
         if results.empty:
             break
         if model_name == "with_shared":
-            model_name_display = "& Using " + r"$\Phi(X)$" + " &" 
+            model_name_display = "& With shared " + r"$\Phi(X)$" + " &" 
         else:
-            model_name_display = "& Without " + r"$\Phi(X)$" + " &"
+            model_name_display = "& Without shared " + r"$\Phi(X)$" + " &"
         text += f"{model_name_display} "
         for i, metric_name in enumerate(metric_names):
             if metric_name == "DCalib":
