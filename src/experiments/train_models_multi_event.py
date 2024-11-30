@@ -29,7 +29,7 @@ from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
 
 # SOTA
-from sota_models import (make_cox_model, make_coxboost_model, make_deephit_single, make_dsm_model,
+from sota_models import (make_cox_model, make_coxnet_model, make_deephit_single, make_dsm_model,
                          make_rsf_model, train_deephit_model, train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
 from hierarchical import util
 from hierarchical.helper import format_hierarchical_hyperparams
@@ -53,7 +53,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # Define models
 # MODELS = ['deepsurv', 'hierarch', 'mensa']
 #MODELS = ['deepsurv', 'hierarch', 'mensa', 'mensa_trajectory'] #, 'hierarch']
-MODELS = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "mtlr", "dsm" , "hierarch", 'mensa']
+MODELS = ["coxph", "coxnet", "rsf", "deepsurv", "deephit", "mtlr", "dsm" , "hierarch", 'mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -117,14 +117,14 @@ if __name__ == "__main__":
                 model = make_cox_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
-        elif model_name == "coxboost":
-            config = dotdict(cfg.COXBOOST_PARAMS)
+        elif model_name == "coxnet":
+            config = dotdict(cfg.COXNET_PARAMS)
             trained_models = []
             for i in range(n_events):
                 train_times = train_dict['T'][:,i].cpu().numpy()
                 train_events = train_dict['E'][:,i].cpu().numpy()
                 y_train = convert_to_structured(train_times, train_events)
-                model = make_coxboost_model(config)
+                model = make_coxnet_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
         elif model_name == "rsf":
@@ -223,7 +223,7 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Compute survival function
-        if model_name in ["coxph", "coxboost", "rsf"]:
+        if model_name in ["coxph", "coxnet", "rsf"]:
             all_preds = []
             for trained_model in trained_models:
                 model_preds = trained_model.predict_survival_function(test_dict['X'].cpu())

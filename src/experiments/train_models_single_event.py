@@ -27,7 +27,7 @@ from utility.data import format_data_deephit_single
 from data_loader import get_data_loader
 
 # SOTA
-from sota_models import (make_cox_model, make_coxboost_model, make_dsm_model, make_rsf_model, train_deepsurv_model,
+from sota_models import (make_cox_model, make_coxnet_model, make_dsm_model, make_rsf_model, train_deepsurv_model,
                          make_deepsurv_prediction, DeepSurv, make_deephit_single, train_deephit_model)
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 
@@ -46,13 +46,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "mtlr", "dsm", "mensa"]
+MODELS = ["coxph", "coxnet", "rsf", "deepsurv", "deephit", "mtlr", "dsm", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='synthetic_se')
+    parser.add_argument('--dataset_name', type=str, default='seer_se')
     
     args = parser.parse_args()
     seed = args.seed
@@ -110,9 +110,9 @@ if __name__ == "__main__":
             config = dotdict(cfg.COXPH_PARAMS)
             model = make_cox_model(config)
             model.fit(X_train, y_train)
-        elif model_name == "coxboost":
-            config = dotdict(cfg.COXBOOST_PARAMS)
-            model = make_coxboost_model(config)
+        elif model_name == "coxnet":
+            config = dotdict(cfg.COXNET_PARAMS)
+            model = make_coxnet_model(config)
             model.fit(X_train, y_train)
         elif model_name == "rsf":
             config = dotdict(cfg.RSF_PARAMS)
@@ -176,7 +176,7 @@ if __name__ == "__main__":
         
         # Compute survival function
         n_samples = test_dict['X'].shape[0]
-        if model_name in ['coxph', 'coxboost', 'rsf']:
+        if model_name in ['coxph', 'coxnet', 'rsf']:
             model_preds = model.predict_survival_function(X_test)
             model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
         elif model_name == 'dsm':
@@ -230,6 +230,7 @@ if __name__ == "__main__":
         model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
             
         # Save results
+        """
         filename = f"{cfg.RESULTS_DIR}/single_event.csv"
         if os.path.exists(filename):
             results = pd.read_csv(filename)
@@ -237,4 +238,4 @@ if __name__ == "__main__":
             results = pd.DataFrame(columns=model_results.columns)
         results = results.append(model_results, ignore_index=True)
         results.to_csv(filename, index=False)
-        
+        """
