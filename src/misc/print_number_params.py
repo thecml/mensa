@@ -27,10 +27,9 @@ from utility.config import load_config
 from utility.data import calculate_layer_size_hierarch
 from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
-from mensa.model_trajectory import MENSA_trajectory
 
 # SOTA
-from sota_models import (make_cox_model, make_coxboost_model, make_deephit_single, make_dsm_model,
+from sota_models import (make_cox_model, make_coxnet_model, make_deephit_single, make_dsm_model,
                          make_rsf_model, train_deephit_model, train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
 from hierarchical import util
 from hierarchical.helper import format_hierarchical_hyperparams
@@ -109,14 +108,14 @@ if __name__ == "__main__":
                 model = make_cox_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
-        elif model_name == "coxboost":
-            config = dotdict(cfg.COXBOOST_PARAMS)
+        elif model_name == "coxnet":
+            config = dotdict(cfg.COXNET_PARAMS)
             trained_models = []
             for i in range(n_events):
                 train_times = train_dict['T'][:,i].cpu().numpy()
                 train_events = train_dict['E'][:,i].cpu().numpy()
                 y_train = convert_to_structured(train_times, train_events)
-                model = make_coxboost_model(config)
+                model = make_coxnet_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
         elif model_name == "rsf":
@@ -216,13 +215,9 @@ if __name__ == "__main__":
         if model_name == "coxph":
             for trained_model in trained_models:
                 sum_params += len(trained_model.coef_)
-        elif model_name == "coxboost":
+        elif model_name == "coxnet":
             for trained_model in trained_models:
-                num_trees = trained_model.n_estimators
-                max_depth = trained_model.max_depth
-                params_per_tree = (2 ** (max_depth + 1)) - 1
-                total_params = num_trees * params_per_tree
-                sum_params += total_params
+                sum_params += len(trained_model.coef_)
         elif model_name == "rsf":
             for trained_model in trained_models:
                 num_trees = trained_model.n_estimators
