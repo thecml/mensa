@@ -26,7 +26,7 @@ if __name__ == "__main__":
     df = pd.read_csv(path)
     
     dataset_names = ["seer_se", "mimic_se"]
-    model_names = ["coxph", "coxnet", "rsf", "deepsurv", "deephit", "mtlr", "dsm", "mensa"]
+    model_names = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "mtlr", "dsm", "mensa"]
     metric_names = ["CI", "IBS", "MAEM", "DCalib"]
     
     for dataset_name in dataset_names:
