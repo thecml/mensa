@@ -230,7 +230,6 @@ if __name__ == "__main__":
         model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
             
         # Save results
-        """
         filename = f"{cfg.RESULTS_DIR}/single_event.csv"
         if os.path.exists(filename):
             results = pd.read_csv(filename)
@@ -238,4 +237,3 @@ if __name__ == "__main__":
             results = pd.DataFrame(columns=model_results.columns)
         results = results.append(model_results, ignore_index=True)
         results.to_csv(filename, index=False)
-        """
