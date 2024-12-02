@@ -25,12 +25,11 @@ if __name__ == "__main__":
     path = Path.joinpath(cfg.RESULTS_DIR, f"competing_risks.csv")
     df = pd.read_csv(path)
     
-    # Replace "inf" with the column's average
-    for col in df.columns:
-        if df[col].dtype in [np.float64, np.int64]:
-            col_mean = df[df[col] != np.inf][col].mean()
-            df[col] = df[col].replace(np.inf, col_mean)
-    
+    # Replace Inf and NaN values in the dataframe
+    for col in df.select_dtypes(include=[np.float64, np.int64]).columns:
+        col_mean = df[(~df[col].isin([np.inf, -np.inf])) & (df[col].notna())][col].mean()
+        df[col] = df[col].replace([np.inf, -np.inf], col_mean).fillna(col_mean)
+
     cols_to_scale = ["CI", "IBS", "GlobalCI", "LocalCI"]
     df[cols_to_scale] = df[cols_to_scale] * 100
         
@@ -44,21 +43,18 @@ if __name__ == "__main__":
             model_name_text = map_model_name(model_name)
             text += f"& {model_name_text} & "
             for i, metric_name in enumerate(metric_names):
+                avg_seed_df = (df.groupby(["ModelName", "DatasetName", "EventId"], as_index=False).mean(numeric_only=True))
+                results = avg_seed_df.loc[(avg_seed_df['DatasetName'] == dataset_name)
+                                          & (avg_seed_df['ModelName'] == model_name)]
                 if metric_name == "DCalib":
                     d_calib = calculate_d_calib(df, model_name, dataset_name)
                     text += f"{d_calib}"
                 elif metric_name in ["CI", "IBS", "MAEM"]:
-                    avg_seed_df = (df.groupby(["ModelName", "DatasetName", "EventId"], as_index=False).mean(numeric_only=True))
-                    results = avg_seed_df.loc[(avg_seed_df['DatasetName'] == dataset_name)
-                                              & (avg_seed_df['ModelName'] == model_name)]
                     results = results[metric_name]
                     mean = f"%.{N_DECIMALS}f" % round(np.mean(results), N_DECIMALS)
                     std = f"%.{N_DECIMALS}f" % round(np.std(results), N_DECIMALS)
                     text += f"{mean}$\pm${std} & "
                 else:
-                    avg_seed_df = (df.groupby(["ModelName", "DatasetName", "Seed"], as_index=False).mean(numeric_only=True))
-                    results = avg_seed_df.loc[(avg_seed_df['DatasetName'] == dataset_name)
-                                              & (avg_seed_df['ModelName'] == model_name)]
                     results = results[metric_name]
                     mean = f"%.{N_DECIMALS}f" % round(np.mean(results), N_DECIMALS)
                     std = f"%.{N_DECIMALS}f" % round(np.std(results), N_DECIMALS)

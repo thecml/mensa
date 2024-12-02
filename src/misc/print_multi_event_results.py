@@ -9,58 +9,57 @@ from utility.model_helper import map_model_name
 N_DECIMALS = 2
 ALPHA = 0.05
 
-def calculate_d_calib(df, model_name, dataset_name, event_id):
+def calculate_d_calib(df, model_name, dataset_name):
     results = df.loc[(df['DatasetName'] == dataset_name) & (df['ModelName'] == model_name)]
-    num_seeds = df['Seed'].nunique()
+    num_seeds = int(results['Seed'].nunique())
     event_ratios = []
-    num_calib = results.loc[results['EvenId'] == event_id]['DCalib'].apply(lambda x: (x > ALPHA)).sum()
-    event_ratio = f"{num_calib}/{num_seeds}"
-    event_ratios.append(event_ratio)
+    event_ids = sorted(results['EventId'].unique())
+    for event_id in event_ids:
+        num_calib = int(results.loc[results['EventId'] == event_id]['DCalib'].apply(lambda x: (x > ALPHA)).sum())
+        event_ratio = f"{num_calib}/{num_seeds}"
+        event_ratios.append(event_ratio)
     result_string = "(" + ', '.join(event_ratios) + ")"
     return result_string
 
-def map_event_id(event_id):
-    if event_id == 1:
-        return "Speech"
-    elif event_id == 2:
-        return "Swallowing"
-    elif event_id == 3:
-        return "Handwriting"
-    elif event_id == 4:
-        return "Walking"
-    else:
-        raise NotImplementedError()
-
 if __name__ == "__main__":
-    path = Path.joinpath(cfg.RESULTS_DIR, f"real_me.csv")
+    path = Path.joinpath(cfg.RESULTS_DIR, f"multi_event.csv")
     df = pd.read_csv(path)
-    df = df.round(N_DECIMALS).fillna(0)
+
+    # Replace Inf and NaN values in the dataframe
+    for col in df.select_dtypes(include=[np.float64, np.int64]).columns:
+        col_mean = df[(~df[col].isin([np.inf, -np.inf])) & (df[col].notna())][col].mean()
+        df[col] = df[col].replace([np.inf, -np.inf], col_mean).fillna(col_mean)
+        
+    cols_to_scale = ["CI", "IBS", "GlobalCI", "LocalCI"]
+    df[cols_to_scale] = df[cols_to_scale] * 100
     
-    dataset_names = ["proact_me"]
-    model_names = ["deepsurv", 'hierarch', 'mensa']
+    dataset_names = ['mimic_me', 'rotterdam_me', 'proact_me', 'ebmt_me']
+    model_names = ["rsf", "deepsurv", 'deephit', 'hierarch', 'mtlr', 'dsm', 'mensa']
     metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"]
-    n_events = 4
     
     for dataset_name in dataset_names:
         for model_name in model_names:
-            for event_id in range(n_events):
-                text = ""
-                results = df.loc[(df['DatasetName'] == dataset_name) & (df['ModelName'] == model_name)
-                                 & (df['EvenId'] == event_id+1)]
-                if results.empty:
-                    break
-                model_name_display = map_model_name(model_name)
-                text += f"{model_name_display} & {map_event_id(event_id+1)} & "
-                for i, metric_name in enumerate(metric_names):
-                    metric_result = results[metric_name]
-                    if metric_name == "DCalib":
-                        d_calib = calculate_d_calib(df, model_name, dataset_name, event_id+1)
-                        text += f"{d_calib}"
-                    else:
-                        mean = f"%.{N_DECIMALS}f" % round(np.mean(metric_result), N_DECIMALS)
-                        std = f"%.{N_DECIMALS}f" % round(np.std(metric_result), N_DECIMALS)
-                        text += f"{mean}$\pm${std} & "
-                text += " \\\\"
-                print(text)
-            print()
+            text = ""
+            model_name_text = map_model_name(model_name)
+            text += f"& {model_name_text} & "
+            for i, metric_name in enumerate(metric_names):
+                avg_seed_df = (df.groupby(["ModelName", "DatasetName", "EventId"], as_index=False).mean(numeric_only=True))
+                results = avg_seed_df.loc[(avg_seed_df['DatasetName'] == dataset_name)
+                                          & (avg_seed_df['ModelName'] == model_name)]
+                if metric_name == "DCalib":
+                    d_calib = calculate_d_calib(df, model_name, dataset_name)
+                    text += f"{d_calib}"
+                elif metric_name in ["CI", "IBS", "MAEM"]:
+                    results = results[metric_name]
+                    mean = f"%.{N_DECIMALS}f" % round(np.mean(results), N_DECIMALS)
+                    std = f"%.{N_DECIMALS}f" % round(np.std(results), N_DECIMALS)
+                    text += f"{mean}$\pm${std} & "
+                else:
+                    results = results[metric_name]
+                    mean = f"%.{N_DECIMALS}f" % round(np.mean(results), N_DECIMALS)
+                    std = f"%.{N_DECIMALS}f" % round(np.std(results), N_DECIMALS)
+                    text += f"{mean}$\pm${std} & "
+            text += " \\\\"
+            print(text)
+        print()
             

@@ -25,6 +25,13 @@ if __name__ == "__main__":
     path = Path.joinpath(cfg.RESULTS_DIR, f"single_event.csv")
     df = pd.read_csv(path)
     
+    # Replace "inf" and NaN with the column's average
+    for col in df.columns:
+        if df[col].dtype in [np.float64, np.int64]:
+            col_mean = df[df[col] != np.inf][col].mean()
+            col_mean = df[df[col].notna()][col].mean()
+            df[col] = df[col].replace([np.inf, -np.inf], col_mean).fillna(col_mean)
+    
     dataset_names = ["seer_se", "mimic_se"]
     model_names = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "mtlr", "dsm", "mensa"]
     metric_names = ["CI", "IBS", "MAEM", "DCalib"]
