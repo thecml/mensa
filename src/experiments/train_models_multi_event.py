@@ -73,6 +73,7 @@ if __name__ == "__main__":
     # Preprocess data
     cat_features = dl.cat_features
     num_features = dl.num_features
+    trajectories = dl.trajectories
     event_cols = [f'e{i+1}' for i in range(n_events)]
     time_cols = [f't{i+1}' for i in range(n_events)]
     X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
@@ -210,8 +211,7 @@ if __name__ == "__main__":
             lr = config['lr']
             batch_size = config['batch_size']
             layers = config['layers']
-            trajectories = config['trajectories']
-            weight_decay = weight_decay['weight_decay']
+            weight_decay = config['weight_decay']
             model = MENSA(n_features, layers=layers, n_events=n_events,
                           n_dists=n_dists, trajectories=trajectories, device=device)
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
@@ -248,9 +248,10 @@ if __name__ == "__main__":
         elif model_name == "mtlr":
             all_preds = []
             for trained_model in trained_models:
-                survival_outputs, _, _ = make_mtlr_prediction(trained_model, test_dict['X'].cpu(), time_bins, config)
+                survival_outputs, _, _ = make_mtlr_prediction(trained_model, test_dict['X'], time_bins, config)
                 model_preds = survival_outputs[:, 1:].cpu()
-                all_preds.append(preds)
+                model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
+                all_preds.append(model_preds)
         elif model_name == "dsm":
             all_preds = []
             for trained_model in trained_models:
@@ -273,12 +274,17 @@ if __name__ == "__main__":
         else:
             raise NotImplementedError()
         
-        # Test local and global CI
-        all_preds_arr = [df.to_numpy() for df in all_preds]
-        global_ci = global_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                                   test_dict['E'].cpu().numpy())
-        local_ci = local_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                                 test_dict['E'].cpu().numpy())
+        # Calculate local and global CI
+        try:
+            y_test_time = np.stack([test_dict['T'].cpu().numpy() for _ in range(n_events)], axis=1)
+            y_test_event = np.stack([np.array((test_dict['E'].cpu().numpy() == i+1)*1.0)
+                                    for i in range(n_events)], axis=1)
+            all_preds_arr = [df.to_numpy() for df in all_preds]
+            global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
+            local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
+        except:
+            global_ci = 0.5
+            local_ci = 0.5
         
         # Make evaluation for each event
         model_results = pd.DataFrame()

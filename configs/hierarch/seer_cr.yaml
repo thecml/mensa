@@ -7,4 +7,4 @@ event_groups: {0: [0, 1]}
 min_time: 1
 max_time: 115
 min_epoch: 1
-max_epoch: 100
+max_epoch: 1000

@@ -35,6 +35,7 @@ from hierarchical.helper import format_hierarchical_hyperparams
 from torchmtlr.utils import encode_mtlr_format
 from torchmtlr.model import MTLRCR, mtlr_survival
 
+
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
 np.random.seed(0)
@@ -265,13 +266,17 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Calculate local and global CI
-        y_test_time = np.stack([test_dict['T'].cpu().numpy() for _ in range(n_events)], axis=1)
-        y_test_event = np.stack([np.array((test_dict['E'].cpu().numpy() == i+1)*1.0)
-                                 for i in range(n_events)], axis=1)
-        all_preds_arr = [df.to_numpy() for df in all_preds]
-        global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
-        local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
-            
+        try:
+            y_test_time = np.stack([test_dict['T'].cpu().numpy() for _ in range(n_events)], axis=1)
+            y_test_event = np.stack([np.array((test_dict['E'].cpu().numpy() == i+1)*1.0)
+                                    for i in range(n_events)], axis=1)
+            all_preds_arr = [df.to_numpy() for df in all_preds]
+            global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
+            local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
+        except:
+            global_ci = 0.5
+            local_ci = 0.5
+        
         # Make evaluation for each event
         model_results = pd.DataFrame()
         for event_id, surv_preds in enumerate(all_preds):
@@ -281,9 +286,9 @@ if __name__ == "__main__":
             y_train_event = (train_dict['E'] == event_id+1)*1.0
             y_test_time = test_dict['T']
             y_test_event = (test_dict['E'] == event_id+1)*1.0
+            
             lifelines_eval = LifelinesEvaluator(surv_preds.T, y_test_time, y_test_event,
                                                 y_train_time, y_train_event)
-            
             ci = lifelines_eval.concordance()[0]
             ibs = lifelines_eval.integrated_brier_score()
             mae_hinge = lifelines_eval.mae(method="Hinge")

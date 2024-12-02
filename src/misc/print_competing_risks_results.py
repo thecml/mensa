@@ -24,11 +24,6 @@ def calculate_d_calib(df, model_name, dataset_name):
 if __name__ == "__main__":
     path = Path.joinpath(cfg.RESULTS_DIR, f"competing_risks.csv")
     df = pd.read_csv(path)
-    
-    # Replace Inf and NaN values in the dataframe
-    for col in df.select_dtypes(include=[np.float64, np.int64]).columns:
-        col_mean = df[(~df[col].isin([np.inf, -np.inf])) & (df[col].notna())][col].mean()
-        df[col] = df[col].replace([np.inf, -np.inf], col_mean).fillna(col_mean)
 
     cols_to_scale = ["CI", "IBS", "GlobalCI", "LocalCI"]
     df[cols_to_scale] = df[cols_to_scale] * 100
