@@ -155,9 +155,10 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
     
         dataframes = [df_train, df_valid, df_test]
         dicts = []
+        n_features = df.shape[1] - 2
         for dataframe in dataframes:
             data_dict = dict()
-            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':'X9'].to_numpy(), dtype=dtype)
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=dtype)
             data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=dtype)
             data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=dtype)
             dicts.append(data_dict)
@@ -252,9 +253,10 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         
         dataframes = [df_train, df_valid, df_test]
         dicts = []
+        n_features = df.shape[1] - 2
         for dataframe in dataframes:
             data_dict = dict()
-            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':'X9'].to_numpy(), dtype=dtype)
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=dtype)
             data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=dtype)
             data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=dtype)
             data_dict['T1'] = torch.tensor(dataframe['t1'].to_numpy(), dtype=dtype)
@@ -351,9 +353,10 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         
         dataframes = [df_train, df_valid, df_test]
         dicts = []
+        n_features = df.shape[1] - 2
         for dataframe in dataframes:
             data_dict = dict()
-            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':'X9'].values, dtype=dtype)
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=dtype)
             data_dict['E'] = torch.stack([torch.tensor(dataframe['e1'].values, dtype=dtype),
                                           torch.tensor(dataframe['e2'].values, dtype=dtype),
                                           torch.tensor(dataframe['e3'].values, dtype=dtype)], axis=1)

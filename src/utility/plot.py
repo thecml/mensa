@@ -9,6 +9,7 @@ class _TFColor(object):
     purple = '#B276B2'
     yellow = '#DECF3F'
     gray = '#4D4D4D'
+    black = '#000000'
     def __getitem__(self, i):
         return [
             self.red,

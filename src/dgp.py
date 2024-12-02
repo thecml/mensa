@@ -155,8 +155,8 @@ class DGP_Weibull_linear: # This is linear Weibull PH model
     def __init__(self, n_features, alpha: float, gamma: float, device="cpu", dtype=torch.float64):
         self.alpha = torch.tensor([alpha], device=device).type(dtype)
         self.gamma = torch.tensor([gamma], device=device).type(dtype)
-        self.coeff = torch.rand((n_features,), device=device).type(dtype)
-
+        self.coeff = 2 * torch.rand((n_features,), device=device).type(dtype) - 1
+        
     def PDF(self ,t ,x):
         return self.hazard(t, x) * self.survival(t,x)
     
@@ -183,7 +183,7 @@ class DGP_Weibull_nonlinear: # This is nonlinear Weibull PH model
         self.nf = n_features
         self.alpha = torch.tensor([alpha], device=device).type(dtype)
         self.gamma = torch.tensor([gamma], device=device).type(dtype)
-        self.coeff = torch.rand((n_features,), device=device).type(dtype)
+        self.coeff = 2 * torch.rand((n_features,), device=device).type(dtype) - 1
         self.risk_function = risk_function
         
     def PDF(self ,t ,x):
