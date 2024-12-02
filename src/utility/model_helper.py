@@ -8,7 +8,7 @@ def map_model_name(model_name):
     elif model_name == "rsf":
         model_name = "RSF"
     elif model_name == "coxboost":
-        model_name = "CoxBoost"
+        model_name = "GBSA"
     elif model_name == "deephit":
         model_name = "DeepHit"
     elif model_name == "deepsurv":

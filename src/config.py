@@ -10,6 +10,7 @@ DGP_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dgp')
 MENSA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mensa')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 PLOTS_DIR = Path.joinpath(ROOT_DIR, 'plots')
+MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
 
 # This contains default parameters for the models
 HIERARCH_PARAMS = {

@@ -46,7 +46,7 @@ if __name__ == "__main__":
                     d_calib = sum(1 for value in d_calib_results if value > ALPHA)
                     text += f"{d_calib}/5"
                 else:
-                    if metric_name == "CI":
+                    if metric_name in ["CI", "IBS"]:
                         result = result*100
                     mean = f"%.{N_DECIMALS}f" % round(np.mean(result), N_DECIMALS)
                     std = f"%.{N_DECIMALS}f" % round(np.std(result), N_DECIMALS)

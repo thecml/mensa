@@ -46,9 +46,8 @@ if __name__ == "__main__":
                 text += f"{d_calib}"
             else:
                 metric_result = results[metric_name]
-                if (DATASET_NAME == "rotterdam_me") and metric_name == "MAE":
-                    mean = f"%.{N_DECIMALS}f" % round(np.mean(metric_result)/100, N_DECIMALS)
-                    std = f"%.{N_DECIMALS}f" % round(np.std(metric_result)/100, N_DECIMALS)
+                if metric_name in ["CI", "IBS"]:
+                    result = result*100
                 else:
                     mean = f"%.{N_DECIMALS}f" % round(np.mean(metric_result), N_DECIMALS)
                     std = f"%.{N_DECIMALS}f" % round(np.std(metric_result), N_DECIMALS)
