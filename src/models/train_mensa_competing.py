@@ -46,7 +46,7 @@ dtype = torch.float64
 torch.set_default_dtype(dtype)
 
 SEED = 0
-DATASET = "rotterdam_cr"
+DATASET = "seer_cr"
 
 # Setup device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -85,11 +85,12 @@ if __name__ == "__main__":
     batch_size = config['batch_size']
     layers = config['layers']
     weight_decay = config['weight_decay']
-    model = MENSA(n_features, layers=layers, n_events=n_events,
-                  n_dists=n_dists, device=device)
+    dropout_rate = config['dropout_rate']
+    model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
+                  n_events=n_events, n_dists=n_dists, device=device)
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-              weight_decay=weight_decay, patience=10, batch_size=batch_size,
-              verbose=True)
+              weight_decay=weight_decay, patience=10,
+              batch_size=batch_size, verbose=True)
     
     # Make predictions
     all_preds = []

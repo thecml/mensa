@@ -4,3 +4,4 @@ n_epochs: 1000
 n_dists: 3
 batch_size: 128
 weight_decay: 0.005
+dropout_rate: 0
