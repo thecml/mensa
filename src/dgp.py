@@ -157,7 +157,7 @@ class DGP_Weibull_linear:
         self.gamma = torch.tensor([gamma], device=device).type(dtype)
         self.device = device
         self.dtype = dtype
-        self.coeff = torch.rand((n_features,), device=device).type(dtype)
+        self.coeff = 2 * torch.rand((n_features,), device=device).type(dtype) - 1
     
     def PDF(self, t, x):
         return self.hazard(t, x) * self.survival(t, x)
