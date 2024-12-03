@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["coxph", "coxboost", "rsf", "deepsurv", 'deephit', "mtlr", "dsm", "mensa", "dgp"]
+MODELS = ["coxph", "coxboost", "rsf", "deepsurv", 'deephit', "mtlr", "dsm", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     # Load and split data
     data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_se.yaml")
     dl = SingleEventSyntheticDataLoader().load_data(data_config=data_config,
-                                                    linear=linear, copula_name=copula_name,
+                                                    linear=False, copula_name=copula_name,
                                                     k_tau=k_tau, device=device, dtype=dtype)
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=seed)
@@ -163,9 +163,7 @@ if __name__ == "__main__":
                           n_events=1, n_dists=n_dists, device=device)
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
                       weight_decay=weight_decay, patience=10,
-              batch_size=batch_size, verbose=True)
-        elif model_name == "dgp":
-            pass
+                      batch_size=batch_size, verbose=False)
         else:
             raise NotImplementedError()
         
@@ -194,11 +192,6 @@ if __name__ == "__main__":
             model_preds = model.predict_surv(test_dict['X']).cpu().numpy()
         elif model_name == "mensa":
             model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=1) # use event preds
-        elif model_name == "dgp":
-            model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
-            for i in range(time_bins.shape[0]):
-                model_preds[:,i] = dgps[1].survival(time_bins[i], test_dict['X'].to(device))
-            model_preds = model_preds.cpu().numpy()
         else:
             raise NotImplementedError()
             

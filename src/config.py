@@ -27,7 +27,7 @@ HIERARCH_PARAMS = {
     'use_theta': True,
     'use_deephit': False,
     'n_extra_bins': 1,
-    'verbose': True
+    'verbose': False
 }
 
 COXPH_PARAMS = {
@@ -63,7 +63,7 @@ COXBOOST_PARAMS = {
 DEEPSURV_PARAMS = {
     'hidden_size': 32,
     'verbose': False,
-    'lr': 0.005,
+    'lr': 0.001,
     'c1': 0.01,
     'num_epochs': 1000,
     'dropout': 0.25,
@@ -78,7 +78,7 @@ MTLR_PARAMS = {
     'lr': 0.001,
     'c1': 0.01,
     'num_epochs': 1000,
-    'dropout': 0.5,
+    'dropout': 0.25,
     'batch_size': 32,
     'early_stop': True,
     'patience': 10

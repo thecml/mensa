@@ -218,7 +218,7 @@ if __name__ == "__main__":
                           device=device)
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
                       weight_decay=weight_decay, patience=10,
-                      batch_size=batch_size, verbose=True)
+                      batch_size=batch_size, verbose=False)
         else:
             raise NotImplementedError()
         

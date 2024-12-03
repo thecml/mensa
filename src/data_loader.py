@@ -127,13 +127,13 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             u = torch.from_numpy(u).type(dtype).reshape(-1,1)
             v = torch.from_numpy(v).type(dtype).reshape(-1,1)
             uv = torch.cat([u, v], axis=1)
-            
+        
         t1_times = dgp1.rvs(X, uv[:,0].to(device)).cpu()
         t2_times = dgp2.rvs(X, uv[:,1].to(device)).cpu()
         
         observed_times = np.minimum(t1_times, t2_times)
-        event_indicators = (t2_times < t1_times).type(torch.int)
-        
+        event_indicators = np.array((t2_times < t1_times), dtype=np.int32)
+    
         columns = [f'X{i}' for i in range(n_features)]
         self.X = pd.DataFrame(X.cpu(), columns=columns)
         self.y_e = event_indicators
