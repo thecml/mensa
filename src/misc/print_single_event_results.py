@@ -24,6 +24,9 @@ def calculate_d_calib(df, model_name, dataset_name):
 if __name__ == "__main__":
     path = Path.joinpath(cfg.RESULTS_DIR, f"single_event.csv")
     df = pd.read_csv(path)
+    
+    cols_to_scale = ["CI", "IBS"]
+    df[cols_to_scale] = df[cols_to_scale] * 100
 
     dataset_names = ["seer_se", "mimic_se"]
     model_names = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "mtlr", "dsm", "mensa"]
@@ -32,24 +35,22 @@ if __name__ == "__main__":
     for dataset_name in dataset_names:
         for model_name in model_names:
             text = ""
-            results = df.loc[(df['DatasetName'] == dataset_name)
-                             & (df['ModelName'] == model_name)]
-            if results.empty:
+            model_results = df.loc[(df['DatasetName'] == dataset_name)
+                                   & (df['ModelName'] == model_name)]
+            if model_results.empty:
                 break
             model_name_text = map_model_name(model_name)
             text += f"& {model_name_text} & "
             for i, metric_name in enumerate(metric_names):
-                result = results[metric_name]
+                results = model_results[metric_name]
                 if metric_name == "DCalib":
                     d_calib_results = df.loc[(df['DatasetName'] == dataset_name) 
                                              & (df['ModelName'] == model_name)]['DCalib']
                     d_calib = sum(1 for value in d_calib_results if value > ALPHA)
                     text += f"{d_calib}/5"
                 else:
-                    if metric_name in ["CI", "IBS"]:
-                        result = result*100
-                    mean = f"%.{N_DECIMALS}f" % round(np.mean(result), N_DECIMALS)
-                    std = f"%.{N_DECIMALS}f" % round(np.std(result), N_DECIMALS)
+                    mean = f"%.{N_DECIMALS}f" % round(np.mean(results), N_DECIMALS)
+                    std = f"%.{N_DECIMALS}f" % round(np.std(results), N_DECIMALS)
                     text += f"{mean}$\pm${std} & "
             text += " \\\\"
             print(text)

@@ -20,7 +20,7 @@ def map_model_name(model_name):
     elif model_name == "mtlr":
         model_name = "MTLR"
     elif model_name == "mensa":
-        model_name = "MENSA"
+        model_name = "MENSA (Ours)"
     else:
         pass
     return model_name

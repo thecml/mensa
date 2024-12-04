@@ -27,10 +27,11 @@ if __name__ == "__main__":
 
     cols_to_scale = ["CI", "IBS", "GlobalCI", "LocalCI"]
     df[cols_to_scale] = df[cols_to_scale] * 100
+    df.loc[df["DatasetName"] == "rotterdam_cr", "MAEM"] /= 100
         
-    dataset_names = ["seer_cr", 'mimic_cr', "rotterdam_cr"]
-    model_names = ["rsf", "deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
-    metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"]
+    dataset_names = ["seer_cr", "rotterdam_cr"]
+    model_names = ["coxph", "coxboost", "rsf", "deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
+    metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"] 
     
     for dataset_name in dataset_names:
         for model_name in model_names:
@@ -38,18 +39,18 @@ if __name__ == "__main__":
             model_name_text = map_model_name(model_name)
             text += f"& {model_name_text} & "
             for i, metric_name in enumerate(metric_names):
-                avg_seed_df = (df.groupby(["ModelName", "DatasetName", "EventId"], as_index=False).mean(numeric_only=True))
-                results = avg_seed_df.loc[(avg_seed_df['DatasetName'] == dataset_name)
-                                          & (avg_seed_df['ModelName'] == model_name)]
                 if metric_name == "DCalib":
                     d_calib = calculate_d_calib(df, model_name, dataset_name)
                     text += f"{d_calib}"
-                elif metric_name in ["CI", "IBS", "MAEM"]:
-                    results = results[metric_name]
-                    mean = f"%.{N_DECIMALS}f" % round(np.mean(results), N_DECIMALS)
-                    std = f"%.{N_DECIMALS}f" % round(np.std(results), N_DECIMALS)
-                    text += f"{mean}$\pm${std} & "
                 else:
+                    if metric_name in ["CI", "IBS", "MAEM"]:
+                        avg_seed_df = (df.groupby(["ModelName", "DatasetName", "EventId"], as_index=False).mean(numeric_only=True))
+                        results = avg_seed_df.loc[(avg_seed_df['DatasetName'] == dataset_name)
+                                                & (avg_seed_df['ModelName'] == model_name)]
+                    else:
+                        avg_event_df = (df.groupby(["ModelName", "DatasetName", "Seed"], as_index=False).mean(numeric_only=True))
+                        results = avg_event_df.loc[(avg_event_df['DatasetName'] == dataset_name)
+                                                   & (avg_event_df['ModelName'] == model_name)]
                     results = results[metric_name]
                     mean = f"%.{N_DECIMALS}f" % round(np.mean(results), N_DECIMALS)
                     std = f"%.{N_DECIMALS}f" % round(np.std(results), N_DECIMALS)
