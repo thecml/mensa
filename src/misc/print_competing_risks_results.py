@@ -30,7 +30,7 @@ if __name__ == "__main__":
     df.loc[df["DatasetName"] == "rotterdam_cr", "MAEM"] /= 100
         
     dataset_names = ["seer_cr", "rotterdam_cr"]
-    model_names = ["coxph", "coxboost", "rsf", "deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
+    model_names = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
     metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"] 
     
     for dataset_name in dataset_names:

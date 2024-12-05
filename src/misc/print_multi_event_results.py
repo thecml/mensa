@@ -29,7 +29,7 @@ if __name__ == "__main__":
     df[cols_to_scale] = df[cols_to_scale] * 100
     
     dataset_names = ['mimic_me', 'rotterdam_me', 'proact_me', 'ebmt_me']
-    model_names = ["rsf", "deepsurv", 'deephit', 'hierarch', 'mtlr', 'dsm', 'mensa']
+    model_names = ["deepsurv", "deephit", "mtlr", "dsm", "hierarch", 'mensa']
     metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"]
     
     for dataset_name in dataset_names:

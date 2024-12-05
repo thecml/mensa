@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "mtlr", "dsm", "hierarch", 'mensa']
+MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "hierarch", 'mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -278,9 +278,8 @@ if __name__ == "__main__":
         
         # Calculate local and global CI
         try:
-            y_test_time = np.stack([test_dict['T'].cpu().numpy() for _ in range(n_events)], axis=1)
-            y_test_event = np.stack([np.array((test_dict['E'].cpu().numpy() == i+1)*1.0)
-                                    for i in range(n_events)], axis=1)
+            y_test_time = test_dict['T'].cpu().numpy()
+            y_test_event = test_dict['E'].cpu().numpy()
             all_preds_arr = [df.to_numpy() for df in all_preds]
             global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
             local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
