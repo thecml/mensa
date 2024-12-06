@@ -49,7 +49,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 SEED = 0
-DATASET = "proact_me"
+DATASET = "ebmt_me"
 
 if __name__ == "__main__":
     # Load and split data
@@ -99,10 +99,9 @@ if __name__ == "__main__":
     model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
                   n_events=n_events, n_dists=n_dists, trajectories=trajectories,
                   device=device)
-    
-    flops = FlopCountAnalysis(model.model, test_dict['X'][0].unsqueeze(0).to(device))
-    # Get the number of FLOPS
-    print(f"FLOPs: {flops.total()}")
+    model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
+              weight_decay=weight_decay, patience=10,
+              batch_size=batch_size, verbose=False)
     
     # Make predictions
     all_preds = []
