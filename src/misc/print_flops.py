@@ -8,6 +8,8 @@ Models: ['deepsurv', 'hierarch', 'mensa']
 import pandas as pd
 import numpy as np
 import sys, os
+
+from utility.mtlr import mtlr
 sys.path.append(os.path.abspath('../'))
 
 import config as cfg
@@ -28,14 +30,15 @@ from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
 
 # SOTA
-from sota_models import (train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
+from sota_models import (make_deephit_single, make_dsm_model, train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
 from hierarchical import util
 from hierarchical.helper import format_hierarchical_hyperparams
 from utility.data import (format_hierarchical_data_me, calculate_layer_size_hierarch)
 from data_loader import get_data_loader
 from fvcore.nn import FlopCountAnalysis
 
-warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
+import logging
+logging.basicConfig(level=logging.ERROR)
 
 np.random.seed(0)
 torch.manual_seed(0)
@@ -87,7 +90,65 @@ if __name__ == "__main__":
     time_bins = make_time_bins(train_dict['T'].cpu(), event=None, dtype=dtype).to(device)
     time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
     
-    # Evaluate models
+    # DeepSurv
+    config = dotdict(cfg.DEEPSURV_PARAMS)
+    models = []
+    for i in range(n_events):
+        model = DeepSurv(in_features=n_features, config=config)
+        models.append(model)
+    flops_total = 0
+    for model in models:
+        model.eval()
+        flops = FlopCountAnalysis(model, test_dict['X'][0].unsqueeze(0).to(device))
+        flops_total += flops.total()
+    print(f"DeepSurv FLOPs: {flops_total}")
+    
+    # DeepHit
+    config = dotdict(cfg.DEEPHIT_PARAMS)
+    models = []
+    for i in range(n_events):
+        model = make_deephit_single(in_features=n_features, out_features=len(time_bins),
+                                    time_bins=time_bins.cpu().numpy(), device=device, config=config)
+        models.append(model)
+    flops_total = 0
+    for model in models:
+        model.net.eval()
+        flops = FlopCountAnalysis(model.net, test_dict['X'][0].unsqueeze(0).to(device))
+        flops_total += flops.total()
+    print(f"DeepHit FLOPs: {flops_total}")
+    
+    # MTLR
+    config = dotdict(cfg.MTLR_PARAMS)
+    models = []
+    for i in range(n_events):
+        model = mtlr(in_features=n_features, num_time_bins=len(time_bins), config=config)
+        models.append(model)
+    flops_total = 0
+    for model in models:
+        model.eval()
+        flops = FlopCountAnalysis(model, test_dict['X'][0].unsqueeze(0).to(device))
+        flops_total += flops.total()
+    print(f"MTLR FLOPs: {flops_total}")
+    
+    # DSM
+    config = dotdict(cfg.DSM_PARAMS)
+    n_iter = config['n_iter']
+    learning_rate = config['learning_rate']
+    batch_size = config['batch_size']
+    models = []
+    for i in range(n_events):
+        model = make_dsm_model(config)
+        model.fit(train_dict['X'].cpu().numpy(), train_dict['T'][:,i].cpu().numpy(), train_dict['E'][:,i].cpu().numpy(),
+                    val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy()),
+                    learning_rate=learning_rate, batch_size=batch_size, iters=1)
+        models.append(model)
+    flops_total = 0
+    for model in models:
+        flops = FlopCountAnalysis(model.torch_model, test_dict['X'][0].unsqueeze(0).to(device))
+        flops_total += flops.total()
+    print(f"DSM FLOPs : {flops_total}")
+
+    # MENSA
     config = load_config(cfg.MENSA_CONFIGS_DIR, f"{DATASET.partition('_')[0]}.yaml")
     n_epochs = config['n_epochs']
     n_dists = config['n_dists']
@@ -99,43 +160,7 @@ if __name__ == "__main__":
     model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
                   n_events=n_events, n_dists=n_dists, trajectories=trajectories,
                   device=device)
-    
+    model.model.eval()
     flops = FlopCountAnalysis(model.model, test_dict['X'][0].unsqueeze(0).to(device))
-    # Get the number of FLOPS
-    print(f"FLOPs: {flops.total()}")
+    print(f"MENSA FLOPs: {flops.total()}")
     
-    # Make predictions
-    all_preds = []
-    for i in range(n_events):
-        model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
-        model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-        all_preds.append(model_preds)
-    
-    # Calculate local and global CI
-    all_preds_arr = [df.to_numpy() for df in all_preds]
-    global_ci = global_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                               test_dict['E'].cpu().numpy())
-    local_ci = local_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                             test_dict['E'].cpu().numpy())
-            
-    # Make evaluation for each event
-    model_results = pd.DataFrame()
-    for event_id, surv_pred in enumerate(all_preds):
-        n_train_samples = len(train_dict['X'])
-        n_test_samples= len(test_dict['X'])
-        y_train_time = train_dict['T'][:,event_id]
-        y_train_event = train_dict['E'][:,event_id]
-        y_test_time = test_dict['T'][:,event_id]
-        y_test_event = test_dict['E'][:,event_id]
-        
-        lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
-                                            y_train_time, y_train_event)
-        
-        ci = lifelines_eval.concordance()[0]
-        ibs = lifelines_eval.integrated_brier_score()
-        mae = lifelines_eval.mae(method="Margin")
-        d_calib = lifelines_eval.d_calibration()[0]
-        
-        metrics = [ci, ibs, mae, d_calib, global_ci, local_ci]
-        print(metrics)
-        

@@ -14,12 +14,11 @@ def calculate_d_calib(df, model_name, dataset_name):
     num_seeds = int(results['Seed'].nunique())
     event_ratios = []
     event_ids = sorted(results['EventId'].unique())
+    num_calib = 0
     for event_id in event_ids:
-        num_calib = int(results.loc[results['EventId'] == event_id]['DCalib'].apply(lambda x: (x > ALPHA)).sum())
-        event_ratio = f"{num_calib}/{num_seeds}"
-        event_ratios.append(event_ratio)
-    result_string = "(" + ', '.join(event_ratios) + ")"
-    return result_string
+        num_calib += int(results.loc[results['EventId'] == event_id]['DCalib'].apply(lambda x: (x > ALPHA)).sum())
+    event_ratio = f"{num_calib}/{num_seeds*len(event_ids)}"
+    return event_ratio
 
 if __name__ == "__main__":
     path = Path.joinpath(cfg.RESULTS_DIR, f"competing_risks.csv")

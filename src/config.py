@@ -37,19 +37,10 @@ COXPH_PARAMS = {
     'tol': 1e-9
 }
 
-COXNET_PARAMS = {
-    'l1_ratio': 1,
-    'alpha_min_ratio': 0.1,
-    'n_alphas': 100,
-    'normalize': False,
-    'tol': 0.1,
-    'max_iter': 100000
-}
-
 COXBOOST_PARAMS = {
     'n_estimators': 100,
     'learning_rate': 0.1,
-    'max_depth': 3,
+    'max_depth': 1,
     'loss': 'coxph',
     'min_samples_split': 10,
     'min_samples_leaf': 5,
@@ -86,7 +77,7 @@ MTLR_PARAMS = {
 
 RSF_PARAMS = {
     'n_estimators': 100,
-    'max_depth': 3,
+    'max_depth': 1,
     'min_samples_split': 10,
     'min_samples_leaf': 5,
     'max_features': 'sqrt',

@@ -51,13 +51,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "mtlr", "dsm", "hierarch", 'mensa']
+MODELS = ["hierarch", 'mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='rotterdam_me')
+    parser.add_argument('--dataset_name', type=str, default="proact_me")
     
     args = parser.parse_args()
     seed = args.seed
@@ -277,15 +277,15 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Calculate local and global CI
-        try:
-            y_test_time = test_dict['T'].cpu().numpy()
-            y_test_event = test_dict['E'].cpu().numpy()
-            all_preds_arr = [df.to_numpy() for df in all_preds]
-            global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
-            local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
-        except:
-            global_ci = 0.5
-            local_ci = 0.5
+        y_test_time = test_dict['T'].cpu().numpy()
+        y_test_event = test_dict['E'].cpu().numpy()
+        all_preds_arr = [df.to_numpy() for df in all_preds]
+        global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
+        local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
+        
+        # Check for NaN or inf and replace with 0.5
+        global_ci = 0.5 if np.isnan(global_ci) or np.isinf(global_ci) else global_ci
+        local_ci = 0.5 if np.isnan(local_ci) or np.isinf(local_ci) else local_ci
         
         # Make evaluation for each event
         model_results = pd.DataFrame()
