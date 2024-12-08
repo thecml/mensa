@@ -58,7 +58,7 @@ if __name__ == "__main__":
     trajectories = dl.trajectories
     
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
-                                                        random_state=seed)
+                                                      random_state=seed)
     n_events = dl.n_events
     
     # Preprocess data
@@ -95,18 +95,23 @@ if __name__ == "__main__":
     lr = config['lr']
     batch_size = config['batch_size']
     layers = config['layers']
+    weight_decay = config['weight_decay']
+    dropout_rate = config['dropout_rate']
     if use_shared:
         model = MENSA(n_features, layers=layers, n_events=n_events,
                       n_dists=n_dists, trajectories=trajectories,
-                      device=device)
+                      dropout_rate=dropout_rate, device=device)
     else:
         model = MENSA(n_features, layers=layers, n_events=n_events,
                       n_dists=n_dists, use_shared=False,
-                      trajectories=trajectories, device=device)
+                      trajectories=trajectories,
+                      dropout_rate=dropout_rate,
+                      device=device)
     
     # Train model
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                patience=10, batch_size=batch_size, verbose=True)
+                patience=10, weight_decay=weight_decay,
+                batch_size=batch_size, verbose=False)
     
     # Make predictions
     all_preds = []

@@ -95,9 +95,11 @@ if __name__ == "__main__":
     lr = config['lr']
     batch_size = config['batch_size']
     layers = config['layers']
+    weight_decay = config['weight_decay']
+    dropout_rate = config['dropout_rate']
     if use_trajectory:
-        model = MENSA(n_features, layers=layers, n_events=n_events,
-                      n_dists=n_dists, trajectories=trajectories,
+        model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
+                      n_events=n_events, n_dists=n_dists, trajectories=trajectories,
                       device=device)
     else:
         model = MENSA(n_features, layers=layers, n_events=n_events,
@@ -105,7 +107,8 @@ if __name__ == "__main__":
         
     # Train model
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                patience=10, batch_size=batch_size, verbose=True)
+              weight_decay=weight_decay, patience=10,
+              batch_size=batch_size, verbose=True)
     
     # Make predictions
     all_preds = []
