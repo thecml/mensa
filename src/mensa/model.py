@@ -29,7 +29,7 @@ def add_transient_state(data_dict):
     
     return data_dict
 
-def create_representation(input_dim, layers, activation, bias=True):
+def create_representation(input_dim, layers, dropout_rate, activation, bias=True):
     if activation == 'ReLU6':
         act = nn.ReLU6()
     elif activation == 'ReLU':
@@ -44,7 +44,9 @@ def create_representation(input_dim, layers, activation, bias=True):
 
     for hidden in layers:
         modules.append(nn.Linear(prevdim, hidden, bias=bias))
+        modules.append(nn.BatchNorm1d(hidden))
         modules.append(act)
+        modules.append(nn.Dropout(p=dropout_rate))
         prevdim = hidden
 
     return nn.Sequential(*modules)
@@ -58,7 +60,8 @@ class MLP(torch.nn.Module):
     num_events: number of events (K).
     discount: not used yet.
     """
-    def __init__(self, input_dim, n_dists, layers, temp, n_states, use_shared=True, discount=1.0):
+    def __init__(self, input_dim, n_dists, layers, dropout_rate,
+                 temp, n_states, use_shared=True, discount=1.0):
         super(MLP, self).__init__()
 
         self.n_dists = n_dists
@@ -84,7 +87,7 @@ class MLP(torch.nn.Module):
         self.use_shared = use_shared
         
         if self.use_shared:
-            self.embedding = create_representation(input_dim, layers, 'ReLU6')
+            self.embedding = create_representation(input_dim, layers, dropout_rate, 'ReLU6')
         else:
             self.embeddings = nn.ModuleList([
                 create_representation(input_dim, layers, 'ReLU6') for _ in range(n_states)
@@ -124,8 +127,8 @@ class MENSA:
     device: device to use, e.g., cpu or cuda
     """
     def __init__(self, n_features, n_events, n_dists=5,
-                 layers=[32, 32], use_shared=True,
-                 trajectories=[], device='cpu'):
+                 layers=[32, 32], dropout_rate=0.5,
+                 use_shared=True, trajectories=[], device='cpu'):
         self.n_features = n_features
         self.n_states = n_events + 1 # K + 1 states
         self.device = device
@@ -133,7 +136,7 @@ class MENSA:
         self.use_shared = use_shared
         self.trajectories = trajectories
         
-        self.model = MLP(n_features, n_dists, layers, temp=1000,
+        self.model = MLP(n_features, n_dists, layers, dropout_rate, temp=1000,
                          n_states=self.n_states, use_shared=use_shared)
         
     def get_model(self):

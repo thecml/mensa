@@ -127,13 +127,13 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
             u = torch.from_numpy(u).type(dtype).reshape(-1,1)
             v = torch.from_numpy(v).type(dtype).reshape(-1,1)
             uv = torch.cat([u, v], axis=1)
-            
-        t1_times = dgp1.rvs(X, uv[:,0].to(device)).cpu()
-        t2_times = dgp2.rvs(X, uv[:,1].to(device)).cpu()
+        
+        t1_times = dgp1.rvs(X, uv[:,0].to(device))
+        t2_times = dgp2.rvs(X, uv[:,1].to(device))
         
         observed_times = np.minimum(t1_times, t2_times)
-        event_indicators = (t2_times < t1_times).type(torch.int)
-        
+        event_indicators = np.array((t2_times < t1_times), dtype=np.int32)
+    
         columns = [f'X{i}' for i in range(n_features)]
         self.X = pd.DataFrame(X.cpu(), columns=columns)
         self.y_e = event_indicators
@@ -155,9 +155,10 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
     
         dataframes = [df_train, df_valid, df_test]
         dicts = []
+        n_features = df.shape[1] - 2
         for dataframe in dataframes:
             data_dict = dict()
-            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':'X9'].to_numpy(), dtype=dtype)
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=dtype)
             data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=dtype)
             data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=dtype)
             dicts.append(data_dict)
@@ -179,7 +180,6 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         gamma_e1 = data_config['gamma_e1']
         gamma_e2 = data_config['gamma_e2']
         gamma_e3 = data_config['gamma_e3']
-        n_hidden = data_config['n_hidden']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
         
@@ -190,12 +190,12 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
             dgp2 = DGP_Weibull_linear(n_features, alpha_e2, gamma_e2, device, dtype)
             dgp3 = DGP_Weibull_linear(n_features, alpha_e3, gamma_e3, device, dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1]*n_hidden,
-                                         gamma=[gamma_e1]*n_hidden, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2]*n_hidden,
-                                         gamma=[gamma_e2]*n_hidden, device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e3]*n_hidden,
-                                         gamma=[gamma_e3]*n_hidden, device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_nonlinear(n_features, alpha=alpha_e1,
+                                         gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, alpha=alpha_e2,
+                                         gamma=gamma_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Weibull_nonlinear(n_features, alpha=alpha_e3,
+                                         gamma=gamma_e3, device=device, dtype=dtype)
         
         if copula_name is None or k_tau == 0:
             rng = np.random.default_rng(0)
@@ -210,9 +210,10 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
             v = torch.from_numpy(v).type(dtype).reshape(-1,1)
             w = torch.from_numpy(w).type(dtype).reshape(-1,1)
             uvw = torch.cat([u,v,w], axis=1).to(device)
-        t1_times = dgp1.rvs(X, uvw[:,0]).cpu()
-        t2_times = dgp2.rvs(X, uvw[:,1]).cpu()
-        t3_times = dgp3.rvs(X, uvw[:,2]).cpu()
+            
+        t1_times = dgp1.rvs(X, uvw[:,0].to(device))
+        t2_times = dgp2.rvs(X, uvw[:,1].to(device))
+        t3_times = dgp2.rvs(X, uvw[:,2].to(device))
         
         event_times = np.concatenate([t1_times.reshape(-1,1),
                                       t2_times.reshape(-1,1),
@@ -252,9 +253,10 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         
         dataframes = [df_train, df_valid, df_test]
         dicts = []
+        n_features = df.shape[1] - 5
         for dataframe in dataframes:
             data_dict = dict()
-            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':'X9'].to_numpy(), dtype=dtype)
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=dtype)
             data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=dtype)
             data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=dtype)
             data_dict['T1'] = torch.tensor(dataframe['t1'].to_numpy(), dtype=dtype)
@@ -276,10 +278,11 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         alpha_e1 = data_config['alpha_e1']
         alpha_e2 = data_config['alpha_e2']
         alpha_e3 = data_config['alpha_e3']
+        alpha_e4 = data_config['alpha_e4']
         gamma_e1 = data_config['gamma_e1']
         gamma_e2 = data_config['gamma_e2']
         gamma_e3 = data_config['gamma_e3']
-        n_hidden = data_config['n_hidden']
+        gamma_e4 = data_config['gamma_e4']
         n_samples = data_config['n_samples']
         n_features = data_config['n_features']
         adm_censoring_time = data_config['adm_censoring_time']
@@ -290,39 +293,34 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
             dgp1 = DGP_Weibull_linear(n_features, alpha_e1, gamma_e1, device, dtype)
             dgp2 = DGP_Weibull_linear(n_features, alpha_e2, gamma_e2, device, dtype)
             dgp3 = DGP_Weibull_linear(n_features, alpha_e3, gamma_e3, device, dtype)
+            dgp4 = DGP_Weibull_linear(n_features, alpha_e4, gamma_e4, device, dtype)
         else:
-            dgp1 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e1]*n_hidden,
-                                         gamma=[gamma_e1]*n_hidden, device=device, dtype=dtype)
-            dgp2 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e2]*n_hidden,
-                                         gamma=[gamma_e2]*n_hidden, device=device, dtype=dtype)
-            dgp3 = DGP_Weibull_nonlinear(n_features, n_hidden=n_hidden, alpha=[alpha_e3]*n_hidden,
-                                         gamma=[gamma_e3]*n_hidden, device=device, dtype=dtype)
+            dgp1 = DGP_Weibull_nonlinear(n_features, alpha=alpha_e1,
+                                         gamma=gamma_e1, device=device, dtype=dtype)
+            dgp2 = DGP_Weibull_nonlinear(n_features, alpha=alpha_e2,
+                                         gamma=gamma_e2, device=device, dtype=dtype)
+            dgp3 = DGP_Weibull_nonlinear(n_features, alpha=alpha_e3,
+                                         gamma=gamma_e3, device=device, dtype=dtype)
+            dgp4 = DGP_Weibull_nonlinear(n_features, alpha=alpha_e4,
+                                         gamma=gamma_e4, device=device, dtype=dtype)
 
         if copula_names is None or all(v == 0 for v in k_taus):
             rng = np.random.default_rng(0)
             u = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
             v = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
             w = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
-            uvw = torch.stack([u, v, w], dim=1)
+            z = torch.tensor(rng.uniform(0, 1, n_samples), device=device, dtype=dtype)
+            uvwz = torch.stack([u, v, w, z], dim=1)
         else:
-            thetas = [kendall_tau_to_theta(copula_names[i], k_taus[i]) for i in range(3)]
-            copula_parameters = [
-                {"type": copula_names[0], "weight": 1 / 3, "theta": thetas[0]},
-                {"type": copula_names[1], "weight": 1 / 3, "theta": thetas[1]},
-                {"type": copula_names[2], "weight": 1 / 3, "theta": thetas[2]}
-            ]
-            u_e1, u_e2, u_e3 = simulation.simu_mixture(3, n_samples, copula_parameters)
-            u = torch.from_numpy(u_e1).type(dtype).reshape(-1,1)
-            v = torch.from_numpy(u_e2).type(dtype).reshape(-1,1)
-            w = torch.from_numpy(u_e3).type(dtype).reshape(-1,1)
-            uvw = torch.cat([u,v,w], axis=1).to(device)
+            raise NotImplementedError()
         
-        t1_times = dgp1.rvs(X, uvw[:,0]).cpu()
-        t2_times = dgp2.rvs(X, uvw[:,1]).cpu()
-        t3_times = dgp3.rvs(X, uvw[:,2]).cpu()
+        t1_times = dgp1.rvs(X, uvwz[:,0].to(device))
+        t2_times = dgp2.rvs(X, uvwz[:,1].to(device))
+        t3_times = dgp2.rvs(X, uvwz[:,2].to(device))
+        t4_times = dgp2.rvs(X, uvwz[:,3].to(device))
         
         # Make adm. censoring
-        event_times = np.stack([t1_times, t2_times, t3_times], axis=1)
+        event_times = np.stack([t1_times, t2_times, t3_times, t4_times], axis=1)
         event_times = np.minimum(event_times, adm_censoring_time)
         event_indicators = (event_times < adm_censoring_time).astype(int)
 
@@ -331,8 +329,8 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         self.X = pd.DataFrame(X.cpu(), columns=columns)
         self.y_t = event_times
         self.y_e = event_indicators
-        self.dgps = [dgp1, dgp2, dgp3]
-        self.n_events = 3
+        self.dgps = [dgp1, dgp2, dgp3, dgp4]
+        self.n_events = 4
         
         return self
     
@@ -342,24 +340,29 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         df['e1'] = self.y_e[:,0]
         df['e2'] = self.y_e[:,1]
         df['e3'] = self.y_e[:,2]
+        df['e4'] = self.y_e[:,3]
         df['t1'] = self.y_t[:,0]
         df['t2'] = self.y_t[:,1]
         df['t3'] = self.y_t[:,2]
+        df['t4'] = self.y_t[:,3]
         df_train, df_valid, df_test = make_stratified_split(df, stratify_colname='multi', frac_train=train_size,
-                                                            frac_valid=valid_size, frac_test=test_size,
+                                                            frac_valid=valid_size, frac_test=test_size, n_events=4,
                                                             random_state=random_state)
         
         dataframes = [df_train, df_valid, df_test]
         dicts = []
+        n_features = df.shape[1] - 8
         for dataframe in dataframes:
             data_dict = dict()
-            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':'X9'].values, dtype=dtype)
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=dtype)
             data_dict['E'] = torch.stack([torch.tensor(dataframe['e1'].values, dtype=dtype),
                                           torch.tensor(dataframe['e2'].values, dtype=dtype),
-                                          torch.tensor(dataframe['e3'].values, dtype=dtype)], axis=1)
+                                          torch.tensor(dataframe['e3'].values, dtype=dtype),
+                                          torch.tensor(dataframe['e4'].values, dtype=dtype)], axis=1)
             data_dict['T'] = torch.stack([torch.tensor(dataframe['t1'].values, dtype=dtype),
                                           torch.tensor(dataframe['t2'].values, dtype=dtype),
-                                          torch.tensor(dataframe['t3'].values, dtype=dtype)], axis=1)
+                                          torch.tensor(dataframe['t3'].values, dtype=dtype),
+                                          torch.tensor(dataframe['t4'].values, dtype=dtype)], axis=1)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]

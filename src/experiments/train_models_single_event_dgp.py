@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["coxph", "coxboost", "rsf", "deepsurv", 'deephit', "mtlr", "dsm", "mensa", "dgp"]
+MODELS = ["coxph", "coxboost", "rsf", "deepsurv", 'deephit', "mtlr", "dsm", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -154,15 +154,16 @@ if __name__ == "__main__":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
             n_epochs = config['n_epochs']
             lr = config['lr']
+            n_dists = config['n_dists']
             batch_size = config['batch_size']
             layers = config['layers']
             weight_decay = config['weight_decay']
-            model = MENSA(n_features, layers=layers, n_events=1, device=device)
-            model.fit(train_dict, valid_dict, verbose=False, n_epochs=n_epochs,
-                      weight_decay=weight_decay, patience=10, batch_size=batch_size,
-                      learning_rate=lr)
-        elif model_name == "dgp":
-            pass
+            dropout_rate = config['dropout_rate']
+            model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
+                          n_events=1, n_dists=n_dists, device=device)
+            model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
+                      weight_decay=weight_decay, patience=10,
+                      batch_size=batch_size, verbose=False)
         else:
             raise NotImplementedError()
         
@@ -191,11 +192,6 @@ if __name__ == "__main__":
             model_preds = model.predict_surv(test_dict['X']).cpu().numpy()
         elif model_name == "mensa":
             model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=1) # use event preds
-        elif model_name == "dgp":
-            model_preds = torch.zeros((n_samples, time_bins.shape[0]), device=device)
-            for i in range(time_bins.shape[0]):
-                model_preds[:,i] = dgps[1].survival(time_bins[i], test_dict['X'].to(device))
-            model_preds = model_preds.cpu().numpy()
         else:
             raise NotImplementedError()
             

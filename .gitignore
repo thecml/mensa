@@ -240,3 +240,5 @@ data/rotterdam.csv
 best.pth
 src/tuning/screenlog.0
 plots/proact_isd_mixtures.pdf
+plots/survival_l1.pdf
+plots/model_complexcity.pdf

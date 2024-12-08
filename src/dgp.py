@@ -1,6 +1,6 @@
 import torch
+import torch.nn as nn
 from typing import List
-import torch
 
 def LOG(x):
     return torch.log(x+1e-20*(x<1e-20))
@@ -151,55 +151,75 @@ class DGP_EXP_nonlinear(DGP_Exp_linear): # This is nonlinear exponential PH mode
         risks = self.risk_function(x, self.coeff)
         return self.bh * torch.exp(risks)
 
-class DGP_Weibull_linear: # This is linear Weibull PH model 
+class DGP_Weibull_linear:
     def __init__(self, n_features, alpha: float, gamma: float, device="cpu", dtype=torch.float64):
         self.alpha = torch.tensor([alpha], device=device).type(dtype)
         self.gamma = torch.tensor([gamma], device=device).type(dtype)
-        self.coeff = torch.rand((n_features,), device=device).type(dtype)
-
-    def PDF(self ,t ,x):
-        return self.hazard(t, x) * self.survival(t,x)
+        self.device = device
+        self.dtype = dtype
+        self.coeff = 2 * torch.rand((n_features,), device=device).type(dtype) - 1
     
-    def CDF(self ,t ,x):
-        return 1 - self.survival(t,x)
+    def PDF(self, t, x):
+        return self.hazard(t, x) * self.survival(t, x)
     
-    def survival(self ,t ,x):
-        return torch.exp(-self.cum_hazard(t,x))
+    def CDF(self, t, x):
+        return 1 - self.survival(t, x)
+    
+    def survival(self, t, x):
+        return torch.exp(-self.cum_hazard(t, x))
     
     def hazard(self, t, x):
-        return ((self.gamma/self.alpha)*((t/self.alpha)**(self.gamma-1))) * torch.exp(torch.matmul(x, self.coeff))
-        
+        linear_term = torch.matmul(x, self.coeff)
+        return ((self.gamma / self.alpha) * ((t / self.alpha) ** (self.gamma - 1))) * torch.exp(linear_term)
+    
     def cum_hazard(self, t, x):
-        return ((t/self.alpha)**self.gamma) * torch.exp(torch.matmul(x, self.coeff))
+        linear_term = torch.matmul(x, self.coeff)
+        return ((t / self.alpha) ** self.gamma) * torch.exp(linear_term)
 
     def parameters(self):
         return [self.alpha, self.gamma, self.coeff]
     
     def rvs(self, x, u):
-        return ((-LOG(u)/torch.exp(torch.matmul(x, self.coeff)))**(1/self.gamma))*self.alpha
-
-class DGP_Weibull_nonlinear: # This is nonlinear Weibull PH model
-    def __init__(self, n_features, alpha, gamma, risk_function=relu, device="cpu", dtype=torch.float64):
-        self.nf = n_features
+        linear_term = torch.matmul(x, self.coeff)
+        survival_term = -torch.log(u) / torch.exp(linear_term)
+        result = (survival_term ** (1 / self.gamma)) * self.alpha
+        return result.detach().cpu().numpy()
+    
+class DGP_Weibull_nonlinear:
+    def __init__(self, n_features, alpha: float, gamma: float,
+                 hidden_dim: int=32, device="cpu", dtype=torch.float64):
         self.alpha = torch.tensor([alpha], device=device).type(dtype)
         self.gamma = torch.tensor([gamma], device=device).type(dtype)
-        self.coeff = torch.rand((n_features,), device=device).type(dtype)
-        self.risk_function = risk_function
-        
-    def PDF(self ,t ,x):
+        self.device = device
+        self.dtype = dtype
+        self.net = nn.Sequential(
+            nn.Linear(n_features, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        ).to(device).type(dtype)
+    
+    def PDF(self, t, x):
         return self.hazard(t, x) * self.survival(t, x)
     
-    def CDF(self ,t ,x):    
+    def CDF(self, t, x):
         return 1 - self.survival(t, x)
     
-    def survival(self ,t ,x):   
+    def survival(self, t, x):
         return torch.exp(-self.cum_hazard(t, x))
     
     def hazard(self, t, x):
-        return ((self.gamma/self.alpha)*((t/self.alpha)**(self.gamma-1))) * torch.exp(self.risk_function(x, self.coeff))
-
+        nonlinear_term = torch.exp(self.net(x)).squeeze()
+        return ((self.gamma / self.alpha) * ((t / self.alpha) ** (self.gamma - 1))) * nonlinear_term
+    
     def cum_hazard(self, t, x):
-        return ((t/self.alpha)**self.gamma) * torch.exp(self.risk_function(x, self.coeff))
+        nonlinear_term = torch.exp(self.net(x)).squeeze()
+        return ((t / self.alpha) ** self.gamma) * nonlinear_term
+
+    def parameters(self):
+        return [self.alpha, self.gamma] + list(self.net.parameters())
     
     def rvs(self, x, u):
-        return ((-LOG(u)/torch.exp(self.risk_function(x, self.coeff)))**(1/self.gamma))*self.alpha
+        nonlinear_term = torch.exp(self.net(x)).squeeze()
+        survival_term = -torch.log(u) / nonlinear_term
+        result = (survival_term ** (1 / self.gamma)) * self.alpha
+        return result.detach().cpu().numpy()

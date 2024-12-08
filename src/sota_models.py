@@ -92,22 +92,6 @@ def make_cox_model(config):
     model = CoxPHSurvivalAnalysis(alpha=0.0001)
     return model
 
-def make_coxnet_model(config):
-    l1_ratio = config['l1_ratio']
-    alpha_min_ratio = config['alpha_min_ratio']
-    n_alphas = config['n_alphas']
-    normalize = config['normalize']
-    tol = config['tol']
-    max_iter = config['max_iter']
-    model = CoxnetSurvivalAnalysis(fit_baseline_model=True,
-                                   l1_ratio=l1_ratio,
-                                   alpha_min_ratio=alpha_min_ratio,
-                                   n_alphas=n_alphas,
-                                   normalize=normalize,
-                                   tol=tol,
-                                   max_iter=max_iter)
-    return model
-
 def make_coxboost_model(config):
     n_estimators = config['n_estimators']
     learning_rate = config['learning_rate']

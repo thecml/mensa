@@ -35,6 +35,7 @@ from hierarchical.helper import format_hierarchical_hyperparams
 from torchmtlr.utils import encode_mtlr_format
 from torchmtlr.model import MTLRCR, mtlr_survival
 
+
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
 np.random.seed(0)
@@ -50,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["coxph", "coxboost", "rsf", "deepsurv", 'deephit', 'mtlrcr', 'dsm']
+MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -196,11 +197,12 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             layers = config['layers']
             weight_decay = config['weight_decay']
-            model = MENSA(n_features, layers=layers, n_events=n_events,
-                          n_dists=n_dists, device=device)
+            dropout_rate = config['dropout_rate']
+            model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
+                          n_events=n_events, n_dists=n_dists, device=device)
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                      weight_decay=weight_decay,patience=10, batch_size=batch_size,
-                      verbose=True)
+                      weight_decay=weight_decay, patience=10,
+                      batch_size=batch_size, verbose=False)
         else:
             raise NotImplementedError()
         
@@ -267,11 +269,15 @@ if __name__ == "__main__":
         # Calculate local and global CI
         y_test_time = np.stack([test_dict['T'].cpu().numpy() for _ in range(n_events)], axis=1)
         y_test_event = np.stack([np.array((test_dict['E'].cpu().numpy() == i+1)*1.0)
-                                 for i in range(n_events)], axis=1)
+                                for i in range(n_events)], axis=1)
         all_preds_arr = [df.to_numpy() for df in all_preds]
         global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
         local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
-            
+
+        # Check for NaN or inf and replace with 0.5
+        global_ci = 0.5 if np.isnan(global_ci) or np.isinf(global_ci) else global_ci
+        local_ci = 0.5 if np.isnan(local_ci) or np.isinf(local_ci) else local_ci
+        
         # Make evaluation for each event
         model_results = pd.DataFrame()
         for event_id, surv_preds in enumerate(all_preds):
@@ -281,9 +287,9 @@ if __name__ == "__main__":
             y_train_event = (train_dict['E'] == event_id+1)*1.0
             y_test_time = test_dict['T']
             y_test_event = (test_dict['E'] == event_id+1)*1.0
+            
             lifelines_eval = LifelinesEvaluator(surv_preds.T, y_test_time, y_test_event,
                                                 y_train_time, y_train_event)
-            
             ci = lifelines_eval.concordance()[0]
             ibs = lifelines_eval.integrated_brier_score()
             mae_hinge = lifelines_eval.mae(method="Hinge")

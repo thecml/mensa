@@ -5,6 +5,8 @@ Models: ['deepsurv', 'hierarch', 'mensa']
 """
 
 # 3rd party
+from pathlib import Path
+import joblib
 import pandas as pd
 import numpy as np
 import sys, os
@@ -48,7 +50,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 SEED = 0
-DATASET = "ebmt_me"
+DATASET = "proact_me"
 
 if __name__ == "__main__":
     # Load and split data
@@ -89,7 +91,7 @@ if __name__ == "__main__":
     # Evaluate models
     config = load_config(cfg.MENSA_CONFIGS_DIR, f"{DATASET.partition('_')[0]}.yaml")
     n_epochs = config['n_epochs']
-    n_dists = config['n_dists']
+    n_dists = 10 # [1, 3, 5, 10]
     lr = config['lr']
     batch_size = config['batch_size']
     layers = config['layers']
@@ -100,8 +102,8 @@ if __name__ == "__main__":
                   device=device)
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
               weight_decay=weight_decay, patience=10,
-              batch_size=batch_size, verbose=False)
-    
+              batch_size=batch_size, verbose=True)
+        
     # Make predictions
     all_preds = []
     for i in range(n_events):
@@ -137,3 +139,6 @@ if __name__ == "__main__":
         metrics = [ci, ibs, mae, d_calib, global_ci, local_ci]
         print(metrics)
         
+    # Save model
+    path = Path.joinpath(cfg.MODELS_DIR, f"mensa_{DATASET}_{n_dists}_dists.pkl")
+    joblib.dump(model, path)

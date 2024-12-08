@@ -329,7 +329,7 @@ def plot_surv_curve(curves, samples, labels, times):
 '''
 produce model
 '''
-def produce_model(method, train_package, val_package, test_package, settings, hyperparams):
+def produce_model(method, train_package, val_package, test_package, settings, hyperparams, model_only):
     test_data = copy.deepcopy(test_package[0])
     test_event_time = copy.deepcopy(test_package[1])
     test_labs = copy.deepcopy(test_package[2])
@@ -360,7 +360,10 @@ def produce_model(method, train_package, val_package, test_package, settings, hy
                                                 num_time_bins, event_groups, num_extra_bins, \
                                                 terminal_events, event_ranks, multitask=multitask, dh=dh)
         loss = direct.direct_loss(terminal_events, event_ranks, loss_hyperparams)
-        
+    
+    if model_only:
+        return mod
+    
     all_parameters = mod.get_parameters()
     model = train_network(mod, all_parameters, loss, train_hyperparams, train_package, val_package, event_ranks, \
                           num_events, terminal_events, num_extra_bins, min_epochs, max_epochs, verbose=True)
@@ -436,12 +439,12 @@ def bootstrap_results(mod_out, times, labs, num_events, num_bin, num_extra_bin, 
 '''
 produce an event or non-event specific model (combines above 2 functions into 1)
 '''
-def get_model_and_output(method, train_package, test_package, val_package, params, hyperparams, verbose):
+def get_model_and_output(method, train_package, test_package, val_package, params, hyperparams, verbose, model_only=False):
     if 'sim' in method:
         #test_curves = produce_sim(test_package, params)
         raise NotImplementedError()
     elif 'hierarch' in method or 'direct' in method:
-        model = produce_model(method, train_package, val_package, test_package, params, hyperparams)
+        model = produce_model(method, train_package, val_package, test_package, params, hyperparams, model_only)
     return model
 
 

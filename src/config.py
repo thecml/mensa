@@ -10,6 +10,7 @@ DGP_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dgp')
 MENSA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mensa')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 PLOTS_DIR = Path.joinpath(ROOT_DIR, 'plots')
+MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
 
 # This contains default parameters for the models
 HIERARCH_PARAMS = {
@@ -26,7 +27,7 @@ HIERARCH_PARAMS = {
     'use_theta': True,
     'use_deephit': False,
     'n_extra_bins': 1,
-    'verbose': True
+    'verbose': False
 }
 
 COXPH_PARAMS = {
@@ -36,25 +37,16 @@ COXPH_PARAMS = {
     'tol': 1e-9
 }
 
-COXNET_PARAMS = {
-    'l1_ratio': 1,
-    'alpha_min_ratio': 0.1,
-    'n_alphas': 100,
-    'normalize': False,
-    'tol': 0.1,
-    'max_iter': 100000
-}
-
 COXBOOST_PARAMS = {
     'n_estimators': 100,
     'learning_rate': 0.1,
-    'max_depth': 3,
+    'max_depth': 1,
     'loss': 'coxph',
-    'min_samples_split': 2,
-    'min_samples_leaf': 1,
-    'max_features': None,
+    'min_samples_split': 10,
+    'min_samples_leaf': 5,
+    'max_features': 'sqrt',
     'dropout_rate': 0.0,
-    'subsample': 1.0,
+    'subsample': 0.8,
     'seed': 0,
     'test_size': 0.3,
 }
@@ -62,7 +54,7 @@ COXBOOST_PARAMS = {
 DEEPSURV_PARAMS = {
     'hidden_size': 32,
     'verbose': False,
-    'lr': 0.005,
+    'lr': 0.001,
     'c1': 0.01,
     'num_epochs': 1000,
     'dropout': 0.25,
@@ -77,7 +69,7 @@ MTLR_PARAMS = {
     'lr': 0.001,
     'c1': 0.01,
     'num_epochs': 1000,
-    'dropout': 0.5,
+    'dropout': 0.25,
     'batch_size': 32,
     'early_stop': True,
     'patience': 10
@@ -85,10 +77,10 @@ MTLR_PARAMS = {
 
 RSF_PARAMS = {
     'n_estimators': 100,
-    'max_depth': 3,
-    'min_samples_split': 60,
-    'min_samples_leaf': 30,
-    'max_features': None,
+    'max_depth': 1,
+    'min_samples_split': 10,
+    'min_samples_leaf': 5,
+    'max_features': 'sqrt',
     "random_state": 0
 }
 
