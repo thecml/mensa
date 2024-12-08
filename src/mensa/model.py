@@ -90,7 +90,7 @@ class MLP(torch.nn.Module):
             self.embedding = create_representation(input_dim, layers, dropout_rate, 'ReLU6')
         else:
             self.embeddings = nn.ModuleList([
-                create_representation(input_dim, layers, 'ReLU6') for _ in range(n_states)
+                create_representation(input_dim, layers, dropout_rate, 'ReLU6') for _ in range(n_states)
             ])
 
     def forward(self, x):

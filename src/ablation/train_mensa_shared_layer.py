@@ -166,4 +166,3 @@ if __name__ == "__main__":
         results = pd.DataFrame(columns=model_results.columns)
     results = results.append(model_results, ignore_index=True)
     results.to_csv(filename, index=False)
-        

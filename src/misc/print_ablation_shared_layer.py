@@ -8,7 +8,6 @@ from utility.model_helper import map_model_name
 
 N_DECIMALS = 2
 ALPHA = 0.05
-DATASET_NAME = "rotterdam_me" # proact_me/rotterdam_me
 
 def calculate_d_calib(df, model_name, dataset_name):
     results = df.loc[(df['DatasetName'] == dataset_name) & (df['ModelName'] == model_name)]
@@ -26,33 +25,37 @@ if __name__ == "__main__":
     path = Path.joinpath(cfg.RESULTS_DIR, f"shared_layer.csv")
     df = pd.read_csv(path)
     
+    dataset_names = ["proact_me", "rotterdam_me"]
     model_names = ["with_shared", "no_shared"]
     metric_names = ["CI", "IBS", "MAE", "GlobalCI", "LocalCI", "DCalib"]
     
-    for model_name in model_names:
-        text = ""
-        results = df.loc[(df['DatasetName'] == DATASET_NAME) & (df['ModelName'] == model_name)] \
-                  .groupby(['EventId'])[['CI', 'IBS', 'MAE', 'GlobalCI', 'LocalCI']].mean() # take average across seeds, not Dcal
-        if results.empty:
-            break
-        if model_name == "with_shared":
-            model_name_display = "& With shared " + r"$\Phi(X)$" + " &" 
-        else:
-            model_name_display = "& Without shared " + r"$\Phi(X)$" + " &"
-        text += f"{model_name_display} "
-        for i, metric_name in enumerate(metric_names):
-            if metric_name == "DCalib":
-                d_calib = calculate_d_calib(df, model_name, DATASET_NAME)
-                text += f"{d_calib}"
+    for dataset_name in dataset_names:
+        for model_name in model_names:
+            text = ""
+            if model_name == "with_shared":
+                model_name_display = "& With shared " + r"$\Phi(X)$" + " &" 
             else:
-                metric_result = results[metric_name]
-                if metric_name in ["CI", "IBS"]:
-                    result = result*100
+                model_name_display = "& Without shared " + r"$\Phi(X)$" + " &"
+            text += f"& {model_name_display} & "
+            for i, metric_name in enumerate(metric_names):
+                if metric_name == "DCalib":
+                    d_calib = calculate_d_calib(df, model_name, dataset_name)
+                    text += f"{d_calib}"
                 else:
-                    mean = f"%.{N_DECIMALS}f" % round(np.mean(metric_result), N_DECIMALS)
-                    std = f"%.{N_DECIMALS}f" % round(np.std(metric_result), N_DECIMALS)
-                text += f"{mean}$\pm${std} & "
-        text += " \\\\"
-        print(text)
-    print()
-    
+                    if metric_name in ["CI", "IBS", "MAEM"]:
+                        avg_seed_df = (df.groupby(["ModelName", "DatasetName", "EventId"], as_index=False).mean(numeric_only=True))
+                        results = avg_seed_df.loc[(avg_seed_df['DatasetName'] == dataset_name)
+                                                & (avg_seed_df['ModelName'] == model_name)]
+                    else:
+                        avg_event_df = (df.groupby(["ModelName", "DatasetName", "Seed"], as_index=False).mean(numeric_only=True))
+                        results = avg_event_df.loc[(avg_event_df['DatasetName'] == dataset_name)
+                                                    & (avg_event_df['ModelName'] == model_name)]
+                    results = results[metric_name]
+                    if dataset_name in ["mimic_me", "rotterdam_me", "ebmt_me"] and metric_name == "MAEM":
+                        results /= 100
+                    mean = f"%.{N_DECIMALS}f" % round(np.mean(results), N_DECIMALS)
+                    std = f"%.{N_DECIMALS}f" % round(np.std(results), N_DECIMALS)
+                    text += f"{mean}$\pm${std} & "
+            text += " \\\\"
+            print(text)
+        print()
