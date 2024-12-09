@@ -118,11 +118,15 @@ if __name__ == "__main__":
         all_preds.append(model_preds)
     
     # Calculate local and global CI
+    y_test_time = test_dict['T'].cpu().numpy()
+    y_test_event = test_dict['E'].cpu().numpy()
     all_preds_arr = [df.to_numpy() for df in all_preds]
-    global_ci = global_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                               test_dict['E'].cpu().numpy(), weight=False)
-    local_ci = local_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                             test_dict['E'].cpu().numpy(), weight=False)
+    global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
+    local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
+    
+    # Check for NaN or inf and replace with 0.5
+    global_ci = 0.5 if np.isnan(global_ci) or np.isinf(global_ci) else global_ci
+    local_ci = 0.5 if np.isnan(local_ci) or np.isinf(local_ci) else local_ci
     
     # Make evaluation for each event
     model_results = pd.DataFrame()
@@ -152,7 +156,7 @@ if __name__ == "__main__":
         
         res_sr = pd.Series([model_name, dataset_name, seed, event_id+1] + metrics,
                             index=["ModelName", "DatasetName", "Seed", "EventId",
-                                   "CI", "IBS", "MAE", "DCalib", "GlobalCI", "LocalCI"])
+                                   "CI", "IBS", "MAEM", "DCalib", "GlobalCI", "LocalCI"])
         model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
         
     # Save results

@@ -12,7 +12,6 @@ ALPHA = 0.05
 def calculate_d_calib(df, model_name, dataset_name):
     results = df.loc[(df['DatasetName'] == dataset_name) & (df['ModelName'] == model_name)]
     num_seeds = int(results['Seed'].nunique())
-    event_ratios = []
     event_ids = sorted(results['EventId'].unique())
     num_calib = 0
     for event_id in event_ids:
