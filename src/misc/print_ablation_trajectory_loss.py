@@ -47,11 +47,19 @@ if __name__ == "__main__":
                     d_calib = calculate_d_calib(df, model_name, dataset_name)
                     text += f"{d_calib}"
                 else:
-                    metric_result = results[metric_name]
-                    if dataset_name in ["mimic_me", "rotterdam_me", "ebmt_me"] and metric_name == "MAEM":
+                    if metric_name in ["CI", "IBS", "MAEM"]:
+                        avg_seed_df = (df.groupby(["ModelName", "DatasetName", "EventId"], as_index=False).mean(numeric_only=True))
+                        results = avg_seed_df.loc[(avg_seed_df['DatasetName'] == dataset_name)
+                                                & (avg_seed_df['ModelName'] == model_name)]
+                    else:
+                        avg_event_df = (df.groupby(["ModelName", "DatasetName", "Seed"], as_index=False).mean(numeric_only=True))
+                        results = avg_event_df.loc[(avg_event_df['DatasetName'] == dataset_name)
+                                                   & (avg_event_df['ModelName'] == model_name)]
+                    results = results[metric_name]
+                    if dataset_name in ["rotterdam_me", "ebmt_me"] and metric_name == "MAEM":
                         results /= 100
-                    mean = f"%.{N_DECIMALS}f" % round(np.mean(metric_result), N_DECIMALS)
-                    std = f"%.{N_DECIMALS}f" % round(np.std(metric_result), N_DECIMALS)
+                    mean = f"%.{N_DECIMALS}f" % round(np.mean(results), N_DECIMALS)
+                    std = f"%.{N_DECIMALS}f" % round(np.std(results), N_DECIMALS)
                     text += f"{mean}$\pm${std} & "
             text += " \\\\"
             print(text)

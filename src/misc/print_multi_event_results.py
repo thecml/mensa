@@ -29,7 +29,7 @@ if __name__ == "__main__":
     cols_to_replace = ["CI", "GlobalCI", "LocalCI"]
     df[cols_to_replace] = df[cols_to_replace].fillna(0.5)
     
-    dataset_names = ['ebmt_me']
+    dataset_names = ['mimic_me', 'rotterdam_me', 'proact_me', 'ebmt_me']
     model_names = ['mensa']
     metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"]
     
