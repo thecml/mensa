@@ -102,8 +102,8 @@ if __name__ == "__main__":
                       n_events=n_events, n_dists=n_dists, trajectories=trajectories,
                       device=device)
     else:
-        model = MENSA(n_features, layers=layers, n_events=n_events,
-                      n_dists=n_dists, device=device)
+        model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
+                      n_events=n_events, n_dists=n_dists, device=device)
         
     # Train model
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
