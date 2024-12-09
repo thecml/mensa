@@ -9,7 +9,6 @@ import pandas as pd
 import numpy as np
 import sys, os
 
-from utility.mtlr import make_mtlr_prediction, mtlr, train_mtlr_model
 sys.path.append(os.path.abspath('../'))
 import config as cfg
 import torch
@@ -21,6 +20,7 @@ from scipy.interpolate import interp1d
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
+from utility.mtlr import make_mtlr_prediction, mtlr, train_mtlr_model
 from utility.survival import (convert_to_structured, make_time_bins, preprocess_data)
 from utility.data import dotdict, format_data_deephit_multi, format_data_deephit_single
 from utility.config import load_config
@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ['hierarch']
+MODELS = ['deephit', 'dsm']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -246,8 +246,9 @@ if __name__ == "__main__":
             elif model_name == "deephit":
                 all_preds = []
                 for trained_model in trained_models:
-                    model_preds = model.predict_surv(test_dict['X']).cpu()
-                    all_preds.append(preds)
+                    model_preds = trained_model.predict_surv(test_dict['X']).cpu()
+                    model_preds = pd.DataFrame(model_preds.cpu().numpy(), columns=time_bins.cpu().numpy())
+                    all_preds.append(model_preds)
             elif model_name == "mtlr":
                 all_preds = []
                 for trained_model in trained_models:
@@ -258,7 +259,7 @@ if __name__ == "__main__":
             elif model_name == "dsm":
                 all_preds = []
                 for trained_model in trained_models:
-                    model_preds = model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()))
+                    model_preds = trained_model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()))
                     model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
                     all_preds.append(model_preds)
             elif model_name == "hierarch":
