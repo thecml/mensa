@@ -95,8 +95,8 @@ if __name__ == "__main__":
     lr = config['lr']
     batch_size = config['batch_size']
     layers = config['layers']
-    weight_decay = config['weight_decay']
-    dropout_rate = config['dropout_rate']
+    weight_decay = 0
+    dropout_rate = 0
     model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
                   n_events=n_events, n_dists=n_dists, trajectories=trajectories,
                   device=device)
