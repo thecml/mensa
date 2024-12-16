@@ -24,4 +24,27 @@ def get_layer_size_fine_bins(dataset_name):
     else:
         raise ValueError("Invalid dataset name")
         
-    
+def calculate_flops(num_features, num_events, main_layers, event_layers, time_bins):
+    # Ensure the first layer of the main network uses num_features as its input size
+    if main_layers[0][0] != num_features:
+        raise ValueError("The input size of the first layer in main_layers must match num_features.")
+
+    # Calculate FLOPs for main network
+    main_flops = sum(2 * inp * out for inp, out in main_layers)
+
+    # Calculate FLOPs for one event network
+    event_network_flops = sum(2 * inp * out for inp, out in event_layers)
+
+    # Total event networks FLOPs
+    total_event_flops = num_events * event_network_flops
+
+    # Softmax FLOPs
+    main_softmax_flops = 2 * main_layers[-1][1]  # Softmax over the last layer's output
+    event_softmax_flops = num_events * 2 * time_bins  # Softmax for each event network
+    total_softmax_flops = main_softmax_flops + event_softmax_flops
+
+    # Total FLOPs
+    total_flops = main_flops + total_event_flops + total_softmax_flops
+
+    # Return detailed breakdown and total FLOPs
+    return total_flops

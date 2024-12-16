@@ -9,7 +9,6 @@ import pandas as pd
 import numpy as np
 import sys, os
 
-from utility.mtlr import make_mtlr_prediction, mtlr, train_mtlr_model
 sys.path.append(os.path.abspath('../'))
 import config as cfg
 import torch
@@ -21,6 +20,7 @@ from scipy.interpolate import interp1d
 from SurvivalEVAL.Evaluator import LifelinesEvaluator
 
 # Local
+from utility.mtlr import make_mtlr_prediction, mtlr, train_mtlr_model
 from utility.survival import (convert_to_structured, make_time_bins, preprocess_data)
 from utility.data import dotdict, format_data_deephit_multi, format_data_deephit_single
 from utility.config import load_config
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default="proact_me")
+    parser.add_argument('--dataset_name', type=str, default="ebmt_me")
     
     args = parser.parse_args()
     seed = args.seed
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
     X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
     X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
-                                              num_features, as_array=True)
+                                            num_features, as_array=True)
     train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
     train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int64)
     train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int64)
@@ -148,7 +148,7 @@ if __name__ == "__main__":
                 data_valid['time'] = valid_dict['T'][:,i].cpu().numpy()
                 data_valid['event'] = valid_dict['E'][:,i].cpu().numpy()
                 model = train_deepsurv_model(model, data_train, data_valid, time_bins, config=config,
-                                             random_state=0, reset_model=True, device=device, dtype=dtype)
+                                            random_state=0, reset_model=True, device=device, dtype=dtype)
                 trained_models.append(model)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)
@@ -174,8 +174,8 @@ if __name__ == "__main__":
                 num_time_bins = len(time_bins)
                 model = mtlr(in_features=n_features, num_time_bins=num_time_bins, config=config)
                 model = train_mtlr_model(model, data_train, data_valid, time_bins.cpu().numpy(),
-                                         config, random_state=0, dtype=dtype,
-                                         reset_model=True, device=device)
+                                        config, random_state=0, dtype=dtype,
+                                        reset_model=True, device=device)
                 trained_models.append(model)
         elif model_name == "dsm":
             config = dotdict(cfg.DSM_PARAMS)
@@ -186,8 +186,8 @@ if __name__ == "__main__":
             for i in range(n_events):
                 model = make_dsm_model(config)
                 model.fit(train_dict['X'].cpu().numpy(), train_dict['T'][:,i].cpu().numpy(), train_dict['E'][:,i].cpu().numpy(),
-                          val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy()),
-                          learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
+                        val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy()),
+                        learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
                 trained_models.append(model)
         elif model_name == "hierarch":
             config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"{dataset_name}.yaml")
@@ -203,7 +203,7 @@ if __name__ == "__main__":
             hyperparams = format_hierarchical_hyperparams(params)
             verbose = params['verbose']
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
-                                              valid_data, config, hyperparams, verbose)
+                                            valid_data, config, hyperparams, verbose)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_epochs = config['n_epochs']
@@ -214,11 +214,11 @@ if __name__ == "__main__":
             weight_decay = config['weight_decay']
             dropout_rate = config['dropout_rate']
             model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
-                          n_events=n_events, n_dists=n_dists, trajectories=trajectories,
-                          device=device)
+                        n_events=n_events, n_dists=n_dists, trajectories=trajectories,
+                        device=device)
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                      weight_decay=weight_decay, patience=10,
-                      batch_size=batch_size, verbose=False)
+                    weight_decay=weight_decay, patience=10,
+                    batch_size=batch_size, verbose=False)
         else:
             raise NotImplementedError()
         
@@ -229,24 +229,25 @@ if __name__ == "__main__":
                 model_preds = trained_model.predict_survival_function(test_dict['X'].cpu())
                 model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
                 spline = interp1d(time_bins.cpu().numpy(), model_preds,
-                                  kind='linear', fill_value='extrapolate')
+                                kind='linear', fill_value='extrapolate')
                 preds = pd.DataFrame(spline(time_bins.cpu().numpy()),
-                                     columns=time_bins.cpu().numpy())
+                                    columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "deepsurv":
             all_preds = []
             for trained_model in trained_models:
                 preds, time_bins_model = make_deepsurv_prediction(trained_model, test_dict['X'].to(device),
-                                                                  config=config, dtype=dtype)
+                                                                config=config, dtype=dtype)
                 spline = interp1d(time_bins_model.cpu().numpy(), preds.cpu().numpy(),
-                                  kind='linear', fill_value='extrapolate')
+                                kind='linear', fill_value='extrapolate')
                 preds = pd.DataFrame(spline(time_bins.cpu().numpy()), columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "deephit":
             all_preds = []
             for trained_model in trained_models:
-                model_preds = model.predict_surv(test_dict['X']).cpu()
-                all_preds.append(preds)
+                model_preds = trained_model.predict_surv(test_dict['X']).cpu()
+                model_preds = pd.DataFrame(model_preds.cpu().numpy(), columns=time_bins.cpu().numpy())
+                all_preds.append(model_preds)
         elif model_name == "mtlr":
             all_preds = []
             for trained_model in trained_models:
@@ -257,7 +258,7 @@ if __name__ == "__main__":
         elif model_name == "dsm":
             all_preds = []
             for trained_model in trained_models:
-                model_preds = model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()))
+                model_preds = trained_model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()))
                 model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
                 all_preds.append(model_preds)
         elif model_name == "hierarch":
@@ -311,7 +312,7 @@ if __name__ == "__main__":
             print(metrics)
             res_sr = pd.Series([model_name, dataset_name, seed, event_id+1] + metrics,
                                 index=["ModelName", "DatasetName", "Seed", "EventId", "CI", "IBS",
-                                       "MAEH", "MAEM", "MAEPO", "DCalib", "GlobalCI", "LocalCI"])
+                                    "MAEH", "MAEM", "MAEPO", "DCalib", "GlobalCI", "LocalCI"])
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
             
         # Save results

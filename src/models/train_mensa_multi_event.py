@@ -33,7 +33,6 @@ from hierarchical import util
 from hierarchical.helper import format_hierarchical_hyperparams
 from utility.data import (format_hierarchical_data_me, calculate_layer_size_hierarch)
 from data_loader import get_data_loader
-from fvcore.nn import FlopCountAnalysis
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
