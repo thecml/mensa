@@ -163,8 +163,8 @@ for n_features in n_features_list:
         elif model_name == "hierarch":
             num_features = n_features
             num_events = n_events
-            main_layers = [(n_features, 10), (10, 100)]  # Main network layer sizes
-            event_layers = [(100, 1), (50, 1), (50, 49)]  # Event network layer sizes
+            main_layers = [(n_features, 100)]  # Main network layer sizes
+            event_layers = [(100, 50), (100, 50) (50, 1), (50, len(time_bins))]  # Event network layer sizes
             time_bins = len(time_bins)
             sum_flops += calculate_flops(num_features, num_events, main_layers, event_layers, time_bins)
         elif model_name == "mensa":
