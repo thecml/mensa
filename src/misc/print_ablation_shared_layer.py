@@ -52,9 +52,9 @@ if __name__ == "__main__":
         for model_name in model_names:
             text = ""
             if model_name == "with_shared":
-                model_name_display = "With shared " + r"$\Phi(x)$"
+                model_name_display = "With"
             else:
-                model_name_display = "Without shared " + r"$\Phi(x)$"
+                model_name_display = "Without"
             text += f"& {model_name_display} & "
 
             for i, metric_name in enumerate(metric_names):
