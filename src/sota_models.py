@@ -59,11 +59,14 @@ class DeepSurv(nn.Module):
         self.time_bins = None
         self.cum_baseline_hazard = None
         self.baseline_survival = None
-        n_hidden=100
+        
+        n_hidden = self.config['hidden_size']
+        dropout = self.config['dropout']
         
         # Shared parameters
         self.hidden = nn.Sequential(
             nn.Linear(in_features, n_hidden),
+            nn.Dropout(dropout),
             nn.ReLU(),
         )
         self.fc1 = nn.Linear(n_hidden, 1)
@@ -163,6 +166,7 @@ def train_deepsurv_model(
               f"batch size is {config.batch_size}, device is {device}.")
     train_size = data_train.shape[0]
     val_size = data_valid.shape[0]
+    batch_size = config['batch_size']
     optimizer = optim.Adam(model.parameters(), lr=config.lr)
 
     if reset_model:
@@ -183,8 +187,8 @@ def train_deepsurv_model(
                            torch.tensor(data_valid["time"].values, dtype=dtype).to(device),
                            torch.tensor(data_valid["event"].values, dtype=dtype).to(device))
 
-    train_loader = DataLoader(TensorDataset(x_train, t_train, e_train), batch_size=train_size, shuffle=True)
-    model.config.batch_size = train_size
+    train_loader = DataLoader(TensorDataset(x_train, t_train, e_train), batch_size=batch_size, shuffle=True)
+    model.config.batch_size = batch_size
 
     for i in pbar:
         nll_loss = 0

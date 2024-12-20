@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["hierarch", "mensa"]
+MODELS = ["deepsurv", "deephit", "hierarch", "mtlr", "dsm", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -148,7 +148,7 @@ if __name__ == "__main__":
                 data_valid['time'] = valid_dict['T'][:,i].cpu().numpy()
                 data_valid['event'] = valid_dict['E'][:,i].cpu().numpy()
                 model = train_deepsurv_model(model, data_train, data_valid, time_bins, config=config,
-                                            random_state=0, reset_model=True, device=device, dtype=dtype)
+                                             random_state=0, reset_model=True, device=device, dtype=dtype)
                 trained_models.append(model)
         elif model_name == "deephit":
             config = dotdict(cfg.DEEPHIT_PARAMS)

@@ -64,7 +64,6 @@ DEEPSURV_PARAMS = {
 }
 
 MTLR_PARAMS = {
-    'hidden_size': 32,
     'verbose': False,
     'lr': 0.001,
     'c1': 0.01,
@@ -109,7 +108,6 @@ DEEPHIT_PARAMS = {
 }
 
 MTLRCR_PARAMS = {
-    'hidden_size': 32,
     'verbose': False,
     'lr': 1e-3,
     'c1': 0.01,
