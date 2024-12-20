@@ -66,8 +66,8 @@ class DeepSurv(nn.Module):
         # Shared parameters
         self.hidden = nn.Sequential(
             nn.Linear(in_features, n_hidden),
-            nn.Dropout(dropout),
             nn.ReLU(),
+            nn.Dropout(dropout)
         )
         self.fc1 = nn.Linear(n_hidden, 1)
 
