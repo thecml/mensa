@@ -2,7 +2,7 @@
 import os
 import random
 from data_loader import CompetingRiskSyntheticDataLoader, MultiEventSyntheticDataLoader, SingleEventSyntheticDataLoader
-from hierarchical import util
+from hierarchical import util_torch
 from hierarchical.helper import format_hierarchical_hyperparams, calculate_flops
 from mensa.model import MENSA
 import numpy as np
@@ -34,8 +34,7 @@ device = torch.device('cpu')
 
 model_names = ["deepsurv", "deephit", "mtlr", "dsm", "hierarch", 'mensa']
 
-n_features_list = np.concatenate(([1], np.arange(50, 1001, 50)))
-
+n_features_list = np.concatenate(([1], np.arange(100, 1001, 100)))
 
 # Single event
 for n_features in n_features_list:
@@ -96,11 +95,12 @@ for n_features in n_features_list:
             config['num_bins'] = n_time_bins
             params = cfg.HIERARCH_PARAMS
             params['n_batches'] = int(n_samples/params['batch_size'])
+            params['layer_size_fine_bins'] = [(100, 5)]
             layer_size = params['layer_size_fine_bins'][0][0]
             params['layer_size_fine_bins'] = calculate_layer_size_hierarch(layer_size, n_time_bins)
             hyperparams = format_hierarchical_hyperparams(params)
             verbose = params['verbose']
-            model = util.get_model_and_output("hierarch_full", train_data, test_data,
+            model = util_torch.get_model_and_output("hierarch_full", train_data, test_data,
                                               valid_data, config, hyperparams, verbose, model_only=True)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"synthetic.yaml")
@@ -161,12 +161,9 @@ for n_features in n_features_list:
                 flops = FlopCountAnalysis(model.torch_model, test_dict['X'][0].unsqueeze(0).to("cpu"))
                 sum_flops += flops.total()
         elif model_name == "hierarch":
-            num_features = n_features
-            num_events = n_events
-            main_layers = [(n_features, 100)]  # Main network layer sizes
-            event_layers = [(100, 50), (100, 50) (50, 1), (50, len(time_bins))]  # Event network layer sizes
-            time_bins = len(time_bins)
-            sum_flops += calculate_flops(num_features, num_events, main_layers, event_layers, time_bins)
+            model.eval()
+            flops = FlopCountAnalysis(model, test_dict['X'][0].unsqueeze(0).to(device))
+            sum_flops += flops.total()
         elif model_name == "mensa":
             model.model.eval()
             flops = FlopCountAnalysis(model.model, test_dict['X'][0].unsqueeze(0).to(device))
