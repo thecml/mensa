@@ -193,6 +193,8 @@ def train_deepsurv_model(
     for i in pbar:
         nll_loss = 0
         for xi, ti, ei in train_loader:
+            if ei.sum() == 0:
+                continue
             xi, ti, ei = xi.to(device), ti.to(device), ei.to(device)
             optimizer.zero_grad()
             y_pred = model.forward(xi)
