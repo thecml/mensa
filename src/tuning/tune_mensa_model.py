@@ -48,12 +48,14 @@ def train_mensa_model():
     # Load and split data
     dl = get_data_loader(dataset_name)
     dl = dl.load_data()
+    n_events = dl.n_events
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=0)
     
     # Preprocess data
     cat_features = dl.cat_features
     num_features = dl.num_features
+    n_features = train_dict['X'].shape[1]
     X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
     X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
     X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
@@ -62,18 +64,20 @@ def train_mensa_model():
     train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
     valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
     test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
-    n_features = train_dict['X'].shape[1]
 
     # Train model
-    layers = config['layers']
-    lr = config['lr']
     n_epochs = config['n_epochs']
+    n_dists = config['n_dists']
+    lr = config['lr']
     batch_size = config['batch_size']
-    k = config['k']
-    lr_dict = {'network': lr, 'copula': 0.01}
-    model = MENSA(n_features, n_events=2, n_dists=k, layers=layers, device=device)
-    model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict=lr_dict,
-              batch_size=batch_size, use_wandb=True)
+    layers = config['layers']
+    weight_decay = config['weight_decay']
+    dropout_rate = config['dropout_rate']
+    model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
+                  n_events=n_events, n_dists=n_dists, device=device)
+    model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
+              weight_decay=weight_decay, patience=10,
+              batch_size=batch_size, verbose=True, use_wandb=True)
     
 if __name__ == "__main__":
     main()
