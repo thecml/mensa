@@ -225,10 +225,7 @@ class MENSA:
             avg_valid_loss = total_valid_loss / len(valid_loader)
 
             if use_wandb:
-                norm_avg_train_loss = avg_train_loss / batch_size
-                norm_avg_valid_loss = avg_valid_loss / batch_size
-                wandb.log({"train_loss": norm_avg_train_loss})
-                wandb.log({"valid_loss": norm_avg_valid_loss})
+                wandb.log({"valid_loss": avg_valid_loss})
 
             pbar.set_description(f"[Epoch {itr+1:4}/{n_epochs}]")
             pbar.set_postfix_str(f"Training loss = {avg_train_loss:.4f}, "
