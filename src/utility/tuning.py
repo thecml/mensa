@@ -13,19 +13,19 @@ def get_mensa_sweep_cfg():
                 "values": [1e-2, 1e-3, 5e-4, 1e-4, 1e-5]
             },
             "n_epochs": {
-                "values": [10000]
+                "values": [1000]
             },
             "batch_size": {
-                "values": [16, 32, 64, 128]
+                "values": [32]
             },
             "n_dists": {
-                "values": [1, 3, 5, 10]
+                "values": [1, 3, 5]
             },
             "dropout_rate": {
                 "values": [0, 0.1, 0.25, 0.5]
             },
             'weight_decay': {
-                "values": [1e-2, 1e-3, 1e-4, 1e-5]
+                "values": [0, 1e-3, 1e-4, 1e-5]
             }
         }
     }
