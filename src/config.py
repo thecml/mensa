@@ -52,13 +52,12 @@ COXBOOST_PARAMS = {
 }
 
 DEEPSURV_PARAMS = {
-    'hidden_size': 32,
+    'hidden_size': 100,
     'verbose': False,
     'lr': 0.001,
     'c1': 0.01,
     'num_epochs': 1000,
     'dropout': 0.25,
-    'batch_size': 32,
     'early_stop': True,
     'patience': 10
 }
