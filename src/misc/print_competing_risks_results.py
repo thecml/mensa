@@ -29,7 +29,7 @@ if __name__ == "__main__":
         
     dataset_names = ["seer_cr", "rotterdam_cr"]
     model_names = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
-    metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"] 
+    metric_names = ["GlobalCI", "LocalCI", "IBS", "MAEM", "DCalib"] 
     
     for dataset_name in dataset_names:
         for model_name in model_names:
