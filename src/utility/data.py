@@ -51,11 +51,18 @@ def kendall_tau_to_theta(copula_name, k_tau):
     elif copula_name == "gumbel":
         return GumbelCopula().theta_from_tau(k_tau)
     else:
-        raise ValueError('Copula not implemented')
+        raise NotImplementedError('Copula not implemented')
     
 def theta_to_kendall_tau(copula_name, theta):
-    raise NotImplementedError()
-    
+    if copula_name == "clayton":
+        return ClaytonCopula().tau(theta)
+    elif copula_name == "frank":
+        return FrankCopula().tau(theta)
+    elif copula_name == "gumbel":
+        return GumbelCopula().tau(theta)
+    else:
+        raise NotImplementedError('Copula not implemented')
+
 def format_data_as_dict_single(X, events, times, dtype):
     data_dict = dict()
     data_dict['X'] = torch.tensor(X, dtype=dtype)
