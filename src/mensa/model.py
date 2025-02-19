@@ -10,22 +10,19 @@ from tqdm import trange
 from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi, safe_log
 
 def add_transient_state(data_dict):
-    # Modify 'E': Add 1 if all columns are 0, else 0
-    condition_e = (data_dict['E'] == 0).all(dim=1).unsqueeze(1)
-    new_column_e = condition_e.long()
-    data_dict['E'] = torch.cat([new_column_e, data_dict['E']], dim=1)
+    # Find the minimum time (first event time) and its index
+    first_event_times, first_event_indices = data_dict['T'].min(dim=1)
+
+    # Get the event indicator corresponding to the first event time
+    first_event_observed = data_dict['E'].gather(1, first_event_indices.unsqueeze(1)).squeeze(1)
     
-    # Modify 'T': Add the maximum or minimum value based on 'E'
-    max_values = data_dict['T'].max(dim=1, keepdim=True).values
+    # Define the event-free column
+    new_E_col = first_event_observed.unsqueeze(1)  # Keep 0 if censored, 1 if observed
+    new_T_col = first_event_times.unsqueeze(1)     # Store the time of the first event
     
-    # If all 'E' columns are 0, take the maximum; otherwise, take the minimum of active events
-    new_column_t = torch.where(
-        condition_e,  # Condition: all 'E' columns are 0
-        max_values,   # If true, take maximum
-        torch.where(data_dict['E'][:, 1:] == 1, data_dict['T'], float('inf')).min(dim=1, keepdim=True).values
-    )
-    
-    data_dict['T'] = torch.cat([new_column_t, data_dict['T']], dim=1)
+    # Append new columns to the existing tensors
+    data_dict['E'] = torch.cat([new_E_col, data_dict['E']], dim=1)
+    data_dict['T'] = torch.cat([new_T_col, data_dict['T']], dim=1)
     
     return data_dict
 
