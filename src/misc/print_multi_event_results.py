@@ -30,7 +30,7 @@ if __name__ == "__main__":
     df[cols_to_replace] = df[cols_to_replace].fillna(0.5)
     
     dataset_names = ['mimic_me', 'rotterdam_me', 'proact_me', 'ebmt_me']
-    model_names = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
+    model_names = ["deepsurv", 'deephit', 'hierarch', 'mtlr', 'dsm', 'mensa']
     metric_names = ["GlobalCI", "LocalCI", "IBS", "MAEM", "DCalib"] 
     
     for dataset_name in dataset_names:
