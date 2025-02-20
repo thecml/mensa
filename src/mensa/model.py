@@ -10,27 +10,23 @@ from tqdm import trange
 from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi, safe_log
 
 def add_transient_state(data_dict):
-    # Condition: Check if all events are censored (E == 0 across all columns)
+    # Modify 'E': Add 1 if all columns are 0, else 0
     condition_e = (data_dict['E'] == 0).all(dim=1).unsqueeze(1)
-
-    # New E column: 0 if all events were censored, 1 otherwise
-    new_column_e = (~condition_e).long()
-
-    # Find the maximum event time for each row
-    max_values = data_dict['T'].max(dim=1, keepdim=True).values
-
-    # Find the minimum observed event time (only where E == 1)
-    min_observed_t = torch.where(
-        data_dict['E'] == 1, data_dict['T'], float('inf')
-    ).min(dim=1, keepdim=True).values
-
-    # If all events are censored, use max_values; otherwise, use min_observed_t
-    new_column_t = torch.where(condition_e, max_values, min_observed_t)
-
-    # Concatenate the new columns to E and T
+    new_column_e = condition_e.long()
     data_dict['E'] = torch.cat([new_column_e, data_dict['E']], dim=1)
+    
+    # Modify 'T': Add the maximum or minimum value based on 'E'
+    max_values = data_dict['T'].max(dim=1, keepdim=True).values
+    
+    # If all 'E' columns are 0, take the maximum; otherwise, take the minimum of active events
+    new_column_t = torch.where(
+        condition_e,  # Condition: all 'E' columns are 0
+        max_values,   # If true, take maximum
+        torch.where(data_dict['E'][:, 1:] == 1, data_dict['T'], float('inf')).min(dim=1, keepdim=True).values
+    )
+    
     data_dict['T'] = torch.cat([new_column_t, data_dict['T']], dim=1)
-
+    
     return data_dict
 
 def create_representation(input_dim, layers, dropout_rate, activation, bias=True):
