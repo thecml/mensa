@@ -10,9 +10,6 @@ __pycache__/
 data/*.csv
 data/*.gz
 
-# Results
-results/*.csv
-
 # Models
 models/*
 
