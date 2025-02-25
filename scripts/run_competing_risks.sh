@@ -13,7 +13,7 @@ if [ -f "$results_path" ]; then
   rm $results_path
 fi
 
-seeds=(0 1 2 3 4)
+seeds=(0 1 2 3 4 5 6 7 8 9)
 dataset_names=('seer_cr' 'mimic_cr' 'rotterdam_cr')
 
 for seed in "${seeds[@]}"; do

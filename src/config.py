@@ -52,19 +52,17 @@ COXBOOST_PARAMS = {
 }
 
 DEEPSURV_PARAMS = {
-    'hidden_size': 32,
+    'hidden_size': 100,
     'verbose': False,
     'lr': 0.001,
     'c1': 0.01,
     'num_epochs': 1000,
     'dropout': 0.25,
-    'batch_size': 32,
     'early_stop': True,
     'patience': 10
 }
 
 MTLR_PARAMS = {
-    'hidden_size': 32,
     'verbose': False,
     'lr': 0.001,
     'c1': 0.01,
@@ -109,7 +107,6 @@ DEEPHIT_PARAMS = {
 }
 
 MTLRCR_PARAMS = {
-    'hidden_size': 32,
     'verbose': False,
     'lr': 1e-3,
     'c1': 0.01,
@@ -129,11 +126,11 @@ DCSURVIVAL_PARAMS = {
 }
 
 MENSA_PARAMS = {
-    'layers': [32, 32],
-    'lr': 0.005,
-    'dropout': 0.25,
-    'batch_size': 10000,
-    'n_epochs': 10000,
-    'activation_fn': "relu",
-    'optimizer': "adamw"
+    'layers': [32],
+    'lr': 0.001,
+    'n_epochs': 1000,
+    'n_dists': 3,
+    'batch_size': 32,
+    'weight_decay': 0,
+    'dropout_rate': 0.25,
 }

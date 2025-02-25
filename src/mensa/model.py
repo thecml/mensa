@@ -90,7 +90,7 @@ class MLP(torch.nn.Module):
             self.embedding = create_representation(input_dim, layers, dropout_rate, 'ReLU6')
         else:
             self.embeddings = nn.ModuleList([
-                create_representation(input_dim, layers, 'ReLU6') for _ in range(n_states)
+                create_representation(input_dim, layers, dropout_rate, 'ReLU6') for _ in range(n_states)
             ])
 
     def forward(self, x):
@@ -147,96 +147,102 @@ class MENSA:
             betas=(0.9, 0.999), use_wandb=False, verbose=False):
 
         optim_dict = [{'params': self.model.parameters(), 'lr': learning_rate}]
-        
+
         if optimizer == 'adam':
             optimizer = torch.optim.Adam(optim_dict, betas=betas, weight_decay=weight_decay)
         elif optimizer == 'adamw':
             optimizer = torch.optim.AdamW(optim_dict, betas=betas, weight_decay=weight_decay)
-        
+
         multi_event = True if train_dict['T'].ndim > 1 else False
-        
+
         # Added transient state for multi-event scenarios
         if multi_event:
             train_dict = add_transient_state(train_dict)
             valid_dict = add_transient_state(valid_dict)
-        
+
         train_loader = DataLoader(TensorDataset(train_dict['X'].to(self.device),
                                                 train_dict['T'].to(self.device),
                                                 train_dict['E'].to(self.device)),
-                                  batch_size=batch_size, shuffle=True)
+                                batch_size=batch_size, shuffle=True)
         valid_loader = DataLoader(TensorDataset(valid_dict['X'].to(self.device),
                                                 valid_dict['T'].to(self.device),
                                                 valid_dict['E'].to(self.device)),
-                                  batch_size=batch_size, shuffle=False)
-        
+                                batch_size=batch_size, shuffle=False)
+
         self.model.to(self.device)
         min_delta = 0.001
         best_valid_loss = float('inf')
         epochs_no_improve = 0
-        
+
+        # To store the best model state
+        best_model_state = None
+
         pbar = trange(n_epochs, disable=not verbose)
-        
+
         for itr in pbar:
             self.model.train()
             total_train_loss = 0
-            
+
             # Training step
             for xi, ti, ei in train_loader:
                 optimizer.zero_grad()
-                
-                params = self.model.forward(xi) # run forward pass
+
+                params = self.model.forward(xi)  # run forward pass
                 if multi_event:
                     f, s = self.compute_risks_multi(params, ti)
                     loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states)
                     for trajectory in self.trajectories:
-                        loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params) 
+                        loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
                 else:
                     f, s = self.compute_risks(params, ti)
                     loss = conditional_weibull_loss(f, s, ei, self.model.n_states)
 
                 loss.backward()
                 optimizer.step()
-                
+
                 total_train_loss += loss.item()
-        
+
             avg_train_loss = total_train_loss / len(train_loader)
 
             # Validation step
             self.model.eval()
             total_valid_loss = 0
-            
+
             with torch.no_grad():
                 for xi, ti, ei in valid_loader:
-                    params = self.model.forward(xi) # run forward pass
+                    params = self.model.forward(xi)  # run forward pass
                     if multi_event:
                         f, s = self.compute_risks_multi(params, ti)
                         loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states)
                         for trajectory in self.trajectories:
-                            loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params) 
+                            loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
                     else:
                         f, s = self.compute_risks(params, ti)
                         loss = conditional_weibull_loss(f, s, ei, self.model.n_states)
-                    
+
                     total_valid_loss += loss.item()
-                
+
             avg_valid_loss = total_valid_loss / len(valid_loader)
-                
+
             if use_wandb:
-                wandb.log({"train_loss": avg_train_loss})
                 wandb.log({"valid_loss": avg_valid_loss})
-                
+
             pbar.set_description(f"[Epoch {itr+1:4}/{n_epochs}]")
             pbar.set_postfix_str(f"Training loss = {avg_train_loss:.4f}, "
-                                 f"Validation loss = {avg_valid_loss:.4f}")
+                                f"Validation loss = {avg_valid_loss:.4f}")
 
             # Check for early stopping
             if avg_valid_loss < best_valid_loss - min_delta:
                 best_valid_loss = avg_valid_loss
                 epochs_no_improve = 0
+                best_model_state = self.model.state_dict()  # Save the best model state
             else:
                 epochs_no_improve += 1
+
             if epochs_no_improve >= patience:
                 print(f"Early stopping at iteration {itr}, best valid loss: {best_valid_loss}")
+                if best_model_state is not None:
+                    self.model.load_state_dict(best_model_state)  # Load the best model state
                 break
         
     def compute_risks(self, params, ti):

@@ -4,6 +4,7 @@ import torch
 from scipy import stats
 from scipy.special import lambertw
 from pycox.preprocessing.label_transforms import LabTransDiscreteTime
+from statsmodels.distributions.copula.api import ClaytonCopula, FrankCopula, GumbelCopula
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -44,24 +45,24 @@ def format_data(X, y, dtype, device):
 
 def kendall_tau_to_theta(copula_name, k_tau):
     if copula_name == "clayton":
-        return 2 * k_tau / (1 - k_tau)
+        return ClaytonCopula().theta_from_tau(k_tau)
     elif copula_name == "frank":
-        return -np.log(1 - k_tau) / k_tau
+        return FrankCopula().theta_from_tau(k_tau)
     elif copula_name == "gumbel":
-        return 1 / (1 - k_tau)
+        return GumbelCopula().theta_from_tau(k_tau)
     else:
-        raise ValueError('Copula not implemented')
+        raise NotImplementedError('Copula not implemented')
     
 def theta_to_kendall_tau(copula_name, theta):
     if copula_name == "clayton":
-        return theta / (theta + 2)
+        return ClaytonCopula().tau(theta)
     elif copula_name == "frank":
-        return 1 - 4 * ((1 - np.exp(-theta)) / theta)
+        return FrankCopula().tau(theta)
     elif copula_name == "gumbel":
-        return (theta - 1) / theta
+        return GumbelCopula().tau(theta)
     else:
-        raise ValueError('Copula not implemented')
-    
+        raise NotImplementedError('Copula not implemented')
+
 def format_data_as_dict_single(X, events, times, dtype):
     data_dict = dict()
     data_dict['X'] = torch.tensor(X, dtype=dtype)

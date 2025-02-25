@@ -59,12 +59,15 @@ class DeepSurv(nn.Module):
         self.time_bins = None
         self.cum_baseline_hazard = None
         self.baseline_survival = None
-        n_hidden=100
+        
+        n_hidden = self.config['hidden_size']
+        dropout = self.config['dropout']
         
         # Shared parameters
         self.hidden = nn.Sequential(
             nn.Linear(in_features, n_hidden),
             nn.ReLU(),
+            nn.Dropout(dropout)
         )
         self.fc1 = nn.Linear(n_hidden, 1)
 
@@ -189,6 +192,8 @@ def train_deepsurv_model(
     for i in pbar:
         nll_loss = 0
         for xi, ti, ei in train_loader:
+            if ei.sum() == 0:
+                continue
             xi, ti, ei = xi.to(device), ti.to(device), ei.to(device)
             optimizer.zero_grad()
             y_pred = model.forward(xi)

@@ -13,7 +13,7 @@ if [ -f "$results_path" ]; then
   rm $results_path
 fi
 
-seeds=(0 1 2 3 4)
+seeds=(0 1 2 3 4 5 6 7 8 9)
 use_trajectory=("True" "False")
 dataset_names=('rotterdam_me' 'ebmt_me')
 

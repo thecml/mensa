@@ -12,7 +12,6 @@ ALPHA = 0.05
 def calculate_d_calib(df, model_name, dataset_name):
     results = df.loc[(df['DatasetName'] == dataset_name) & (df['ModelName'] == model_name)]
     num_seeds = int(results['Seed'].nunique())
-    event_ratios = []
     event_ids = sorted(results['EventId'].unique())
     num_calib = 0
     for event_id in event_ids:
@@ -30,9 +29,9 @@ if __name__ == "__main__":
     cols_to_replace = ["CI", "GlobalCI", "LocalCI"]
     df[cols_to_replace] = df[cols_to_replace].fillna(0.5)
     
-    dataset_names = ['ebmt_me']
-    model_names = ['mensa']
-    metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"]
+    dataset_names = ['mimic_me', 'rotterdam_me', 'proact_me', 'ebmt_me']
+    model_names = ["deepsurv", 'deephit', 'hierarch', 'mtlr', 'dsm', 'mensa']
+    metric_names = ["GlobalCI", "LocalCI", "IBS", "MAEM", "DCalib"] 
     
     for dataset_name in dataset_names:
         for model_name in model_names:

@@ -20,17 +20,13 @@ from scipy.interpolate import interp1d
 
 # Local
 from data_loader import SingleEventSyntheticDataLoader
-from utility.survival import (make_time_bins, convert_to_structured,
-                              compute_l1_difference, predict_survival_function)
+from utility.survival import (make_time_bins, convert_to_structured, compute_l1_difference)
 from utility.data import dotdict
 from utility.config import load_config
 from mensa.model import MENSA
 from utility.data import format_data_deephit_single
 
 # SOTA
-from dcsurvival.dirac_phi import DiracPhi
-from dcsurvival.survival import DCSurvival
-from dcsurvival.model import train_dcsurvival_model
 from sota_models import (make_cox_model, make_coxboost_model, make_dsm_model,
                          make_rsf_model, train_deepsurv_model, make_deepsurv_prediction,
                          DeepSurv, make_deephit_single, train_deephit_model)

@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import os
 import config as cfg
@@ -33,9 +34,14 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 def main():
     global dataset_name
     
-    dataset_name = "seer_se"
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument('--dataset_name', type=str, default="seer_se")
+    
+    args = parser.parse_args()
+    dataset_name = args.dataset_name
+    
     sweep_config = get_mensa_sweep_cfg()
-
     sweep_id = wandb.sweep(sweep_config, project=f'{PROJECT_NAME}')
     wandb.agent(sweep_id, train_mensa_model, count=N_RUNS)
 
@@ -48,6 +54,7 @@ def train_mensa_model():
     # Load and split data
     dl = get_data_loader(dataset_name)
     dl = dl.load_data()
+    n_events = dl.n_events
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=0)
     
@@ -60,20 +67,29 @@ def train_mensa_model():
     X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
                                               num_features, as_array=True)
     train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
+    train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int64)
+    train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int64)
     valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
+    valid_dict['E'] = torch.tensor(valid_dict['E'], device=device, dtype=torch.int64)
+    valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.int64)
     test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
+    test_dict['E'] = torch.tensor(test_dict['E'], device=device, dtype=torch.int64)
+    test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.int64)
     n_features = train_dict['X'].shape[1]
 
     # Train model
-    layers = config['layers']
-    lr = config['lr']
     n_epochs = config['n_epochs']
+    n_dists = config['n_dists']
+    lr = config['lr']
     batch_size = config['batch_size']
-    k = config['k']
-    lr_dict = {'network': lr, 'copula': 0.01}
-    model = MENSA(n_features, n_events=2, n_dists=k, layers=layers, device=device)
-    model.fit(train_dict, valid_dict, n_epochs=n_epochs, lr_dict=lr_dict,
-              batch_size=batch_size, use_wandb=True)
+    layers = config['layers']
+    weight_decay = config['weight_decay']
+    dropout_rate = config['dropout_rate']
+    model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
+                  n_events=n_events, n_dists=n_dists, device=device)
+    model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
+              weight_decay=weight_decay, patience=10,
+              batch_size=batch_size, verbose=True, use_wandb=True)
     
 if __name__ == "__main__":
     main()
