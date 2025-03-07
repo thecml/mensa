@@ -21,7 +21,7 @@ To view the license for this work, visit https://github.com/thecml/mensa/blob/ma
 
 Citation
 --------
-Please consider citing the paper if you find this work useful.
+If you find this paper useful in your work, please consider citing it:
  
 ```
 @article{lillelund_mensa_2024,
