@@ -24,10 +24,10 @@ Citation
 If you find this paper useful in your work, please consider citing it:
  
 ```
-@article{lillelund_mensa_2024,
+@article{lillelund_mensa_2025,
   title={MENSA: A Multi-Event Network for Survival Analysis under Informative Censoring}, 
   author={Christian Marius Lillelund and Ali Hossein Gharari Foomani and Weijie Sun and Shi-ang Qi and Russell Greiner},
   journal={preprint, arXiv:2409.06525},
-  year={2024},
+  year={2025},
 }
 ```
