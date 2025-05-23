@@ -5,7 +5,7 @@ MENSA is a novel, deep-learning model for multi-event survival analysis. Given a
 Preprint: https://arxiv.org/abs/2409.06525
 
 <p align="left"><img src="https://github.com/thecml/mensa/blob/main/mensa.png">
-*Figure 1. MENSA generates survival predictions for multiple different events based on patient covariates.
+Figure 1. MENSA generates survival predictions for multiple different events based on patient covariates.
 
 How to reproduce the results
 --------
