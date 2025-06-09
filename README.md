@@ -1,6 +1,6 @@
 # MENSA: A Multi-Event Network for Survival Analysis with Trajectory-based Likelihood Estimation
 
-MENSA is a novel, deep-learning model for multi-event survival analysis. Given an instance, a multi-event survival model predicts the time until that instance experiences each of several different events. These events are not mutually exclusive and there are often statistical dependencies between them. MENSA works by jointly learning the event distributions as a convex combination of Weibull distributions. This approach leverages mutual information between events that may be lost in models that assume independence. MENSA also supports single-event and competing-risks predictions.
+Given an instance, a multi-event survival model predicts the time until that instance experiences each of several different events. These events are not mutually exclusive and there are often statistical dependencies between them. MENSA is a novel, deep-learning model for multi-event survival analysis. MENSA works by jointly learning the event distributions as a convex combination of Weibull distributions. This approach leverages mutual information between events that may be lost in models that assume independence. MENSA also supports single-event and competing-risks predictions.
 
 Preprint: https://arxiv.org/abs/2409.06525
 
