@@ -26,6 +26,5 @@ for dataset_name in "${dataset_names[@]}"; do
 
   python3 "$base_path/../src/tuning/tune_mtlr_model.py" --dataset_name "$dataset_name"
   python3 "$base_path/../src/tuning/tune_rsf_model.py" --dataset_name "$dataset_name"
-  python3 "$base_path/../src/tuning/tune_mensa_model.py" --dataset_name "$dataset_name"
 
 done

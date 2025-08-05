@@ -5,7 +5,7 @@ import numpy as np
 import os
 import config as cfg
 import torch
-from sota_models import make_coxboost_model
+from sota_models import make_coxboost_model, make_rsf_model
 from utility.data import get_first_event
 from utility.tuning import get_rsf_sweep_cfg
 from utility.survival import convert_to_structured, make_time_bins, preprocess_data
@@ -90,7 +90,7 @@ def train_model():
     y_train = convert_to_structured(train_dict['T'].cpu().numpy(), train_dict['E'].cpu().numpy())
                 
     # Train model
-    model = make_coxboost_model(config)
+    model = make_rsf_model(config)
     model.fit(train_dict['X'].cpu(), y_train)
     
     # Make predictions

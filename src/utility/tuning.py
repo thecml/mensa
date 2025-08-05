@@ -21,7 +21,7 @@ def get_mensa_sweep_cfg():
                 "values": [32]
             },
             "n_dists": {
-                "values": [1, 3, 5]
+                "values": [1, 3, 5, 10]
             },
             "dropout_rate": {
                 "values": [0, 0.1, 0.25, 0.5]
@@ -47,7 +47,7 @@ def get_coxboost_sweep_cfg():
                 "values": [0.01, 0.05, 0.1, 1.0]
             },
             "max_depth": {
-                "values": [3, 5, 10]
+                "values": [1, 3, 5, 10]
             },
             "loss": {
                 "values": ['coxph']
