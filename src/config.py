@@ -12,7 +12,7 @@ RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 PLOTS_DIR = Path.joinpath(ROOT_DIR, 'plots')
 MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
 
-N_RUNS = 1 # for sweeping
+N_RUNS = 10 # for sweeping
 
 # This contains default parameters for the models
 HIERARCH_PARAMS = {
