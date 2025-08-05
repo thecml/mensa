@@ -29,7 +29,7 @@ from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
 
 # SOTA
-from sota_models import (make_cox_model, make_coxboost_model, make_deephit_single, make_dsm_model,
+from sota_models import (make_coxph_model, make_coxboost_model, make_deephit_single, make_dsm_model,
                          make_rsf_model, train_deephit_model, train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
 from hierarchical import util
 from hierarchical.helper import format_hierarchical_hyperparams

@@ -144,7 +144,7 @@ class MENSA:
     
     def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=20000, 
             patience=100, optimizer='adam', weight_decay=0.001, learning_rate=5e-4,
-            betas=(0.9, 0.999), use_wandb=False, verbose=False):
+            betas=(0.9, 0.999), verbose=False):
 
         optim_dict = [{'params': self.model.parameters(), 'lr': learning_rate}]
 
@@ -223,9 +223,6 @@ class MENSA:
                     total_valid_loss += loss.item()
 
             avg_valid_loss = total_valid_loss / len(valid_loader)
-
-            if use_wandb:
-                wandb.log({"valid_loss": avg_valid_loss})
 
             pbar.set_description(f"[Epoch {itr+1:4}/{n_epochs}]")
             pbar.set_postfix_str(f"Training loss = {avg_train_loss:.4f}, "

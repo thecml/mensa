@@ -27,7 +27,7 @@ from utility.data import format_data_deephit_single
 from data_loader import get_data_loader
 
 # SOTA
-from sota_models import (make_cox_model, make_coxboost_model, make_dsm_model, make_rsf_model, train_deepsurv_model,
+from sota_models import (make_coxph_model, make_coxboost_model, make_dsm_model, make_rsf_model, train_deepsurv_model,
                          make_deepsurv_prediction, DeepSurv, make_deephit_single, train_deephit_model)
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         
         if model_name == "coxph":
             config = dotdict(cfg.COXPH_PARAMS)
-            model = make_cox_model(config)
+            model = make_coxph_model(config)
             model.fit(X_train, y_train)
         elif model_name == "coxboost":
             config = dotdict(cfg.COXBOOST_PARAMS)

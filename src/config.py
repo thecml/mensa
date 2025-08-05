@@ -12,6 +12,8 @@ RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 PLOTS_DIR = Path.joinpath(ROOT_DIR, 'plots')
 MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
 
+N_RUNS = 1 # for sweeping
+
 # This contains default parameters for the models
 HIERARCH_PARAMS = {
     'theta_layer_size': [100],
@@ -75,7 +77,7 @@ MTLR_PARAMS = {
 
 RSF_PARAMS = {
     'n_estimators': 100,
-    'max_depth': 1,
+    'max_depth': 3,
     'min_samples_split': 10,
     'min_samples_leaf': 5,
     'max_features': 'sqrt',

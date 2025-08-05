@@ -27,7 +27,7 @@ from data_loader import get_data_loader
 from mensa.model import MENSA
 
 # SOTA
-from sota_models import (make_cox_model, make_coxboost_model, make_deephit_cr, make_dsm_model, make_rsf_model, train_deepsurv_model,
+from sota_models import (make_coxph_model, make_coxboost_model, make_deephit_cr, make_dsm_model, make_rsf_model, train_deepsurv_model,
                          make_deepsurv_prediction, DeepSurv, make_deephit_cr, train_deephit_model)
 from utility.mtlr import train_mtlr_cr
 from hierarchical import util
@@ -51,13 +51,13 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
+MODELS = ["hierarch"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default='rotterdam_cr')
+    parser.add_argument('--dataset_name', type=str, default='seer_cr')
     
     args = parser.parse_args()
     seed = args.seed
@@ -103,7 +103,7 @@ if __name__ == "__main__":
                 train_times = train_dict['T'].cpu().numpy()
                 train_events = (train_dict['E'].cpu().numpy() == i+1)*1.0
                 y_train = convert_to_structured(train_times, train_events)
-                model = make_cox_model(config)
+                model = make_coxph_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
         elif model_name == "coxboost":

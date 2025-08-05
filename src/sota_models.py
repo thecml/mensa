@@ -89,10 +89,11 @@ class DeepSurv(nn.Module):
     def get_name(self):
         return self._get_name()
 
-def make_cox_model(config):
+def make_coxph_model(config):
+    alpha = config['alpha']
     n_iter = config['n_iter']
     tol = config['tol']
-    model = CoxPHSurvivalAnalysis(alpha=0.0001)
+    model = CoxPHSurvivalAnalysis(n_iter=n_iter, tol=tol, alpha=alpha)
     return model
 
 def make_coxboost_model(config):
@@ -118,8 +119,9 @@ def make_coxboost_model(config):
     return model
     
 def make_dsm_model(config):
+    k = config['k']
     layers = config['network_layers']
-    return DeepSurvivalMachines(k=3, layers=layers)
+    return DeepSurvivalMachines(k=k, layers=layers)
     
 def make_rsf_model(config):
     n_estimators = config['n_estimators']

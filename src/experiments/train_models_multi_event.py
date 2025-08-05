@@ -29,7 +29,7 @@ from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
 
 # SOTA
-from sota_models import (make_cox_model, make_coxboost_model, make_deephit_single, make_dsm_model,
+from sota_models import (make_coxph_model, make_coxboost_model, make_deephit_single, make_dsm_model,
                          make_rsf_model, train_deephit_model, train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
 from hierarchical import util
 from hierarchical.helper import format_hierarchical_hyperparams
@@ -113,7 +113,7 @@ if __name__ == "__main__":
                 train_times = train_dict['T'][:,i].cpu().numpy()
                 train_events = train_dict['E'][:,i].cpu().numpy()
                 y_train = convert_to_structured(train_times, train_events)
-                model = make_cox_model(config)
+                model = make_coxph_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
         elif model_name == "coxboost":
