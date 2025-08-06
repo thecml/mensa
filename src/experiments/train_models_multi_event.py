@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default="ebmt_me")
+    parser.add_argument('--dataset_name', type=str, default="rotterdam_me")
     
     args = parser.parse_args()
     seed = args.seed
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
     X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
     X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
-                                            num_features, as_array=True)
+                                              num_features, as_array=True)
     train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
     train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int64)
     train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int64)
@@ -225,18 +225,28 @@ if __name__ == "__main__":
         if model_name in ["coxph", "coxboost", "rsf"]:
             all_preds = []
             for trained_model in trained_models:
-                model_preds = trained_model.predict_survival_function(test_dict['X'].cpu())
-                model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
-                spline = interp1d(time_bins.cpu().numpy(), model_preds,
-                                kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins.cpu().numpy()),
-                                    columns=time_bins.cpu().numpy())
-                all_preds.append(preds)
+                if dataset_name == "ebmt_me":
+                    times = time_bins.cpu().numpy().astype(np.float64)
+                    surv_funcs = trained_model.predict_survival_function(test_dict['X'].cpu())
+                    min_time = surv_funcs[0].x[0]
+                    max_time = surv_funcs[0].x[-1]
+                    valid_times = times[(times >= min_time) & (times <= max_time)]
+                    pred_matrix = np.row_stack([fn(valid_times) for fn in surv_funcs])
+                    model_preds = pd.DataFrame(pred_matrix, columns=valid_times)
+                    all_preds.append(model_preds)
+                else:
+                    model_preds = trained_model.predict_survival_function(test_dict['X'].cpu())
+                    model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
+                    spline = interp1d(time_bins.cpu().numpy(), model_preds,
+                                      kind='linear', fill_value='extrapolate')
+                    preds = pd.DataFrame(spline(time_bins.cpu().numpy()),
+                                        columns=time_bins.cpu().numpy())
+                    all_preds.append(preds)
         elif model_name == "deepsurv":
             all_preds = []
             for trained_model in trained_models:
                 preds, time_bins_model = make_deepsurv_prediction(trained_model, test_dict['X'].to(device),
-                                                                config=config, dtype=dtype)
+                                                                  config=config, dtype=dtype)
                 spline = interp1d(time_bins_model.cpu().numpy(), preds.cpu().numpy(),
                                 kind='linear', fill_value='extrapolate')
                 preds = pd.DataFrame(spline(time_bins.cpu().numpy()), columns=time_bins.cpu().numpy())
