@@ -139,13 +139,13 @@ def train_mtlr_model(
         reset_model: bool = True,
         device: torch.device = torch.device("cuda")
 ) -> nn.Module:
-    if config.verbose:
-        print(f"Training {model.get_name()}: reset mode is {reset_model}, number of epochs is {config.num_epochs}, "
-              f"learning rate is {config.lr}, C1 is {config.c1}, "
-              f"batch size is {config.batch_size}, device is {device}.")
+    if config['verbose']:
+        print(f"Training {model.get_name()}: reset mode is {reset_model}, number of epochs is {config['num_epochs']}, "
+              f"learning rate is {config['lr']}, C1 is {config['c1']}, "
+              f"batch size is {config['batch_size']}, device is {device}.")
     train_size = data_train.shape[0]
     val_size = data_val.shape[0]
-    optimizer = optim.Adam(model.parameters(), lr=config.lr)
+    optimizer = optim.Adam(model.parameters(), lr=config['lr'])
 
     if reset_model:
         model.reset_parameters()
@@ -155,20 +155,20 @@ def train_mtlr_model(
     best_val_nll = np.inf
     best_ep = -1
 
-    pbar = trange(config.num_epochs, disable=not config.verbose)
+    pbar = trange(config['num_epochs'], disable=not config['verbose'])
 
     start_time = datetime.now()
     x, y = reformat_survival(data_train, time_bins, dtype)
     x_val, y_val = reformat_survival(data_val, time_bins, dtype)
     x_val, y_val = x_val.to(device), y_val.to(device)
-    train_loader = DataLoader(TensorDataset(x, y), batch_size=config.batch_size, shuffle=True)
+    train_loader = DataLoader(TensorDataset(x, y), batch_size=config['batch_size'], shuffle=True)
     for i in pbar:
         nll_loss = 0
         for xi, yi in train_loader:
             xi, yi = xi.to(device), yi.to(device)
             optimizer.zero_grad()
             y_pred = model.forward(xi)
-            loss = mtlr_nll(y_pred, yi, model, C1=config.c1, average=False)
+            loss = mtlr_nll(y_pred, yi, model, C1=config['c1'], average=False)
 
             loss.backward()
             optimizer.step()
@@ -176,14 +176,14 @@ def train_mtlr_model(
             nll_loss += (loss / train_size).item()
         logits_outputs = model.forward(x_val)
         eval_nll = mtlr_nll(logits_outputs, y_val, model, C1=0, average=True)
-        pbar.set_description(f"[epoch {i + 1: 4}/{config.num_epochs}]")
+        pbar.set_description(f"[epoch {i + 1: 4}/{config['num_epochs']}]")
         pbar.set_postfix_str(f"nll-loss = {nll_loss:.4f}; "
-                                f"Validation nll = {eval_nll.item():.4f};")
-        if config.early_stop:
+                             f"Validation nll = {eval_nll.item():.4f};")
+        if config['early_stop']:
             if best_val_nll > eval_nll:
                 best_val_nll = eval_nll
                 best_ep = i
-            if (i - best_ep) > config.patience:
+            if (i - best_ep) > config['patience']:
                 break
     end_time = datetime.now()
     training_time = end_time - start_time

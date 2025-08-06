@@ -178,7 +178,7 @@ if __name__ == "__main__":
                                         reset_model=True, device=device)
                 trained_models.append(model)
         elif model_name == "dsm":
-            config = load_config(cfg.DSM_CONFIGS_DIR, f"{dataset_name}.yaml")
+            config = load_config(cfg.DSM_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_iter = config['n_iter']
             learning_rate = config['learning_rate']
             batch_size = config['batch_size']
@@ -302,15 +302,18 @@ if __name__ == "__main__":
         for event_id, surv_pred in enumerate(all_preds):
             n_train_samples = len(train_dict['X'])
             n_test_samples= len(test_dict['X'])
-            y_train_time = train_dict['T'][:,event_id]
-            y_train_event = train_dict['E'][:,event_id]
-            y_test_time = test_dict['T'][:,event_id]
-            y_test_event = test_dict['E'][:,event_id]
+            y_train_time = train_dict['T'][:,event_id].cpu().numpy()
+            y_train_event = train_dict['E'][:,event_id].cpu().numpy()
+            y_test_time = test_dict['T'][:,event_id].cpu().numpy()
+            y_test_event = test_dict['E'][:,event_id].cpu().numpy()
             
             lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
                                                 y_train_time, y_train_event)
             
-            auc = lifelines_eval.auc()
+            hist, bin_edges = np.histogram(y_train_time[y_train_event == 1], bins=50)
+            target_time = bin_edges[np.argmax(hist)]
+            auc = lifelines_eval.auc(target_time)
+            
             ibs = lifelines_eval.integrated_brier_score()
             mae_margin = lifelines_eval.mae(method="Margin")
             d_calib = lifelines_eval.d_calibration()[0]

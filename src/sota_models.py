@@ -235,7 +235,7 @@ def make_deepsurv_prediction(
         pred = model.forward(x)
         end_time = datetime.now()
         inference_time = end_time - start_time
-        if config.verbose:
+        if config['verbose']:
             print(f"Inference time: {inference_time.total_seconds()}")
         survival_curves = cox_survival(model.baseline_survival, pred, dtype)
         survival_curves = survival_curves.squeeze()
