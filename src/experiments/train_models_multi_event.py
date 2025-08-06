@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["deepsurv", "deephit", "hierarch", "mtlr", "dsm", "mensa"]
+MODELS = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "hierarch", "mtlr", "dsm", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -301,18 +301,17 @@ if __name__ == "__main__":
             lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
                                                 y_train_time, y_train_event)
             
-            ci = lifelines_eval.concordance()[0]
+            auc = lifelines_eval.auc()
             ibs = lifelines_eval.integrated_brier_score()
-            mae_hinge = lifelines_eval.mae(method="Hinge")
             mae_margin = lifelines_eval.mae(method="Margin")
-            mae_pseudo = lifelines_eval.mae(method="Pseudo_obs")
             d_calib = lifelines_eval.d_calibration()[0]
             
-            metrics = [ci, ibs, mae_hinge, mae_margin, mae_pseudo, d_calib, global_ci, local_ci]
+            metrics = [global_ci, local_ci, auc, ibs, mae_margin, d_calib]
             print(metrics)
+            
             res_sr = pd.Series([model_name, dataset_name, seed, event_id+1] + metrics,
-                                index=["ModelName", "DatasetName", "Seed", "EventId", "CI", "IBS",
-                                    "MAEH", "MAEM", "MAEPO", "DCalib", "GlobalCI", "LocalCI"])
+                                index=["ModelName", "DatasetName", "Seed", "EventId",
+                                       "GlobalCI", "LocalCI", "AUC", "IBS", "MAEM", "DCalib"])
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
             
         # Save results
