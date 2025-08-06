@@ -1,0 +1,6 @@
+n_estimators: 500
+max_depth: 10
+min_samples_split: 2
+min_samples_leaf: 10
+max_features: sqrt
+random_state: 0

@@ -1,0 +1,4 @@
+alpha: 10
+ties: breslow
+n_iter: 100
+tol: 0.00001

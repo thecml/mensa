@@ -55,6 +55,9 @@ def get_coxboost_sweep_cfg():
             "min_samples_split": {
                 "values": [2, 5, 10]
             },
+            "min_samples_leaf": {
+                "values": [2, 5, 10]
+            },
             "max_features": {
                 "values": [None, "auto", "sqrt", "log2"]
             },

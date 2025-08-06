@@ -1,0 +1,14 @@
+num_nodes_shared: [64]
+num_nodes_indiv: [128]
+batch_norm: true
+verbose: false
+dropout: 0.1
+alpha: 0
+sigma: 0.1
+batch_size: 32
+lr: 0.0005
+weight_decay: 0
+eta_multiplier: 0.5
+epochs: 1000
+early_stop: true
+patience: 10

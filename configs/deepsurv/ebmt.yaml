@@ -1,0 +1,8 @@
+hidden_size: 64
+verbose: false
+lr: 0.005
+c1: 0.1
+num_epochs: 500
+dropout: 0.5
+early_stop: true
+patience: 20

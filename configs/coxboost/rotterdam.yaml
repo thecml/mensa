@@ -1,0 +1,11 @@
+n_estimators: 800
+learning_rate: 1
+max_depth: 1
+loss: coxph
+min_samples_split: 5
+min_samples_leaf: 5
+max_features: null
+dropout_rate: 0.5
+subsample: 1
+seed: 0
+test_size: 0.3

@@ -107,19 +107,19 @@ if __name__ == "__main__":
         random.seed(0)
         
         if model_name == "coxph":
-            config = dotdict(cfg.COXPH_PARAMS)
+            config = load_config(cfg.COXPH_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_coxph_model(config)
             model.fit(X_train, y_train)
         elif model_name == "coxboost":
-            config = dotdict(cfg.COXBOOST_PARAMS)
+            config = load_config(cfg.COXBOOST_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_coxboost_model(config)
             model.fit(X_train, y_train)
         elif model_name == "rsf":
-            config = dotdict(cfg.RSF_PARAMS)
+            config = load_config(cfg.RSF_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_rsf_model(config)
             model.fit(X_train, y_train)
         elif model_name == "dsm":
-            config = dotdict(cfg.DSM_PARAMS)
+            config = load_config(cfg.DSM_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_iter = config['n_iter']
             learning_rate = config['learning_rate']
             batch_size = config['batch_size']
@@ -128,7 +128,7 @@ if __name__ == "__main__":
                       val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'].cpu().numpy(), valid_dict['T'].cpu().numpy()),
                       learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "deepsurv":
-            config = dotdict(cfg.DEEPSURV_PARAMS)
+            config = load_config(cfg.DEEPSURV_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = DeepSurv(in_features=n_features, config=config)
             data_train = pd.DataFrame(train_dict['X'].cpu().numpy())
             data_train['time'] = train_dict['T'].cpu().numpy()
@@ -139,7 +139,7 @@ if __name__ == "__main__":
             model = train_deepsurv_model(model, data_train, data_valid, time_bins, config=config,
                                          random_state=0, reset_model=True, device=device, dtype=dtype)
         elif model_name == "deephit":
-            config = dotdict(cfg.DEEPHIT_PARAMS)
+            config = load_config(cfg.DEEPHIT_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_deephit_single(in_features=n_features, out_features=len(time_bins),
                                         time_bins=time_bins.cpu().numpy(), device=device, config=config)
             labtrans = model.label_transform
@@ -153,7 +153,7 @@ if __name__ == "__main__":
             data_valid = X_valid.copy()
             data_valid["time"] = pd.Series(y_valid['time'])
             data_valid["event"] = pd.Series(y_valid['event']).astype(int)
-            config = dotdict(cfg.MTLR_PARAMS)
+            config = load_config(cfg.MTLR_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             num_time_bins = len(time_bins)
             model = mtlr(in_features=n_features, num_time_bins=num_time_bins, config=config)
             model = train_mtlr_model(model, data_train, data_valid, time_bins.cpu().numpy(),

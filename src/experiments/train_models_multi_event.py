@@ -107,7 +107,7 @@ if __name__ == "__main__":
         random.seed(0)
         
         if model_name == "coxph":
-            config = dotdict(cfg.COXPH_PARAMS)
+            config = load_config(cfg.COXPH_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
             for i in range(n_events):
                 train_times = train_dict['T'][:,i].cpu().numpy()
@@ -117,7 +117,7 @@ if __name__ == "__main__":
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
         elif model_name == "coxboost":
-            config = dotdict(cfg.COXBOOST_PARAMS)
+            config = load_config(cfg.COXBOOST_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
             for i in range(n_events):
                 train_times = train_dict['T'][:,i].cpu().numpy()
@@ -127,7 +127,7 @@ if __name__ == "__main__":
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
         elif model_name == "rsf":
-            config = dotdict(cfg.RSF_PARAMS)
+            config = load_config(cfg.RSF_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
             for i in range(n_events):
                 train_times = train_dict['T'][:,i].cpu().numpy()
@@ -137,7 +137,7 @@ if __name__ == "__main__":
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
         elif model_name == "deepsurv":
-            config = dotdict(cfg.DEEPSURV_PARAMS)
+            config = load_config(cfg.DEEPSURV_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
             for i in range(n_events):
                 model = DeepSurv(in_features=n_features, config=config)
@@ -151,7 +151,7 @@ if __name__ == "__main__":
                                              random_state=0, reset_model=True, device=device, dtype=dtype)
                 trained_models.append(model)
         elif model_name == "deephit":
-            config = dotdict(cfg.DEEPHIT_PARAMS)
+            config = load_config(cfg.DEEPHIT_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
             for i in range(n_events):
                 model = make_deephit_single(in_features=n_features, out_features=len(time_bins),
@@ -162,7 +162,7 @@ if __name__ == "__main__":
                                             (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
                 trained_models.append(model)
         elif model_name == "mtlr":
-            config = dotdict(cfg.MTLR_PARAMS)
+            config = load_config(cfg.MTLR_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
             for i in range(n_events):
                 data_train = pd.DataFrame(train_dict['X'].cpu().numpy())
@@ -178,7 +178,7 @@ if __name__ == "__main__":
                                         reset_model=True, device=device)
                 trained_models.append(model)
         elif model_name == "dsm":
-            config = dotdict(cfg.DSM_PARAMS)
+            config = load_config(cfg.DSM_CONFIGS_DIR, f"{dataset_name}.yaml")
             n_iter = config['n_iter']
             learning_rate = config['learning_rate']
             batch_size = config['batch_size']
@@ -196,12 +196,11 @@ if __name__ == "__main__":
             config['min_time'] = int(train_data[1].min())
             config['max_time'] = int(train_data[1].max())
             config['num_bins'] = n_time_bins
-            params = cfg.HIERARCH_PARAMS
-            params['n_batches'] = int(n_samples/params['batch_size'])
-            layer_size = params['layer_size_fine_bins'][0][0]
-            params['layer_size_fine_bins'] = calculate_layer_size_hierarch(layer_size, n_time_bins)
-            hyperparams = format_hierarchical_hyperparams(params)
-            verbose = params['verbose']
+            config['n_batches'] = int(n_samples/config['batch_size'])
+            layer_size = config['layer_size_fine_bins'][0][0]
+            config['layer_size_fine_bins'] = calculate_layer_size_hierarch(layer_size, n_time_bins)
+            hyperparams = format_hierarchical_hyperparams(config)
+            verbose = config['verbose']
             model = util.get_model_and_output("hierarch_full", train_data, test_data,
                                             valid_data, config, hyperparams, verbose)
         elif model_name == "mensa":

@@ -1,3 +1,22 @@
+# Model
+theta_layer_size: [100]
+layer_size_fine_bins:
+- [50, 5]
+- [50, 5]
+lr: 0.001
+reg_constant: 0.05
+n_batches: 10
+batch_size: 32
+backward_c_optim: false
+hierarchical_loss: true
+alpha: 0.0001
+sigma: 10
+use_theta: true
+use_deephit: false
+n_extra_bins: 1
+verbose: false
+
+# Data
 num_events: 2
 num_bins: 115
 terminal_events: [0, 1]

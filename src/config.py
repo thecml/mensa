@@ -5,12 +5,21 @@ ROOT_DIR = Path(__file__).absolute().parent.parent
 DATA_DIR = Path.joinpath(ROOT_DIR, "data")
 CONFIGS_DIR = Path.joinpath(ROOT_DIR, 'configs')
 DATA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'data')
-HIERARCH_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'hierarch')
 DGP_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dgp')
-MENSA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mensa')
 RESULTS_DIR = Path.joinpath(ROOT_DIR, 'results')
 PLOTS_DIR = Path.joinpath(ROOT_DIR, 'plots')
 MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
+
+# Configs
+COXPH_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'coxph')
+COXBOOST_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'coxboost')
+RSF_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'rsf')
+DEEPSURV_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deepsurv')
+DEEPHIT_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deephit')
+HIERARCH_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'hierarch')
+MTLR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mtlr')
+DSM_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dsm')
+MENSA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mensa')
 
 N_RUNS = 10 # for sweeping
 
