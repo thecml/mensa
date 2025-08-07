@@ -310,15 +310,22 @@ if __name__ == "__main__":
             lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
                                                 y_train_time, y_train_event)
             
-            hist, bin_edges = np.histogram(y_train_time[y_train_event == 1], bins=50)
-            target_time = bin_edges[np.argmax(hist)]
-            auc = lifelines_eval.auc(target_time)
+            time_points = np.quantile(y_test_time[y_test_event == 1], [0.25, 0.5, 0.75])
+            aucs = []
+            for t in time_points:
+                try:
+                    auc = lifelines_eval.auc(t)
+                except ValueError:
+                    auc = 0.5
+                aucs.append(auc)
+
+            mean_auc = np.mean(aucs)
             
             ibs = lifelines_eval.integrated_brier_score()
             mae_margin = lifelines_eval.mae(method="Margin")
             d_calib = lifelines_eval.d_calibration()[0]
             
-            metrics = [global_ci, local_ci, auc, ibs, mae_margin, d_calib]
+            metrics = [global_ci, local_ci, mean_auc, ibs, mae_margin, d_calib]
             print(metrics)
             
             res_sr = pd.Series([model_name, dataset_name, seed, event_id+1] + metrics,
