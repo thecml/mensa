@@ -97,7 +97,8 @@ DSM_PARAMS = {
     'network_layers': [32],
     'learning_rate': 0.001,
     'n_iter': 10000,
-    'batch_size': 32
+    'batch_size': 32,
+    'k': 3
 }
 
 DEEPHIT_PARAMS = {
