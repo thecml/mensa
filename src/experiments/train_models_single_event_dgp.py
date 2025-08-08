@@ -168,6 +168,10 @@ if __name__ == "__main__":
         if model_name in ['coxph', "coxboost", 'rsf']:
             model_preds = model.predict_survival_function(X_test)
             model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
+            spline = interp1d(model.unique_times_, model_preds,
+                              kind='linear', fill_value='extrapolate')
+            extra_preds = spline(time_bins.cpu().numpy())
+            model_preds = np.minimum(extra_preds, 1)
         elif model_name == 'dsm':
             model_preds = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.cpu().numpy()))
         elif model_name == "deepsurv":
@@ -175,7 +179,8 @@ if __name__ == "__main__":
                                                                        config=config, dtype=dtype)
             spline = interp1d(time_bins_deepsurv.cpu().numpy(), model_preds.cpu().numpy(),
                               kind='linear', fill_value='extrapolate')
-            model_preds = spline(time_bins.cpu().numpy())
+            extra_preds = spline(time_bins.cpu().numpy())
+            model_preds = np.minimum(extra_preds, 1)
         elif model_name == "mtlr":
             data_test = X_test.copy()
             data_test["time"] = pd.Series(y_test['time'])

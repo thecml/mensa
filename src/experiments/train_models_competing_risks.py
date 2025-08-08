@@ -210,11 +210,12 @@ if __name__ == "__main__":
             all_preds = []
             for trained_model in trained_models:
                 model_preds = trained_model.predict_survival_function(test_dict['X'].cpu())
-                model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
-                spline = interp1d(time_bins.cpu().numpy(), model_preds,
+                model_preds = np.row_stack([fn(trained_model.unique_times_) for fn in model_preds])
+                spline = interp1d(trained_model.unique_times_, model_preds,
                                   kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins.cpu().numpy()),
-                                     columns=time_bins.cpu().numpy())
+                extra_preds = spline(time_bins.cpu().numpy())
+                extra_preds = np.minimum(extra_preds, 1)
+                preds = pd.DataFrame(extra_preds, columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "deepsurv":
             all_preds = []
@@ -224,8 +225,9 @@ if __name__ == "__main__":
                 spline = interp1d(time_bins_model.cpu().numpy(),
                                   preds.cpu().numpy(),
                                   kind='linear', fill_value='extrapolate')
-                preds = pd.DataFrame(spline(time_bins.cpu().numpy()),
-                                     columns=time_bins.cpu().numpy())
+                extra_preds = spline(time_bins.cpu().numpy())
+                extra_preds = np.minimum(extra_preds, 1)
+                preds = pd.DataFrame(extra_preds, columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
         elif model_name == "deephit":
             cif = model.predict_cif(test_dict['X']).cpu().numpy()
