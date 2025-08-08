@@ -62,7 +62,6 @@ if __name__ == "__main__":
     # Preprocess data
     cat_features = dl.cat_features
     num_features = dl.num_features
-    n_features = train_dict['X'].shape[1]
     X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
     X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
     X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
@@ -86,6 +85,8 @@ if __name__ == "__main__":
     layers = config['layers']
     weight_decay = config['weight_decay']
     dropout_rate = config['dropout_rate']
+    n_features = train_dict['X'].shape[1]
+    
     model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
                   n_events=n_events, n_dists=n_dists, device=device)
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,

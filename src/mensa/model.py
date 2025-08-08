@@ -173,10 +173,20 @@ class MENSA:
 
         multi_event = True if train_dict['T'].ndim > 1 else False
 
-        # Added transient state for multi-event scenarios
         if multi_event:
-            train_dict = add_transient_state(train_dict)
+            # Create transient state
+            train_dict = add_transient_state(train_dict) # TODO: This transient state causes very high IBS sometimes.
             valid_dict = add_transient_state(valid_dict)
+            
+            # Compute per-event weights using inverse frequency of observed events
+            event_counts = torch.sum(train_dict['E'], dim=0).float()  # shape: [K]
+            event_weights = 1.0 / (event_counts + 1e-8)  # avoid divide by zero
+            event_weights = event_weights / event_weights.sum() * event_counts.shape[0]  # normalize to K
+            event_weights = event_weights.to(self.device)
+            
+            #event_weights[0] = 0 # Set zero weight for trans. branch
+        else:
+            event_weights = None
 
         train_loader = DataLoader(TensorDataset(train_dict['X'].to(self.device),
                                                 train_dict['T'].to(self.device),
@@ -191,8 +201,6 @@ class MENSA:
         min_delta = 0.001
         best_valid_loss = float('inf')
         epochs_no_improve = 0
-
-        # To store the best model state
         best_model_state = None
 
         pbar = trange(n_epochs, disable=not verbose)
@@ -203,47 +211,49 @@ class MENSA:
 
             # Training step
             for xi, ti, ei in train_loader:
+                xi, ti, ei = xi.to(self.device), ti.to(self.device), ei.to(self.device)
                 optimizer.zero_grad()
 
-                params = self.model.forward(xi)  # run forward pass
-                if multi_event:
+                params = self.model.forward(xi)
+
+                if multi_event: # TODO: Compute weight inside the batch
                     f, s = self.compute_risks_multi(params, ti)
-                    loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states)
-                    for trajectory in self.trajectories:
-                        loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
+                    loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
+                    #for trajectory in self.trajectories:
+                    #    loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
                 else:
                     f, s = self.compute_risks(params, ti)
-                    loss = conditional_weibull_loss(f, s, ei, self.model.n_states)
+                    loss = conditional_weibull_loss(f, s, ei, self.model.n_states)  # TODO: Use weights
 
                 if not torch.isfinite(loss):
-                    # bad batch – skip
                     continue
-                
+
                 loss.backward()
-                
+
                 total_norm = nn_utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0, error_if_nonfinite=False)
                 if not torch.isfinite(total_norm):
                     optimizer.zero_grad(set_to_none=True)
-                    continue  # skip update this batch
-                
-                optimizer.step()
+                    continue
 
+                optimizer.step()
                 total_train_loss += loss.item()
 
             avg_train_loss = total_train_loss / len(train_loader)
 
-            # Validation step
             self.model.eval()
             total_valid_loss = 0
-
+            
+            # Validation step
             with torch.no_grad():
                 for xi, ti, ei in valid_loader:
-                    params = self.model.forward(xi)  # run forward pass
+                    xi, ti, ei = xi.to(self.device), ti.to(self.device), ei.to(self.device)
+                    params = self.model.forward(xi)
+
                     if multi_event:
                         f, s = self.compute_risks_multi(params, ti)
-                        loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states)
-                        for trajectory in self.trajectories:
-                            loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
+                        loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
+                        #for trajectory in self.trajectories:
+                        #    loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
                     else:
                         f, s = self.compute_risks(params, ti)
                         loss = conditional_weibull_loss(f, s, ei, self.model.n_states)
@@ -256,18 +266,17 @@ class MENSA:
             pbar.set_postfix_str(f"Training loss = {avg_train_loss:.4f}, "
                                 f"Validation loss = {avg_valid_loss:.4f}")
 
-            # Check for early stopping
             if avg_valid_loss < best_valid_loss - min_delta:
                 best_valid_loss = avg_valid_loss
                 epochs_no_improve = 0
-                best_model_state = self.model.state_dict()  # Save the best model state
+                best_model_state = self.model.state_dict()
             else:
                 epochs_no_improve += 1
 
             if epochs_no_improve >= patience:
                 print(f"Early stopping at iteration {itr}, best valid loss: {best_valid_loss}")
                 if best_model_state is not None:
-                    self.model.load_state_dict(best_model_state)  # Load the best model state
+                    self.model.load_state_dict(best_model_state)
                 break
         
     def compute_risks(self, params, ti):
@@ -299,7 +308,7 @@ class MENSA:
         gate = nn.LogSoftmax(dim=1)(params[i][2])
         s = -(torch.pow(torch.exp(b)*t, torch.exp(k)))
         s = (s + gate)
-        s = torch.logsumexp(s, dim=1)#log_survival
+        s = torch.logsumexp(s, dim=1) #log_survival
         condition = torch.logical_and(ei[:, i] == 1, ei[:, j] == 1)
         result = -torch.sum(condition*s) / ei.shape[0]
         return result
