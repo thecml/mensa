@@ -1,26 +1,32 @@
 def map_model_name(model_name):
-    if model_name == "dgp":
-        model_name = "DGP"
-    elif model_name == "coxph":
-        model_name = "CoxPH"
-    elif model_name == "dsm":
-        model_name = "DSM"
-    elif model_name == "rsf":
-        model_name = "RSF"
-    elif model_name == "coxboost":
-        model_name = "GBSA"
-    elif model_name == "deephit":
-        model_name = "DeepHit"
-    elif model_name == "deepsurv":
-        model_name = "DeepSurv"
-    elif model_name == "hierarch":
-        model_name = "Hierarch."
-    elif model_name == "mtlrcr":
-        model_name = "MTLR-CR"
-    elif model_name == "mtlr":
-        model_name = "MTLR"
-    elif model_name == "mensa":
-        model_name = "MENSA (Ours)"
-    else:
-        pass
-    return model_name
+    name_map = {
+        "dgp": "DGP",
+        "coxph": "CoxPH",
+        "dsm": "DSM",
+        "rsf": "RSF",
+        "coxboost": "GBSA",
+        "deephit": "DeepHit",
+        "deepsurv": "DeepSurv",
+        "hierarch": "Hierarch.",
+        "mtlrcr": "MTLR-CR",
+        "mtlr": "MTLR",
+        "mensa": "MENSA (Ours)"
+    }
+    return name_map.get(model_name, model_name)
+
+def map_model_type(model_name):
+    model_type_map = {
+        "coxph": "SE",
+        "coxboost": "SE",
+        "rsf": "SE",
+        "mtlr": "SE",
+        "deepsurv": "SE",
+        "deephit": "CR",
+        "dsm": "CR",
+        "hierarch": "ME",
+        "mensa": "ME"
+    }
+    key = model_name.lower()
+    if key not in model_type_map:
+        raise ValueError(f"Unknown model name: {model_name}")
+    return model_type_map[key]

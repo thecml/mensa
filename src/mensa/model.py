@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
+import torch.nn.utils as nn_utils  # at top of file
 
 import wandb
 import numpy as np
@@ -8,6 +9,10 @@ import numpy as np
 from tqdm import trange
 
 from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi, safe_log
+
+def _exp_safe(x, max_val=20.0):
+    # exp(20) ~ 4.85e8; prevents overflow while keeping gradient flow
+    return torch.exp(torch.clamp(x, max=max_val))
 
 def add_transient_state(data_dict):
     # Modify 'E': Add 1 if all columns are 0, else 0
@@ -67,25 +72,19 @@ class MLP(torch.nn.Module):
         self.n_dists = n_dists
         self.temp = float(temp)
         self.discount = float(discount)
-        
         self.n_states = n_states
+        self.use_shared = use_shared
 
-        if layers is None: layers = []
+        if layers is None:
+            layers = []
         self.layers = layers
 
-        if len(layers) == 0: lastdim = input_dim
-        else: lastdim = layers[-1]
+        lastdim = input_dim if len(layers) == 0 else layers[-1]
 
         self.act = nn.SELU()
         self.shape = nn.Parameter(-torch.ones(self.n_dists * n_states))
         self.scale = nn.Parameter(-torch.ones(self.n_dists * n_states))
 
-        self.gate = nn.Linear(lastdim, self.n_dists * self.n_states, bias=False)
-        self.scaleg = nn.Linear(lastdim, self.n_dists * self.n_states, bias=True)
-        self.shapeg = nn.Linear(lastdim, self.n_dists * self.n_states, bias=True)
-        
-        self.use_shared = use_shared
-        
         if self.use_shared:
             self.embedding = create_representation(input_dim, layers, dropout_rate, 'ReLU6')
         else:
@@ -93,28 +92,47 @@ class MLP(torch.nn.Module):
                 create_representation(input_dim, layers, dropout_rate, 'ReLU6') for _ in range(n_states)
             ])
 
+        self.shapeg = nn.ModuleList([nn.Linear(lastdim, self.n_dists, bias=True) for _ in range(n_states)])
+        self.scaleg = nn.ModuleList([nn.Linear(lastdim, self.n_dists, bias=True) for _ in range(n_states)])
+        self.gate   = nn.ModuleList([nn.Linear(lastdim, self.n_dists, bias=False) for _ in range(n_states)])
+        
+        adapter_hidden = max(16, lastdim // 2)
+        self.adapters = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(lastdim, adapter_hidden, bias=True),
+                nn.ReLU(),
+                nn.Linear(adapter_hidden, lastdim, bias=True),
+            ) for _ in range(n_states)
+        ])
+        
     def forward(self, x):
         outcomes = []
+        n_samples = x.shape[0]
+
         if self.use_shared:
-            xrep = self.embedding(x)
-            dim = x.shape[0]
-            shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim, -1), min=-10, max=10)
-            scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim, -1), min=-10, max=10)
-            gate = self.gate(xrep) / self.temp
-            for i in range(self.n_states):
-                outcomes.append((shape[:,i*self.n_dists:(i+1)*self.n_dists],
-                                scale[:,i*self.n_dists:(i+1)*self.n_dists],
-                                gate[:,i*self.n_dists:(i+1)*self.n_dists]))
-        else:
-            dim = x.shape[0]
-            for i in range(self.n_states):
-                xrep = self.embeddings[i](x)
-                shape = torch.clamp(self.act(self.shapeg(xrep)) + self.shape.expand(dim, -1), min=-10, max=10)
-                scale = torch.clamp(self.act(self.scaleg(xrep)) + self.scale.expand(dim, -1), min=-10, max=10)
-                gate = self.gate(xrep) / self.temp
-                outcomes.append((shape[:, i * self.n_dists:(i + 1) * self.n_dists],
-                                    scale[:, i * self.n_dists:(i + 1) * self.n_dists],
-                                    gate[:, i * self.n_dists:(i + 1) * self.n_dists]))
+            xrep_shared = self.embedding(x)
+
+        base_shape = self.shape.view(self.n_states, self.n_dists)
+        base_scale = self.scale.view(self.n_states, self.n_dists)
+
+        for i in range(self.n_states):
+            xrep = xrep_shared if self.use_shared else self.embeddings[i](x)
+            
+            xrep = xrep + self.adapters[i](xrep)
+
+            shp_lin = self.shapeg[i](xrep)
+            scl_lin = self.scaleg[i](xrep)
+
+            shp_act = self.act(shp_lin)
+            scl_act = self.act(scl_lin)
+
+            shape = shp_act + base_shape[i].expand(n_samples, -1)
+            scale = scl_act + base_scale[i].expand(n_samples, -1)
+
+            gate_logits = self.gate[i](xrep) / self.temp
+
+            outcomes.append((shape, scale, gate_logits))
+
         return outcomes
         
 class MENSA:
@@ -197,7 +215,17 @@ class MENSA:
                     f, s = self.compute_risks(params, ti)
                     loss = conditional_weibull_loss(f, s, ei, self.model.n_states)
 
+                if not torch.isfinite(loss):
+                    # bad batch – skip
+                    continue
+                
                 loss.backward()
+                
+                total_norm = nn_utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0, error_if_nonfinite=False)
+                if not torch.isfinite(total_norm):
+                    optimizer.zero_grad(set_to_none=True)
+                    continue  # skip update this batch
+                
                 optimizer.step()
 
                 total_train_loss += loss.item()
@@ -243,26 +271,26 @@ class MENSA:
                 break
         
     def compute_risks(self, params, ti):
-        f_risks = []
-        s_risks = []
-        ti = ti.reshape(-1,1).expand(-1, self.model.n_dists)
+        f_risks, s_risks = [], []
+        eps = 1e-12
+        ti = torch.clamp(ti.reshape(-1,1).expand(-1, self.model.n_dists), min=eps)
+
         for i in range(self.model.n_states):
-            k = params[i][0]
-            b = params[i][1]
+            k = params[i][0]; b = params[i][1]
             gate = nn.LogSoftmax(dim=1)(params[i][2])
-            s = - (torch.pow(torch.exp(b)*ti, torch.exp(k)))
-            f = k + b + ((torch.exp(k)-1)*(b+safe_log(ti)))
+
+            ek = _exp_safe(k); eb = _exp_safe(b)
+            s = -(torch.pow(eb*ti, ek)) # log S mixture terms before logsumexp
+            f = k + b + ((ek - 1.0) * (b + safe_log(ti)))
             f = f + s
-            s = (s + gate)
-            s = torch.logsumexp(s, dim=1)
-            f = (f + gate)
-            f = torch.logsumexp(f, dim=1)
-            f_risks.append(f)
-            s_risks.append(s)
-        f = torch.stack(f_risks, dim=1)
-        s = torch.stack(s_risks, dim=1)
-        return f, s
-    
+
+            s = torch.logsumexp(s + gate, dim=1)
+            f = torch.logsumexp(f + gate, dim=1)
+
+            f_risks.append(f); s_risks.append(s)
+
+        return torch.stack(f_risks, 1), torch.stack(s_risks, 1)
+        
     def compute_risk_trajectory(self, i, j, ti, ei, params): 
         # eg: i = 2, j = 0, j happen before i, S_i(T_j)
         t = ti[:,j].reshape(-1,1).expand(-1, self.model.n_dists) #(n, k)
@@ -279,20 +307,37 @@ class MENSA:
     def compute_risks_multi(self, params, ti):
         f_risks = []
         s_risks = []
+        eps = 1e-12
+        ti = torch.clamp(ti, min=eps)
+
         for i in range(self.model.n_states):
-            t = ti[:,i].reshape(-1,1).expand(-1, self.model.n_dists)
+            # t_i: [B, 1] -> expand to [B, n_dists]
+            t_i = ti[:, i].reshape(-1, 1).expand(-1, self.model.n_dists)
+
             k = params[i][0]
             b = params[i][1]
-            gate = nn.LogSoftmax(dim=1)(params[i][2])
-            s = - (torch.pow(torch.exp(b)*t, torch.exp(k)))
-            f = k + b + ((torch.exp(k)-1)*(b+safe_log(t)))
-            f = f + s
-            s = (s + gate)
-            s = torch.logsumexp(s, dim=1)
-            f = (f + gate)
-            f = torch.logsumexp(f, dim=1)
+            gate_logits = params[i][2]
+
+            gate = nn.LogSoftmax(dim=1)(gate_logits)
+
+            # Safe exponentials
+            ek = _exp_safe(k)
+            eb = _exp_safe(b)
+
+            # log-survival component per mixture: s_ik = - ( (exp(b)*t)^exp(k) )
+            s_comp = -(torch.pow(eb * t_i, ek))
+
+            # log-density component per mixture (before mixing)
+            f_comp = k + b + (ek - 1.0) * (b + safe_log(t_i))
+            f_comp = f_comp + s_comp
+
+            # Mix in log-space
+            s = torch.logsumexp(s_comp + gate, dim=1)
+            f = torch.logsumexp(f_comp + gate, dim=1)
+
             f_risks.append(f)
             s_risks.append(s)
+
         f = torch.stack(f_risks, dim=1)
         s = torch.stack(s_risks, dim=1)
         return f, s

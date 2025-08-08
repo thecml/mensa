@@ -60,13 +60,15 @@ class BaseDataLoader(ABC):
 
 
 def get_data_loader(dataset_name: str) -> BaseDataLoader:
-    if dataset_name in ["synthetic_se", "seer_se", "mimic_se"]:
+    if dataset_name in ["synthetic_se", "seer_se", "mimic_se", "proact_se"]:
         if dataset_name == "synthetic_se":
             return SingleEventSyntheticDataLoader()
         elif dataset_name == "seer_se":
             return SeerSingleDataLoader()
         elif dataset_name == "mimic_se":
             return MimicSingleDataLoader()
+        elif dataset_name == "proact_se":
+            return PROACTSingleDataLoader()
     elif dataset_name in ["synthetic_cr", "mimic_cr", "seer_cr", "rotterdam_cr"]:
         if dataset_name == "synthetic_cr":
             return CompetingRiskSyntheticDataLoader()
@@ -365,6 +367,89 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
                                           torch.tensor(dataframe['t4'].values, dtype=dtype)], axis=1)
             dicts.append(data_dict)
             
+        return dicts[0], dicts[1], dicts[2]
+
+class PROACTSingleDataLoader(BaseDataLoader):
+    """
+    Data loader for ALS dataset (single event = first event: Speech) using PRO-ACT.
+    """
+    def load_data(self, n_samples:int = None):
+        df = pd.read_csv(f'{cfg.DATA_DIR}/proact_processed.csv', index_col=0)
+        if n_samples:
+            df = df.sample(n=n_samples, random_state=0)
+
+        # keep all label cols so X drops them all as before
+        label_cols = [col for col in df.columns if any(substring in col for substring in ['Event', 'TTE'])]
+
+        # CHANGED: operate only on the first event
+        event_names = ['Speech']  # was ['Speech','Swallowing','Handwriting','Walking']
+
+        # CHANGED: filter only for the first event
+        for event_name in event_names:
+            df = df.loc[(df[f'Event_{event_name}'] == 0) | (df[f'Event_{event_name}'] == 1)]  # drop already occurred
+            df = df.loc[(df[f'TTE_{event_name}'] > 0) & (df[f'TTE_{event_name}'] <= 500)]     # 1 - 500
+
+        df = df.drop(df.filter(like='_Strength').columns, axis=1)  # Drop strength tests
+        if 'Race_Caucasian' in df.columns:
+            df = df.drop('Race_Caucasian', axis=1)                  # Drop race information
+        if 'El_escorial' in df.columns:
+            df = df.drop('El_escorial', axis=1)                     # Drop el_escorial
+        for c in ['Height', 'Weight', 'BMI']:
+            if c in df.columns:
+                df = df.drop(c, axis=1)                             # Drop height/weight/bmi
+
+        self.X = df.drop(label_cols, axis=1)
+        self.columns = list(self.X.columns)
+        self.num_features = self._get_num_features(self.X)
+        self.cat_features = self._get_cat_features(self.X)
+
+        # CHANGED: only first event (Speech), 1D arrays
+        e = df['Event_Speech'].values
+        t = df['TTE_Speech'].values
+        self.y_t = t.astype(np.int64)              # shape (N,)
+        self.y_e = e.astype(np.int64)              # shape (N,)
+
+        # CHANGED: single event
+        self.n_events = 1
+        self.trajectories = []
+        return self
+
+    def split_data(self, train_size: float, valid_size: float,
+                   test_size: float, dtype=torch.float64, random_state=0):
+        df = pd.DataFrame(self.X).copy()
+
+        # CHANGED: only e1/t1 kept
+        df['e1'] = self.y_e
+        df['t1'] = self.y_t
+
+        # CHANGED: n_events=1 in splitter
+        df_train, df_valid, df_test = make_stratified_split(
+            df, stratify_colname='multi', frac_train=train_size,
+            frac_valid=valid_size, frac_test=test_size,
+            random_state=random_state, n_events=1
+        )
+
+        dataframes = [df_train, df_valid, df_test]
+
+        # CHANGED: only these cols now
+        event_cols = ['e1']
+        time_cols  = ['t1']
+
+        dicts = []
+        for dataframe in dataframes:
+            data_dict = dict()
+
+            X_np = dataframe.drop(event_cols + time_cols, axis=1).values
+            E_np = dataframe['e1'].values.astype(np.int64)   # 1D (single-event)
+            T_np = dataframe['t1'].values.astype(np.float64) # or int64 if you prefer
+
+            # ← convert to tensors here so .to(self.device) works later
+            data_dict['X'] = torch.tensor(X_np, dtype=dtype)
+            data_dict['E'] = torch.tensor(E_np, dtype=torch.long)
+            data_dict['T'] = torch.tensor(T_np, dtype=dtype)
+
+            dicts.append(data_dict)
+
         return dicts[0], dicts[1], dicts[2]
 
 class PROACTMultiDataLoader(BaseDataLoader):

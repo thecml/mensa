@@ -101,7 +101,7 @@ if __name__ == "__main__":
                   n_events=n_events, n_dists=n_dists, trajectories=trajectories,
                   device=device)
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-              weight_decay=weight_decay, patience=10,
+              weight_decay=weight_decay, patience=20,
               batch_size=batch_size, verbose=True)
         
     # Make predictions

@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default="ebmt_me")
+    parser.add_argument('--dataset_name', type=str, default="proact_me")
     
     args = parser.parse_args()
     seed = args.seed
@@ -79,8 +79,8 @@ if __name__ == "__main__":
     X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
     X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
     X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
-    X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
-                                              num_features, as_array=True)
+    X_train, X_valid, X_test = preprocess_data(X_train, X_valid, X_test, cat_features,
+                                               num_features, as_array=True)
     train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
     train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int64)
     train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int64)
@@ -216,7 +216,7 @@ if __name__ == "__main__":
                         n_events=n_events, n_dists=n_dists, trajectories=trajectories,
                         device=device)
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                    weight_decay=weight_decay, patience=10,
+                    weight_decay=weight_decay, patience=25,
                     batch_size=batch_size, verbose=False)
         else:
             raise NotImplementedError()
