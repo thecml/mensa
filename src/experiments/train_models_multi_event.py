@@ -51,8 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-# MODELS = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "hierarch", "mtlr", "dsm", "mensa"]
-MODELS = ["coxph"]
+MODELS = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "hierarch", "mtlr", "dsm", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -312,7 +311,6 @@ if __name__ == "__main__":
                 except ValueError:
                     auc = 0.5
                 aucs.append(auc)
-
             mean_auc = np.mean(aucs)
             
             ibs = lifelines_eval.integrated_brier_score()

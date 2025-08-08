@@ -221,12 +221,22 @@ if __name__ == "__main__":
                                             y_train_time, y_train_event)
         
         ci = lifelines_eval.concordance()[0]
-        auc = lifelines_eval.auc()
+
+        time_points = np.quantile(y_test_time[y_test_event == 1], [0.25, 0.5, 0.75])
+        aucs = []
+        for t in time_points:
+            try:
+                auc = lifelines_eval.auc(t)
+            except ValueError:
+                auc = 0.5
+            aucs.append(auc)
+        mean_auc = np.mean(aucs)
+
         ibs = lifelines_eval.integrated_brier_score()
         mae_margin = lifelines_eval.mae(method="Margin")
         d_calib = lifelines_eval.d_calibration()[0]
         
-        metrics = [ci, auc, ibs, mae_margin, d_calib]
+        metrics = [ci, mean_auc, ibs, mae_margin, d_calib]
         print(f'{model_name}: ' + f'{metrics}')
         res_sr = pd.Series([model_name, dataset_name, seed] + metrics,
                             index=["ModelName", "DatasetName", "Seed",
