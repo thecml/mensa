@@ -12,7 +12,7 @@ if [ -f "$results_path" ]; then
   rm $results_path
 fi
 
-seeds=(0 1 2 3 4 5 6 7 8 9)
+seeds=($(seq 0 24))
 k_taus=(0.0 0.25 0.50 0.75)
 copula_names=("clayton" "frank")
 linear=("True" "False")
