@@ -22,8 +22,8 @@ def conditional_weibull_loss(f, s, e, n_risks: int):
     loss = 0.0
     for k in range(n_risks):
         temp = (e == k)
-        uncensored_loss += torch.sum(temp*f[:, k].T)
-        censored_loss += torch.sum(~temp*s[:, k].T)
+        uncensored_loss = torch.sum(temp*f[:, k].T)
+        censored_loss = torch.sum(~temp*s[:, k].T)
         loss += (uncensored_loss + censored_loss)    
     loss = -loss / e.shape[0]
     return loss

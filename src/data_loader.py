@@ -378,7 +378,7 @@ class PROACTSingleDataLoader(BaseDataLoader):
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
         label_cols = [col for col in df.columns if any(substring in col for substring in ['Event', 'TTE'])]
-        event_names = ['Swallowing']
+        event_names = ['Speech']
         for event_name in event_names:
             df = df.loc[(df[f'Event_{event_name}'] == 0) | (df[f'Event_{event_name}'] == 1)] # drop already occured
             df = df.loc[(df[f'TTE_{event_name}'] > 0) & (df[f'TTE_{event_name}'] <= 500)] # 1 - 500
