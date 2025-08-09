@@ -14,25 +14,51 @@ def _exp_safe(x, max_val=20.0):
     # exp(20) ~ 4.85e8; prevents overflow while keeping gradient flow
     return torch.exp(torch.clamp(x, max=max_val))
 
-def add_transient_state(data_dict):
-    # Modify 'E': Add 1 if all columns are 0, else 0
-    condition_e = (data_dict['E'] == 0).all(dim=1).unsqueeze(1)
-    new_column_e = condition_e.long()
-    data_dict['E'] = torch.cat([new_column_e, data_dict['E']], dim=1)
-    
-    # Modify 'T': Add the maximum or minimum value based on 'E'
-    max_values = data_dict['T'].max(dim=1, keepdim=True).values
-    
-    # If all 'E' columns are 0, take the maximum; otherwise, take the minimum of active events
-    new_column_t = torch.where(
-        condition_e,  # Condition: all 'E' columns are 0
-        max_values,   # If true, take maximum
-        torch.where(data_dict['E'][:, 1:] == 1, data_dict['T'], float('inf')).min(dim=1, keepdim=True).values
-    )
-    
-    data_dict['T'] = torch.cat([new_column_t, data_dict['T']], dim=1)
-    
-    return data_dict
+def add_event_free_column(T, E, n_events, horizon=None):
+    """
+    Treat 'event-free' as state 0, just like any other event.
+    - If a sample has no observed event among 1..K, set E[:,0]=1.
+    - For multi-event times (T.ndim==2): create T[:,0].
+      Use `horizon` if given, otherwise use per-row max time across events.
+    Shapes in -> out:
+      E: [N, K]      -> [N, K+1]
+      T: [N] or [N,K] -> [N] (single) or [N, K+1] (multi)
+    """
+    N = E.size(0)
+    device = E.device
+
+    # Build E_ext with extra col 0
+    if E.ndim != 2 or E.size(1) != n_events:
+        raise ValueError("E must be [N, K] with K=n_events.")
+    E_ext = torch.zeros((N, n_events + 1), dtype=E.dtype, device=device)
+    E_ext[:, 1:] = E
+    no_event = (E.sum(dim=1) == 0)
+    E_ext[no_event, 0] = 1  # event-free label
+
+    # Times
+    if T.ndim == 1:
+        # single-time case: nothing to change (your code uses the same t for all states)
+        T_ext = T
+    elif T.ndim == 2:
+        if T.size(1) == n_events + 1:
+            # already has the extra column
+            T_ext = T
+        elif T.size(1) == n_events:
+            # create T[:,0]
+            if horizon is not None:
+                t0 = torch.full((N,), float(horizon), device=T.device, dtype=T.dtype)
+            else:
+                # reasonable default: the max observed time across event columns
+                t0 = T.max(dim=1).values
+            T_ext = torch.zeros((N, n_events + 1), dtype=T.dtype, device=T.device)
+            T_ext[:, 0] = t0
+            T_ext[:, 1:] = T
+        else:
+            raise ValueError("T has unexpected width. Expected K or K+1 columns.")
+    else:
+        raise ValueError("T must be 1D or 2D.")
+
+    return T_ext, E_ext
 
 def create_representation(input_dim, layers, dropout_rate, activation, bias=True):
     if activation == 'ReLU6':
@@ -55,6 +81,26 @@ def create_representation(input_dim, layers, dropout_rate, activation, bias=True
         prevdim = hidden
 
     return nn.Sequential(*modules)
+
+def add_transient_state(data_dict):
+    # Modify 'E': Add 1 if all columns are 0, else 0
+    condition_e = (data_dict['E'] == 0).all(dim=1).unsqueeze(1)
+    new_column_e = condition_e.long()
+    data_dict['E'] = torch.cat([new_column_e, data_dict['E']], dim=1)
+    
+    # Modify 'T': Add the maximum or minimum value based on 'E'
+    max_values = data_dict['T'].max(dim=1, keepdim=True).values
+    
+    # If all 'E' columns are 0, take the maximum; otherwise, take the minimum of active events
+    new_column_t = torch.where(
+        condition_e,  # Condition: all 'E' columns are 0
+        max_values,   # If true, take maximum
+        torch.where(data_dict['E'][:, 1:] == 1, data_dict['T'], float('inf')).min(dim=1, keepdim=True).values
+    )
+    
+    data_dict['T'] = torch.cat([new_column_t, data_dict['T']], dim=1)
+    
+    return data_dict
 
 class MLP(torch.nn.Module):
     """"
@@ -174,28 +220,28 @@ class MENSA:
         multi_event = True if train_dict['T'].ndim > 1 else False
 
         if multi_event:
-            # Create transient state
-            train_dict = add_transient_state(train_dict) # TODO: This transient state causes very high IBS sometimes.
-            valid_dict = add_transient_state(valid_dict)
-            
-            # Compute per-event weights using inverse frequency of observed events
-            event_counts = torch.sum(train_dict['E'], dim=0).float()  # shape: [K]
-            event_weights = 1.0 / (event_counts + 1e-8)  # avoid divide by zero
-            event_weights = event_weights / event_weights.sum() * event_counts.shape[0]  # normalize to K
-            event_weights = event_weights.to(self.device)
-            
-            #event_weights[0] = 0 # Set zero weight for trans. branch
+            T_tr, E_tr = add_event_free_column(train_dict['T'], train_dict['E'], n_events=self.n_states-1, horizon=None)
+            T_va, E_va = add_event_free_column(valid_dict['T'], valid_dict['E'], n_events=self.n_states-1, horizon=None)
         else:
-            event_weights = None
+            _, E_tr = add_event_free_column(train_dict['T'].reshape(-1), train_dict['E'], n_events=self.n_states-1, horizon=None)
+            _, E_va = add_event_free_column(valid_dict['T'].reshape(-1), valid_dict['E'], n_events=self.n_states-1, horizon=None)
+            T_tr, T_va = train_dict['T'], valid_dict['T']
 
         train_loader = DataLoader(TensorDataset(train_dict['X'].to(self.device),
-                                                train_dict['T'].to(self.device),
-                                                train_dict['E'].to(self.device)),
+                                                T_tr.to(self.device),
+                                                E_tr.to(self.device)),
                                 batch_size=batch_size, shuffle=True)
         valid_loader = DataLoader(TensorDataset(valid_dict['X'].to(self.device),
-                                                valid_dict['T'].to(self.device),
-                                                valid_dict['E'].to(self.device)),
+                                                T_va.to(self.device),
+                                                E_va.to(self.device)),
                                 batch_size=batch_size, shuffle=False)
+
+        if multi_event:
+            event_counts = torch.sum(E_tr[:, 0:], dim=0).float()  # shape: [K]
+            event_weights = 1.0 / (event_counts + 1e-8)
+            event_weights = event_weights / event_weights.sum() * event_counts.shape[0]  # normalize
+        else:
+            event_weights = None
 
         self.model.to(self.device)
         min_delta = 0.001
@@ -219,8 +265,8 @@ class MENSA:
                 if multi_event: # TODO: Compute weight inside the batch
                     f, s = self.compute_risks_multi(params, ti)
                     loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
-                    #for trajectory in self.trajectories:
-                    #    loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
+                    for trajectory in self.trajectories:
+                        loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
                 else:
                     f, s = self.compute_risks(params, ti)
                     loss = conditional_weibull_loss(f, s, ei, self.model.n_states)  # TODO: Use weights
@@ -252,8 +298,8 @@ class MENSA:
                     if multi_event:
                         f, s = self.compute_risks_multi(params, ti)
                         loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
-                        #for trajectory in self.trajectories:
-                        #    loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
+                        for trajectory in self.trajectories:
+                            loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
                     else:
                         f, s = self.compute_risks(params, ti)
                         loss = conditional_weibull_loss(f, s, ei, self.model.n_states)

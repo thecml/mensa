@@ -4,7 +4,6 @@ import itertools
 def safe_log(x):
     return torch.log(x+1e-6*(x<1e-6))
 
-# TODO: Track the loss per event and report it
 def conditional_weibull_loss_multi(f, s, e, n_risks: int, weights=None):
     loss = 0.0
     for k in range(n_risks):
