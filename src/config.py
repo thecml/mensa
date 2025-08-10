@@ -12,13 +12,16 @@ MODELS_DIR = Path.joinpath(ROOT_DIR, 'models')
 
 # Configs
 COXPH_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'coxph')
+COXNET_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'coxnet')
 COXBOOST_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'coxboost')
 RSF_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'rsf')
+WEIBULLAFT_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'weibullaft')
 DEEPSURV_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deepsurv')
 DEEPHIT_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'deephit')
 HIERARCH_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'hierarch')
 MTLR_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mtlr')
 DSM_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dsm')
+DCM_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'dcm')
 MENSA_CONFIGS_DIR = Path.joinpath(CONFIGS_DIR, 'mensa')
 
 N_RUNS = 10 # for sweeping
@@ -46,6 +49,19 @@ COXPH_PARAMS = {
     'ties': 'breslow',
     'n_iter': 100,
     'tol': 1e-9
+}
+
+COXNET_PARAMS = {
+    'n_alphas': 100,
+    'alpha_min_ratio': 'auto',
+    'l1_ratio': 0.5,
+    'tol': 1e-7,
+    'max_iter': 100000
+}
+
+WEIBULL_AFT_PARAMS = {
+    'penalizer': 0,
+    'l1_ratio' :0
 }
 
 COXBOOST_PARAMS = {

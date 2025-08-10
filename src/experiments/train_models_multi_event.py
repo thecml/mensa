@@ -29,8 +29,8 @@ from utility.evaluation import global_C_index, local_C_index
 from mensa.model import MENSA
 
 # SOTA
-from sota_models import (make_coxph_model, make_coxboost_model, make_deephit_single, make_dsm_model,
-                         make_rsf_model, train_deephit_model, train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
+from sota_models import (make_coxph_model, make_coxnet_model, make_coxboost_model, make_deephit_single, make_dsm_model,
+                         make_rsf_model, make_dcm_model, make_weibull_aft_model, train_deephit_model, train_deepsurv_model, make_deepsurv_prediction, DeepSurv)
 from hierarchical import util
 from hierarchical.helper import format_hierarchical_hyperparams
 from utility.data import (format_hierarchical_data_me, calculate_layer_size_hierarch)
@@ -44,20 +44,20 @@ torch.cuda.manual_seed_all(0)
 random.seed(0)
 
 # Set precision
-dtype = torch.float64
+dtype = torch.float32
 torch.set_default_dtype(dtype)
 
 # Setup device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["coxph", "coxboost", "rsf", "deepsurv", "deephit", "hierarch", "mtlr", "dsm", "mensa"]
+MODELS = ["coxph", "coxnet", "coxboost", "rsf", "weibullaft", "deepsurv", "deephit", "hierarch", "mtlr", "dsm", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default="rotterdam_me")
+    parser.add_argument('--dataset_name', type=str, default="proact_me")
     
     args = parser.parse_args()
     seed = args.seed
@@ -82,14 +82,14 @@ if __name__ == "__main__":
     X_train, X_valid, X_test = preprocess_data(X_train, X_valid, X_test, cat_features,
                                                num_features, as_array=True)
     train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
-    train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int64)
-    train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int64)
+    train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int32)
+    train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int32)
     valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
-    valid_dict['E'] = torch.tensor(valid_dict['E'], device=device, dtype=torch.int64)
-    valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.int64)
+    valid_dict['E'] = torch.tensor(valid_dict['E'], device=device, dtype=torch.int32)
+    valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.int32)
     test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
-    test_dict['E'] = torch.tensor(test_dict['E'], device=device, dtype=torch.int64)
-    test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.int64)
+    test_dict['E'] = torch.tensor(test_dict['E'], device=device, dtype=torch.int32)
+    test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.int32)
     
     n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
@@ -116,6 +116,16 @@ if __name__ == "__main__":
                 model = make_coxph_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
+        elif model_name == "coxnet":
+            config = load_config(cfg.COXBOOST_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
+            trained_models = []
+            for i in range(n_events):
+                train_times = train_dict['T'][:,i].cpu().numpy()
+                train_events = train_dict['E'][:,i].cpu().numpy()
+                y_train = convert_to_structured(train_times, train_events)
+                model = make_coxnet_model(config)
+                model.fit(train_dict['X'].cpu(), y_train)
+                trained_models.append(model)
         elif model_name == "coxboost":
             config = load_config(cfg.COXBOOST_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
@@ -134,6 +144,16 @@ if __name__ == "__main__":
                 train_events = train_dict['E'][:,i].cpu().numpy()
                 y_train = convert_to_structured(train_times, train_events)
                 model = make_rsf_model(config)
+                model.fit(train_dict['X'].cpu(), y_train)
+                trained_models.append(model)
+        elif model_name == "weibull_aft":
+            config = load_config(cfg.WEIBULLAFT_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
+            trained_models = []
+            for event_index in range(n_events):
+                train_times = train_dict['T'][:, event_index].cpu().numpy()
+                train_events = train_dict['E'][:, event_index].cpu().numpy()
+                y_train = convert_to_structured(train_times, train_events)
+                model = make_weibull_aft_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
         elif model_name == "deepsurv":
@@ -189,6 +209,19 @@ if __name__ == "__main__":
                         val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy()),
                         learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
                 trained_models.append(model)
+        elif model_name == "dcm":
+            config = load_config(cfg.DCM_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
+            n_iter = config['n_iter']
+            learning_rate = config['learning_rate']
+            batch_size = config['batch_size']
+            trained_models = []
+            for i in range(n_events):
+                model = make_dcm_model(config)
+                model.fit(train_dict['X'].cpu().numpy(), train_dict['T'][:,i].cpu().numpy(), train_dict['E'][:,i].cpu().numpy(),
+                        val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy(), valid_dict['E'][:,i].cpu().numpy()),
+                        learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
+                trained_models.append(model)
+                
         elif model_name == "hierarch":
             config = load_config(cfg.HIERARCH_CONFIGS_DIR, f"{dataset_name}.yaml")
             n_time_bins = len(time_bins)
@@ -222,7 +255,7 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Compute survival function
-        if model_name in ["coxph", "coxboost", "rsf"]:
+        if model_name in ["coxph", "coxnet", "coxboost", "rsf"]:
             all_preds = []
             for trained_model in trained_models:
                 model_preds = trained_model.predict_survival_function(test_dict['X'].cpu())
@@ -232,6 +265,16 @@ if __name__ == "__main__":
                 extra_preds = spline(time_bins.cpu().numpy())
                 extra_preds = np.minimum(extra_preds, 1)
                 preds = pd.DataFrame(extra_preds, columns=time_bins.cpu().numpy())
+                all_preds.append(preds)
+        elif model_name == "weibull_aft":
+            all_preds = []
+            times_numpy = time_bins.cpu().numpy()
+            X_test_df = pd.DataFrame(test_dict['X'].cpu().numpy(),
+                                    columns=trained_models[0].feature_names_)
+            for trained_model in trained_models:
+                surv_df = trained_model.model.predict_survival_function(X_test_df, times=times_numpy)
+                preds_array = np.minimum(np.asarray(surv_df.T), 1.0)
+                preds = pd.DataFrame(preds_array, columns=times_numpy)
                 all_preds.append(preds)
         elif model_name == "deepsurv":
             all_preds = []
@@ -258,6 +301,12 @@ if __name__ == "__main__":
                 model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
                 all_preds.append(model_preds)
         elif model_name == "dsm":
+            all_preds = []
+            for trained_model in trained_models:
+                model_preds = trained_model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()))
+                model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
+                all_preds.append(model_preds)
+        elif model_name == "dcm":
             all_preds = []
             for trained_model in trained_models:
                 model_preds = trained_model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()))

@@ -45,7 +45,7 @@ torch.manual_seed(0)
 random.seed(0)
 
 # Set precision
-dtype = torch.float64
+dtype = torch.float32
 torch.set_default_dtype(dtype)
 
 # Setup device
@@ -114,8 +114,8 @@ if __name__ == "__main__":
             model = train_deephit_model(model, train_data['X'], (train_data['T'], train_data['E']),
                                         (valid_data['X'], (valid_data['T'], valid_data['E'])), config)
         elif model_name == "mtlrcr":
-            train_events = train_dict['E'].type(torch.int64).cpu().numpy()
-            valid_events = valid_dict['E'].type(torch.int64).cpu().numpy()
+            train_events = train_dict['E'].type(torch.int32).cpu().numpy()
+            valid_events = valid_dict['E'].type(torch.int32).cpu().numpy()
             y_train = encode_mtlr_format(train_dict['T'], train_events, time_bins.cpu().numpy())
             y_valid = encode_mtlr_format(valid_dict['T'], valid_events, time_bins.cpu().numpy())            
             num_time_bins = len(time_bins.cpu().numpy()) + 1

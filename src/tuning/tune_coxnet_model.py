@@ -5,18 +5,15 @@ import numpy as np
 import os
 import config as cfg
 import torch
-from sota_models import DeepSurv, make_coxph_model, make_coxboost_model, make_deepsurv_prediction, train_deepsurv_model
+from sota_models import make_coxnet_model
 from utility.data import get_first_event
-from utility.tuning import get_coxboost_sweep_cfg, get_deepsurv_sweep_cfg
-from utility.config import load_config
+from utility.tuning import get_coxnet_sweep_cfg
 from utility.survival import convert_to_structured, make_time_bins, preprocess_data
 from data_loader import get_data_loader
 from mensa.model import MENSA
 import warnings
 import random
 import pandas as pd
-from scipy.interpolate import interp1d
-
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
 np.random.seed(0)
@@ -41,19 +38,19 @@ def main():
     
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--dataset_name', type=str, default="seer_se")
+    parser.add_argument('--dataset_name', type=str, default="proact_me")
     
     args = parser.parse_args()
     dataset_name = args.dataset_name
     
-    sweep_config = get_deepsurv_sweep_cfg()
+    sweep_config = get_coxnet_sweep_cfg()
     sweep_id = wandb.sweep(sweep_config, project=f'{PROJECT_NAME}')
     wandb.agent(sweep_id, train_model, count=N_RUNS)
 
 def train_model():
     # Initialize a new wandb run
-    config_defaults = cfg.DEEPSURV_PARAMS
-    wandb.init(config=config_defaults, group=dataset_name, tags=["deepsurv"])
+    config_defaults = cfg.COXNET_PARAMS
+    wandb.init(config=config_defaults, group=dataset_name, tags=["coxnet"])
     config = wandb.config
     
     # Load and split data
@@ -84,26 +81,23 @@ def train_model():
     # Make time bins
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
     time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
-    
-    # Train model
+
+    # Format data to work easier with sksurv API
     n_features = train_dict['X'].shape[1]
-    model = DeepSurv(in_features=n_features, config=config)
-    data_train = pd.DataFrame(train_dict['X'].cpu().numpy())
-    data_train['time'] = train_dict['T'].cpu().numpy()
-    data_train['event'] = train_dict['E'].cpu().numpy()
-    data_valid = pd.DataFrame(valid_dict['X'].cpu().numpy())
-    data_valid['time'] = valid_dict['T'].cpu().numpy()
-    data_valid['event'] = valid_dict['E'].cpu().numpy()
-    model = train_deepsurv_model(model, data_train, data_valid, time_bins, config=config,
-                                 random_state=0, reset_model=True, device=device, dtype=dtype)
+    X_train = pd.DataFrame(train_dict['X'].cpu().numpy(), columns=[f'X{i}' for i in range(n_features)])
+    X_valid = pd.DataFrame(valid_dict['X'].cpu().numpy(), columns=[f'X{i}' for i in range(n_features)])
+    X_test = pd.DataFrame(test_dict['X'].cpu().numpy(), columns=[f'X{i}' for i in range(n_features)])
+    y_train = convert_to_structured(train_dict['T'].cpu().numpy(), train_dict['E'].cpu().numpy())
+    y_valid = convert_to_structured(valid_dict['T'].cpu().numpy(), valid_dict['E'].cpu().numpy())
+    y_test = convert_to_structured(test_dict['T'].cpu().numpy(), test_dict['E'].cpu().numpy())
+                
+    # Train model
+    model = make_coxnet_model(config)
+    model.fit(train_dict['X'].cpu(), y_train)
     
     # Make predictions
-    model_preds, time_bins_deepsurv = make_deepsurv_prediction(model, valid_dict['X'].to(device),
-                                                               config=config, dtype=dtype)
-    spline = interp1d(time_bins_deepsurv.cpu().numpy(),
-                        model_preds.cpu().numpy(),
-                        kind='linear', fill_value='extrapolate')
-    model_preds = spline(time_bins.cpu().numpy())
+    model_preds = model.predict_survival_function(X_valid)
+    model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
     surv_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
     y_train_time = train_dict['T']
     y_train_event = (train_dict['E'])*1.0

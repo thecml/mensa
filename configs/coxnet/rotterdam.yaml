@@ -1,0 +1,5 @@
+n_alphas: 100
+alpha_min_ratio: auto
+l1_ratio: 0.5
+tol: 1e-7
+max_iter: 100000

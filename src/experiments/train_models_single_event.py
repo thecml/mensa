@@ -39,7 +39,7 @@ torch.cuda.manual_seed_all(0)
 random.seed(0)
 
 # Setup precision
-dtype = torch.float64
+dtype = torch.float32
 torch.set_default_dtype(dtype)
 
 # Setup device

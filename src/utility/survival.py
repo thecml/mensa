@@ -24,7 +24,7 @@ class LabTransform(LabTransDiscreteTime): # for DeepHit CR
     def transform(self, durations, events):
         durations, is_event = super().transform(durations, events > 0)
         events[is_event == 0] = 0
-        return durations, events.astype('int64')
+        return durations, events.astype('int32')
 
 def digitize_and_convert(data, time_bins, y_col_names=['time', 'event']):
     df = pd.DataFrame(data[0]).astype(np.float32)

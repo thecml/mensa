@@ -75,8 +75,8 @@ def format_data_as_dict_multi(X, y_e, y_t, dtype):
     data_dict['X'] = torch.tensor(X, dtype=dtype)
     n_events = y_e.shape[1]
     for i in range(n_events):
-        data_dict[f'E{i+1}'] = torch.tensor(y_e[:,i].astype(np.int64), dtype=torch.int64)
-        data_dict[f'T{i+1}'] = torch.tensor(y_t[:,i].astype(np.int64), dtype=torch.int64)
+        data_dict[f'E{i+1}'] = torch.tensor(y_e[:,i].astype(np.int32), dtype=torch.int32)
+        data_dict[f'T{i+1}'] = torch.tensor(y_t[:,i].astype(np.int32), dtype=torch.int32)
     return data_dict
 
 def format_data_deephit_single(train_dict, valid_dict, labtrans):
@@ -102,7 +102,7 @@ def format_data_deephit_competing(train_dict, valid_dict, time_bins):
         def transform(self, durations, events):
             durations, is_event = super().transform(durations, events > 0)
             events[is_event == 0] = 0
-            return durations, events.astype('int64')
+            return durations, events.astype('int32')
     train_dict_dh = dict()
     train_dict_dh['X'] = train_dict['X'].cpu().numpy()
     train_dict_dh['E'] = train_dict['E'].cpu().numpy()

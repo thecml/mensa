@@ -92,7 +92,32 @@ def get_coxph_sweep_cfg():
             }
         }
     }
-    
+
+def get_coxnet_sweep_cfg():
+    return {
+        "method": "bayes",
+        "metric": {"name": "c_harrell",
+                   "goal": "maximize"},
+        "parameters": {
+            "n_alphas":        {"values": [50, 100, 150]},
+            "alpha_min_ratio": {"values": ["auto", 1e-4, 1e-3]},
+            "l1_ratio":        {"values": [0.1, 0.25, 0.5, 0.75, 1.0]},
+            "tol":             {"values": [1e-7, 1e-6, 1e-5]},
+            "max_iter":        {"values": [50000, 100000, 200000]}
+        }
+    }
+
+def get_weibull_aft_sweep_cfg():
+    return {
+        "method": "bayes",
+        "metric": {"name": "c_harrell",
+                   "goal": "maximize"},
+        "parameters": {
+            "penalizer": {"values": [0.0, 1e-4, 1e-3, 1e-2, 1e-1]},
+            "l1_ratio":  {"values": [0.0, 0.5, 1.0]}
+        }
+    }
+
 def get_rsf_sweep_cfg():
     return {
         "method": "bayes",

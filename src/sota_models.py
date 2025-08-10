@@ -5,6 +5,8 @@ from pycox.models import DeepHitSingle
 import torchtuples as tt
 from pycox.models import DeepHit
 from auton_survival.models.dsm import DeepSurvivalMachines
+from auton_survival.models.dcm import DeepCoxMixtures
+from lifelines import WeibullAFTFitter
 import torch
 import numpy as np
 import torch
@@ -20,6 +22,8 @@ from tqdm import trange
 from torch.utils.data import DataLoader, TensorDataset
 from utility.loss import cox_nll
 from utility.survival import cox_survival, calculate_baseline_hazard
+from weibullaft.weibull_aft import WeibullAFTWrapper
+from pycox.models.cox_time import MLPVanillaCoxTime
 
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
@@ -96,6 +100,17 @@ def make_coxph_model(config):
     model = CoxPHSurvivalAnalysis(n_iter=n_iter, tol=tol, alpha=alpha)
     return model
 
+def make_coxnet_model(config):
+    model = CoxnetSurvivalAnalysis(
+        n_alphas=config.get("n_alphas", 100),
+        alpha_min_ratio=config.get("alpha_min_ratio", "auto"),
+        l1_ratio=config.get("l1_ratio", 0.5),
+        tol=config.get("tol", 1e-7),
+        max_iter=config.get("max_iter", 100000),
+        fit_baseline_model=True
+    )
+    return model
+
 def make_coxboost_model(config):
     n_estimators = config['n_estimators']
     learning_rate = config['learning_rate']
@@ -122,6 +137,11 @@ def make_dsm_model(config):
     k = config['k']
     layers = config['network_layers']
     return DeepSurvivalMachines(k=k, layers=layers)
+
+def make_dcm_model(config):
+    k = config['k']
+    layers = config['network_layers']
+    return DeepCoxMixtures(k=k, layers=layers)
     
 def make_rsf_model(config):
     n_estimators = config['n_estimators']
@@ -135,6 +155,12 @@ def make_rsf_model(config):
                                 min_samples_split=min_samples_split,
                                 min_samples_leaf=min_samples_leaf,
                                 max_features=max_features)
+    return model
+
+def make_weibull_aft_model(config):
+    penalizer = config['penalizer']
+    l1_ratio = config['l1_ratio']
+    model = WeibullAFTWrapper(penalizer=penalizer, l1_ratio=l1_ratio)
     return model
 
 def make_deephit_cr(config, in_features, out_features, num_risks, duration_index):
@@ -160,7 +186,7 @@ def train_deepsurv_model(
         random_state: int,
         reset_model: bool = True,
         device: torch.device = torch.device("cuda"),
-        dtype: torch.dtype = torch.float64
+        dtype: torch.dtype = torch.float32
 ) -> nn.Module:
     if config['verbose']:
         print(f"Training {model.get_name()}: reset mode is {reset_model}, number of epochs is {config['num_epochs']}, "
@@ -247,11 +273,13 @@ def make_deephit_single(in_features, out_features, time_bins, device, config):
     num_nodes = config['num_nodes_shared']
     batch_norm = config['batch_norm']
     dropout = config['dropout']
+    alpha = config['alpha']
+    sigma = config['sigma']
     labtrans = DeepHitSingle.label_transform(time_bins)
     net = tt.practical.MLPVanilla(in_features=in_features, num_nodes=num_nodes,
                                   out_features=labtrans.out_features, batch_norm=batch_norm,
                                   dropout=dropout)
-    model = DeepHitSingle(net, tt.optim.Adam, device=device, alpha=0.2, sigma=0.1,
+    model = DeepHitSingle(net, tt.optim.Adam, device=device, alpha=alpha, sigma=sigma,
                           duration_index=labtrans.cuts)
     model.label_transform = labtrans
     return model
@@ -266,3 +294,4 @@ def train_deephit_model(model, x_train, y_train, valid_data, config):
         callbacks = []
     model.fit(x_train, y_train, batch_size, epochs, callbacks, verbose, val_data=valid_data)
     return model
+    

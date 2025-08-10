@@ -22,7 +22,7 @@ np.random.seed(0)
 torch.manual_seed(0)
 random.seed(0)
 
-dtype = torch.float64
+dtype = torch.float32
 torch.set_default_dtype(dtype)
 
 device = torch.device('cpu')

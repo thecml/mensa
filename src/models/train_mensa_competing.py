@@ -42,7 +42,7 @@ torch.manual_seed(0)
 random.seed(0)
 
 # Set precision
-dtype = torch.float64
+dtype = torch.float32
 torch.set_default_dtype(dtype)
 
 SEED = 0

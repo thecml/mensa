@@ -27,7 +27,7 @@ N_RUNS = cfg.N_RUNS
 PROJECT_NAME = "mensa"
 
 # Setup precision
-dtype = torch.float64
+dtype = torch.float32
 torch.set_default_dtype(dtype)
 
 # Setup device
@@ -69,14 +69,14 @@ def train_model():
     X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
                                               num_features, as_array=True)
     train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
-    train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int64)
-    train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int64)
+    train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int32)
+    train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.int32)
     valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
-    valid_dict['E'] = torch.tensor(valid_dict['E'], device=device, dtype=torch.int64)
-    valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.int64)
+    valid_dict['E'] = torch.tensor(valid_dict['E'], device=device, dtype=torch.int32)
+    valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.int32)
     test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
-    test_dict['E'] = torch.tensor(test_dict['E'], device=device, dtype=torch.int64)
-    test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.int64)
+    test_dict['E'] = torch.tensor(test_dict['E'], device=device, dtype=torch.int32)
+    test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.int32)
     n_features = train_dict['X'].shape[1]
 
     # Make time bins

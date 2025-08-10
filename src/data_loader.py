@@ -470,9 +470,9 @@ class PROACTMultiDataLoader(BaseDataLoader):
             data_dict = dict()
             data_dict['X'] = dataframe.drop(event_cols + time_cols, axis=1).values
             data_dict['E'] = np.stack([dataframe['e1'].values, dataframe['e2'].values,
-                                       dataframe['e3'].values, dataframe['e4'].values], axis=1).astype(np.int64)
+                                       dataframe['e3'].values, dataframe['e4'].values], axis=1).astype(np.int32)
             data_dict['T'] = np.stack([dataframe['t1'].values, dataframe['t2'].values,
-                                       dataframe['t3'].values, dataframe['t4'].values], axis=1).astype(np.int64)
+                                       dataframe['t3'].values, dataframe['t4'].values], axis=1).astype(np.int32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -535,9 +535,9 @@ class MimicMultiDataLoader(BaseDataLoader):
             data_dict = dict()
             data_dict['X'] = dataframe.drop(event_cols + time_cols, axis=1).values
             data_dict['E'] = np.stack([dataframe['e1'].values, dataframe['e2'].values,
-                                       dataframe['e3'].values], axis=1).astype(np.int64)
+                                       dataframe['e3'].values], axis=1).astype(np.int32)
             data_dict['T'] = np.stack([dataframe['t1'].values, dataframe['t2'].values,
-                                       dataframe['t3'].values], axis=1).astype(np.int64)
+                                       dataframe['t3'].values], axis=1).astype(np.int32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -916,8 +916,8 @@ class EBMTDataLoader(BaseDataLoader):
         for dataframe in dataframes:
             data_dict = dict()
             data_dict['X'] = dataframe[self.X_columns].values
-            data_dict['E'] = dataframe[self.E_columns].astype(np.int64).values
-            data_dict['T'] = dataframe[self.T_columns].astype(np.int64).values
+            data_dict['E'] = dataframe[self.E_columns].astype(np.int32).values
+            data_dict['T'] = dataframe[self.T_columns].astype(np.int32).values
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2] 
@@ -967,8 +967,8 @@ class RotterdamMultiDataLoader(BaseDataLoader):
         for dataframe in dataframes:
             data_dict = dict()
             data_dict['X'] = dataframe[self.X_columns].values
-            data_dict['E'] = dataframe[self.E_columns].astype(np.int64).values
-            data_dict['T'] = dataframe[self.T_columns].astype(np.int64).values
+            data_dict['E'] = dataframe[self.E_columns].astype(np.int32).values
+            data_dict['T'] = dataframe[self.T_columns].astype(np.int32).values
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]       
