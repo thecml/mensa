@@ -1,2 +1,2 @@
-penalizer: 0
+penalizer: 0.1
 l1_ratio: 0

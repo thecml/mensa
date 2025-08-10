@@ -94,7 +94,7 @@ def get_data_loader(dataset_name: str) -> BaseDataLoader:
 
 class SingleEventSyntheticDataLoader(BaseDataLoader):
     def load_data(self, data_config, copula_name='clayton', k_tau=0,
-                  linear=True, device='cpu', dtype=torch.float64):
+                  linear=True, device='cpu', dtype=torch.float32):
         """
         This method generates synthetic data for single event (and censoring)
         DGP1: Data generation process for event
@@ -146,7 +146,7 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         return self
     
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+                   test_size: float, dtype=torch.float32, random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
         df['time'] = self.y_t
@@ -169,7 +169,7 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
 
 class CompetingRiskSyntheticDataLoader(BaseDataLoader):
     def load_data(self, data_config, copula_name='clayton', k_tau=0,
-                  linear=True, device='cpu', dtype=torch.float64):
+                  linear=True, device='cpu', dtype=torch.float32):
         """
         This method generates synthetic data for 2 competing risks (and censoring)
         DGP1: Data generation process for event 1
@@ -240,7 +240,7 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
                    train_size: float,
                    valid_size: float,
                    test_size: float,
-                   dtype=torch.float64,
+                   dtype=torch.float32,
                    random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
@@ -258,19 +258,19 @@ class CompetingRiskSyntheticDataLoader(BaseDataLoader):
         n_features = df.shape[1] - 5
         for dataframe in dataframes:
             data_dict = dict()
-            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=dtype)
-            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=dtype)
-            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=dtype)
-            data_dict['T1'] = torch.tensor(dataframe['t1'].to_numpy(), dtype=dtype)
-            data_dict['T2'] = torch.tensor(dataframe['t2'].to_numpy(), dtype=dtype)
-            data_dict['T3'] = torch.tensor(dataframe['t3'].to_numpy(), dtype=dtype)
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=torch.float32)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=torch.int32)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=torch.float32)
+            data_dict['T1'] = torch.tensor(dataframe['t1'].to_numpy(), dtype=torch.float32)
+            data_dict['T2'] = torch.tensor(dataframe['t2'].to_numpy(), dtype=torch.float32)
+            data_dict['T3'] = torch.tensor(dataframe['t3'].to_numpy(), dtype=torch.float32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
         
 class MultiEventSyntheticDataLoader(BaseDataLoader):
     def load_data(self, data_config, copula_names=["clayton", "clayton", "clayton"],
-                  k_taus=[0, 0, 0], linear=True, device='cpu', dtype=torch.float64):
+                  k_taus=[0, 0, 0], linear=True, device='cpu', dtype=torch.float32):
         """
         This method generates synthetic data for 3 multiple events (with adm. censoring)
         DGP1: Data generation process for event 1
@@ -337,7 +337,7 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         return self
     
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+                   test_size: float, dtype=torch.float32, random_state=0):
         df = pd.DataFrame(self.X)
         df['e1'] = self.y_e[:,0]
         df['e2'] = self.y_e[:,1]
@@ -356,15 +356,15 @@ class MultiEventSyntheticDataLoader(BaseDataLoader):
         n_features = df.shape[1] - 8
         for dataframe in dataframes:
             data_dict = dict()
-            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=dtype)
-            data_dict['E'] = torch.stack([torch.tensor(dataframe['e1'].values, dtype=dtype),
-                                          torch.tensor(dataframe['e2'].values, dtype=dtype),
-                                          torch.tensor(dataframe['e3'].values, dtype=dtype),
-                                          torch.tensor(dataframe['e4'].values, dtype=dtype)], axis=1)
-            data_dict['T'] = torch.stack([torch.tensor(dataframe['t1'].values, dtype=dtype),
-                                          torch.tensor(dataframe['t2'].values, dtype=dtype),
-                                          torch.tensor(dataframe['t3'].values, dtype=dtype),
-                                          torch.tensor(dataframe['t4'].values, dtype=dtype)], axis=1)
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=torch.float32)
+            data_dict['E'] = torch.stack([torch.tensor(dataframe['e1'].values, dtype=torch.int32),
+                                          torch.tensor(dataframe['e2'].values, dtype=torch.int32),
+                                          torch.tensor(dataframe['e3'].values, dtype=torch.int32),
+                                          torch.tensor(dataframe['e4'].values, dtype=torch.int32)], axis=1)
+            data_dict['T'] = torch.stack([torch.tensor(dataframe['t1'].values, dtype=torch.float32),
+                                          torch.tensor(dataframe['t2'].values, dtype=torch.float32),
+                                          torch.tensor(dataframe['t3'].values, dtype=torch.float32),
+                                          torch.tensor(dataframe['t4'].values, dtype=torch.float32)], axis=1)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -399,7 +399,7 @@ class PROACTSingleDataLoader(BaseDataLoader):
         return self
 
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+                   test_size: float, dtype=torch.float32, random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
         df['time'] = self.y_t
@@ -412,8 +412,8 @@ class PROACTSingleDataLoader(BaseDataLoader):
         for dataframe in dataframes:
             data_dict = dict()
             data_dict['X'] = dataframe.drop(['event', 'time'], axis=1).to_numpy()
-            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.float64),dtype=dtype)
-            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float64), dtype=dtype)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.int32), dtype=torch.int32)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float32), dtype=torch.float32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -448,7 +448,7 @@ class PROACTMultiDataLoader(BaseDataLoader):
         return self
 
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+                   test_size: float, dtype=torch.float32, random_state=0):
         df = pd.DataFrame(self.X)
         df['e1'] = self.y_e[:,0]
         df['e2'] = self.y_e[:,1]
@@ -472,7 +472,7 @@ class PROACTMultiDataLoader(BaseDataLoader):
             data_dict['E'] = np.stack([dataframe['e1'].values, dataframe['e2'].values,
                                        dataframe['e3'].values, dataframe['e4'].values], axis=1).astype(np.int32)
             data_dict['T'] = np.stack([dataframe['t1'].values, dataframe['t2'].values,
-                                       dataframe['t3'].values, dataframe['t4'].values], axis=1).astype(np.int32)
+                                       dataframe['t3'].values, dataframe['t4'].values], axis=1).astype(np.float32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -515,7 +515,7 @@ class MimicMultiDataLoader(BaseDataLoader):
         return self
 
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+                   test_size: float, dtype=torch.float32, random_state=0):
         df = pd.DataFrame(self.X)
         df['e1'] = self.y_e[:,0]
         df['e2'] = self.y_e[:,1]
@@ -537,7 +537,7 @@ class MimicMultiDataLoader(BaseDataLoader):
             data_dict['E'] = np.stack([dataframe['e1'].values, dataframe['e2'].values,
                                        dataframe['e3'].values], axis=1).astype(np.int32)
             data_dict['T'] = np.stack([dataframe['t1'].values, dataframe['t2'].values,
-                                       dataframe['t3'].values], axis=1).astype(np.int32)
+                                       dataframe['t3'].values], axis=1).astype(np.float32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -575,7 +575,7 @@ class SeerSingleDataLoader(BaseDataLoader):
                 train_size: float,
                 valid_size: float,
                 test_size: float,
-                dtype=torch.float64,
+                dtype=torch.float32,
                 random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
@@ -590,8 +590,8 @@ class SeerSingleDataLoader(BaseDataLoader):
         for dataframe in dataframes:
             data_dict = dict()
             data_dict['X'] = dataframe.drop(['event', 'time'], axis=1).to_numpy()
-            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.float64),dtype=dtype)
-            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float64), dtype=dtype)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.int32), dtype=torch.int32)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float32), dtype=torch.float32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -634,7 +634,7 @@ class MimicSingleDataLoader(BaseDataLoader):
                 train_size: float,
                 valid_size: float,
                 test_size: float,
-                dtype=torch.float64,
+                dtype=torch.float32,
                 random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
@@ -649,8 +649,8 @@ class MimicSingleDataLoader(BaseDataLoader):
         for dataframe in dataframes:
             data_dict = dict()
             data_dict['X'] = dataframe.drop(['event', 'time'], axis=1).to_numpy()
-            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.float64),dtype=dtype)
-            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float64), dtype=dtype)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.int32), dtype=torch.int32)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float32), dtype=torch.float32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -688,7 +688,7 @@ class SeerCompetingDataLoader(BaseDataLoader):
                 train_size: float,
                 valid_size: float,
                 test_size: float,
-                dtype=torch.float64,
+                dtype=torch.float32,
                 random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
@@ -703,8 +703,8 @@ class SeerCompetingDataLoader(BaseDataLoader):
         for dataframe in dataframes:
             data_dict = dict()
             data_dict['X'] = dataframe.drop(['event', 'time'], axis=1).to_numpy()
-            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.float64),dtype=dtype)
-            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float64), dtype=dtype)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.int32), dtype=torch.int32)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float32), dtype=torch.float32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -762,7 +762,7 @@ class RotterdamCompetingDataLoader(BaseDataLoader):
         return self
         
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+                   test_size: float, dtype=torch.float32, random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
         df['time'] = self.y_t
@@ -776,8 +776,8 @@ class RotterdamCompetingDataLoader(BaseDataLoader):
         for dataframe in dataframes:
             data_dict = dict()
             data_dict['X'] = dataframe.drop(['event', 'time'], axis=1).to_numpy()
-            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.float64),dtype=dtype)
-            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float64), dtype=dtype)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.int32), dtype=torch.int32)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float32), dtype=torch.float32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -848,7 +848,7 @@ class MimicCompetingDataLoader(BaseDataLoader):
                 train_size: float,
                 valid_size: float,
                 test_size: float,
-                dtype=torch.float64,
+                dtype=torch.float32,
                 random_state=0):
         df = pd.DataFrame(self.X)
         df['event'] = self.y_e
@@ -863,8 +863,8 @@ class MimicCompetingDataLoader(BaseDataLoader):
         for dataframe in dataframes:
             data_dict = dict()
             data_dict['X'] = dataframe.drop(['event', 'time'], axis=1).to_numpy()
-            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.float64),dtype=dtype)
-            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float64), dtype=dtype)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(dtype=np.int32), dtype=torch.int32)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(dtype=np.float32), dtype=torch.float32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]
@@ -873,40 +873,50 @@ class EBMTDataLoader(BaseDataLoader):
     """
     Data loader for EBMT dataset (ME)
     """
-    def load_data(self, n_samples:int = None):
-        '''
+    def load_data(self, n_samples: int = None):
+        """
         t and e order, followed by arf, shock, death
-        '''
+        """
         df = pd.read_csv(Path.joinpath(cfg.DATA_DIR, 'ebmt.csv'), index_col=0)
 
         if n_samples:
             df = df.sample(n=n_samples, random_state=0)
-                            
+
+        # Define columns
         self.events_names = ['2', '3', '4', '5', '6'] 
         self.X_columns = ['match_no gender mismatch', 'proph_yes', 'year_1990-1994', 'year_1995-1998', 'agecl_<=20', 'agecl_>40']
-        self.E_columns = ['e1', 'e2', 'e3' ,'e4', 'e5']
-        self.T_columns = ['t1', 't2', 't3' ,'t4', 't5']
+        self.E_columns = ['e1', 'e2', 'e3', 'e4', 'e5']
+        self.T_columns = ['t1', 't2', 't3', 't4', 't5']
         self.columns = list(self.X_columns)
+        
+        # Rename time and event columns
+        df = df.rename(columns={
+            '2_time': 't1', '3_time': 't2', '4_time': 't3', '5_time': 't4', '6_time': 't5',
+            '2_event': 'e1', '3_event': 'e2', '4_event': 'e3', '5_event': 'e4', '6_event': 'e5'
+        })
+
+        # Remove rows where any duration ≤ 0
+        df = df[(df[self.T_columns] > 0).all(axis=1)]
+
+        # Save original df
+        self.df = df
+
+        # Features
         self.X = df[self.X_columns]
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
-        
-        self.y_t = np.stack((df['2_time'], df['3_time'], df['4_time'], df['5_time'], df['6_time']), axis=1)
-        self.y_e = np.stack((df['2_event'], df['3_event'], df['4_event'], df['5_event'], df['6_event']), axis=1)
-        
+
+        # Targets
+        self.y_t = df[self.T_columns].to_numpy()
+        self.y_e = df[self.E_columns].to_numpy()
+
         self.n_events = 5
-        self.df = df
-        self.df = self.df.rename(columns={'2_time': 't1', '3_time': 't2', '4_time': 't3', '5_time': 't4', '6_time': 't5',
-                                          '2_event': 'e1', '3_event': 'e2', '4_event': 'e3', '5_event': 'e4', '6_event': 'e5'})
-        
         self.trajectories = [(3, 1), (4, 1), (5, 1), (3, 2), (4, 2), (5, 2), (4, 3), (5, 3)]
-        # 2 < 4, 2 < 5, 2 < 6, 3 < 4 , 3< 5, 3 < 6, 4 < 5, 4 < 6
-        # 0 < 2, 0 < 3, 0 < 4, 1 < 2, 1 < 3, 1 < 4, 2 < 3, 2 < 4
-        # (2, 0), (3, 0), (4, 0), (2, 1), (3, 1), (4, 1), (3, 2), (4,2)
+
         return self
 
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+                   test_size: float, dtype=torch.float32, random_state=0):
         df_train, df_valid, df_test = make_stratified_split(self.df, stratify_colname='multi', frac_train=train_size,
                                                             frac_valid=valid_size, frac_test=test_size,
                                                             n_events=self.n_events, random_state=random_state)
@@ -917,7 +927,7 @@ class EBMTDataLoader(BaseDataLoader):
             data_dict = dict()
             data_dict['X'] = dataframe[self.X_columns].values
             data_dict['E'] = dataframe[self.E_columns].astype(np.int32).values
-            data_dict['T'] = dataframe[self.T_columns].astype(np.int32).values
+            data_dict['T'] = dataframe[self.T_columns].astype(np.float32).values
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2] 
@@ -957,7 +967,7 @@ class RotterdamMultiDataLoader(BaseDataLoader):
         return self
         
     def split_data(self, train_size: float, valid_size: float,
-                   test_size: float, dtype=torch.float64, random_state=0):
+                   test_size: float, dtype=torch.float32, random_state=0):
         df_train, df_valid, df_test = make_stratified_split(self.df, stratify_colname='multi', frac_train=train_size,
                                                             frac_valid=valid_size, frac_test=test_size,
                                                             n_events=self.n_events, random_state=random_state)
@@ -968,7 +978,7 @@ class RotterdamMultiDataLoader(BaseDataLoader):
             data_dict = dict()
             data_dict['X'] = dataframe[self.X_columns].values
             data_dict['E'] = dataframe[self.E_columns].astype(np.int32).values
-            data_dict['T'] = dataframe[self.T_columns].astype(np.int32).values
+            data_dict['T'] = dataframe[self.T_columns].astype(np.float32).values
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]       

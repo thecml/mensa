@@ -472,7 +472,7 @@ def make_time_bins(
         num_bins: Optional[int] = None,
         use_quantiles: bool = True,
         event: Optional[NumericArrayLike] = None,
-        dtype=torch.float64
+        dtype=torch.float32
 ) -> torch.Tensor:
     """
     Courtesy of https://ieeexplore.ieee.org/document/10158019

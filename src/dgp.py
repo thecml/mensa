@@ -10,7 +10,7 @@ def relu(x, coeff):
 
 class DGP_LogNormal_linear:
     # Note this is the LogNormal model, not the LogNormal CoxPH model
-    def __init__(self, mu: List[float], sigma: List[float], device='cpu', dtype=torch.float64) -> None:
+    def __init__(self, mu: List[float], sigma: List[float], device='cpu', dtype=torch.float32) -> None:
         self.mu_coeff = torch.tensor(mu, device=device).type(dtype)
         self.sigma_coeff = torch.tensor(sigma, device=device).type(dtype)
         self.device = device
@@ -54,7 +54,7 @@ class DGP_LogNormal_linear:
 
 class DGP_LogNormal_nonlinear(DGP_LogNormal_linear): # This is nonlinear lognormal CoxPH model
     def __init__(self, n_features, mu: List[float], sigma: List[float], risk_function=torch.nn.ReLU(),
-                 device='cpu', dtype=torch.float64) -> None:
+                 device='cpu', dtype=torch.float32) -> None:
         self.beta = torch.rand((n_features,), device=device).type(dtype)
         self.mu_coeff = torch.tensor(mu, device=device).type(dtype)
         self.sigma_coeff = torch.tensor(sigma, device=device).type(dtype)
@@ -71,7 +71,7 @@ class DGP_LogNormal_nonlinear(DGP_LogNormal_linear): # This is nonlinear lognorm
         return mu, sigma
 
 class DGP_LogNormalCox_linear: # This is linear lognormal CoxPH model
-    def __init__(self, n_features, mu: float, sigma: float, device="cpu", dtype=torch.float64) -> None:
+    def __init__(self, n_features, mu: float, sigma: float, device="cpu", dtype=torch.float32) -> None:
         self.mu = torch.tensor([mu]).type(dtype).to(device)
         self.sigma = torch.tensor([sigma]).type(dtype).to(device)
         self.coeff = torch.rand((n_features,)).to(device)
@@ -114,7 +114,7 @@ class DGP_LogNormalCox_linear: # This is linear lognormal CoxPH model
         raise NotImplementedError
 
 class DGP_Exp_linear: # This is linear exponential PH model
-    def __init__(self, n_features, baseline_hazard: float, device="cpu", dtype=torch.float64) -> None:
+    def __init__(self, n_features, baseline_hazard: float, device="cpu", dtype=torch.float32) -> None:
         self.bh = torch.tensor([baseline_hazard]).type(dtype).to(device)
         self.coeff = torch.rand((n_features,)).to(device)
     
@@ -141,7 +141,7 @@ class DGP_Exp_linear: # This is linear exponential PH model
 
 class DGP_EXP_nonlinear(DGP_Exp_linear): # This is nonlinear exponential PH model 
     def __init__(self, n_features, baseline_hazard: float, risk_function=relu,
-                 device='cpu', dtype=torch.float64) -> None:
+                 device='cpu', dtype=torch.float32) -> None:
         self.bh = torch.tensor([baseline_hazard], device=device).type(dtype)
         self.beta = torch.rand((n_features,), device=device).type(dtype)
         self.coeff = torch.rand((n_features,), device=device).type(dtype)
@@ -152,7 +152,7 @@ class DGP_EXP_nonlinear(DGP_Exp_linear): # This is nonlinear exponential PH mode
         return self.bh * torch.exp(risks)
 
 class DGP_Weibull_linear:
-    def __init__(self, n_features, alpha: float, gamma: float, device="cpu", dtype=torch.float64):
+    def __init__(self, n_features, alpha: float, gamma: float, device="cpu", dtype=torch.float32):
         self.alpha = torch.tensor([alpha], device=device).type(dtype)
         self.gamma = torch.tensor([gamma], device=device).type(dtype)
         self.device = device
@@ -187,7 +187,7 @@ class DGP_Weibull_linear:
     
 class DGP_Weibull_nonlinear:
     def __init__(self, n_features, alpha: float, gamma: float,
-                 hidden_dim: int=32, device="cpu", dtype=torch.float64):
+                 hidden_dim: int=32, device="cpu", dtype=torch.float32):
         self.alpha = torch.tensor([alpha], device=device).type(dtype)
         self.gamma = torch.tensor([gamma], device=device).type(dtype)
         self.device = device

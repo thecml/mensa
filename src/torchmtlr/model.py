@@ -34,7 +34,7 @@ class MTLRCR(nn.Module):
                  in_features: int,
                  num_time_bins: int,
                  num_events: int = 1,
-                 dtype=torch.float64):
+                 dtype=torch.float32):
         """Initialises the module.
 
         Parameters

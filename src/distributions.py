@@ -5,7 +5,7 @@ def LOG(x):
 
 class LogNormal_linear:
     # Note this is the LogNormal model, not the LogNormal CoxPH model
-    def __init__(self, n_features, device="cpu", dtype=torch.float64) -> None:
+    def __init__(self, n_features, device="cpu", dtype=torch.float32) -> None:
         self.mu_coeff = torch.rand((n_features,), device=device).type(dtype)
         self.sigma_coeff = torch.rand((n_features,), device=device).type(dtype)
         self.device = device
@@ -54,7 +54,7 @@ class LogNormal_linear:
 class LogNormal_nonlinear(LogNormal_linear):
     # Note this is the LogNormal nonlinear model
     def __init__(self, n_features, n_hidden, risk_function=torch.nn.ReLU(),
-                 device="cpu", dtype=torch.float64) -> None:
+                 device="cpu", dtype=torch.float32) -> None:
         self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
         self.mu_coeff = torch.rand((n_hidden,), device=device).type(dtype)
         self.sigma_coeff = torch.rand((n_hidden,), device=device).type(dtype)
@@ -76,7 +76,7 @@ class LogNormal_nonlinear(LogNormal_linear):
         return mu, sigma
 
 class LogNormalCox_linear:
-    def __init__(self, n_features, device="cpu", dtype=torch.float64) -> None:
+    def __init__(self, n_features, device="cpu", dtype=torch.float32) -> None:
         self.mu = torch.rand(1).type(dtype).to(device)
         self.sigma = torch.rand(1).type(dtype).to(device)
         self.coeff = torch.rand((n_features,)).to(device)
@@ -124,7 +124,7 @@ class LogNormalCox_linear:
         raise NotImplementedError
 
 class Exp_linear:
-    def __init__(self, n_features, device="cpu", dtype=torch.float64) -> None:
+    def __init__(self, n_features, device="cpu", dtype=torch.float32) -> None:
         self.bh = torch.rand(1).type(dtype).to(device)
         self.coeff = torch.rand((n_features,)).to(device)
     
@@ -156,7 +156,7 @@ class Exp_linear:
 class EXP_nonlinear(Exp_linear):
     # This is the exponential CoxPH model with a nonlinear risk function
     def __init__(self, n_features, n_hidden, risk_function=torch.nn.ReLU(),
-                 device='cpu', dtype=torch.float64) -> None:
+                 device='cpu', dtype=torch.float32) -> None:
         self.bh = torch.rand(1, device=device).type(dtype)
         self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
         self.coeff = torch.rand((n_hidden,), device=device).type(dtype)
@@ -167,7 +167,7 @@ class EXP_nonlinear(Exp_linear):
         return self.bh * torch.exp(risks)
 
 class Weibull_linear:
-    def __init__(self, n_features, device="cpu", dtype=torch.float64):
+    def __init__(self, n_features, device="cpu", dtype=torch.float32):
         self.alpha = torch.rand(1, device=device).type(dtype)
         self.gamma = torch.rand(1, device=device).type(dtype)
         self.coeff = torch.rand((n_features,), device=device).type(dtype)
@@ -203,7 +203,7 @@ class Weibull_linear:
 
 class Weibull_nonlinear:
     def __init__(self, n_features, n_hidden, risk_function=torch.nn.ReLU(),
-                 device='cpu', dtype=torch.float64):
+                 device='cpu', dtype=torch.float32):
         self.alpha = torch.rand((n_hidden,), device=device).type(dtype)
         self.gamma = torch.rand((n_hidden,), device=device).type(dtype)
         self.beta = torch.rand((n_features, n_hidden), device=device).type(dtype)
@@ -248,7 +248,7 @@ class Weibull_nonlinear:
         return scale * ((-LOG(u))**(1/shape))
     
 class Weibull_log_linear:
-    def __init__(self, n_features, device="cpu", dtype=torch.float64) -> None:
+    def __init__(self, n_features, device="cpu", dtype=torch.float32) -> None:
         self.mu = torch.rand(1, device=device).type(dtype)
         self.sigma = torch.rand(1, device=device).type(dtype)
         self.coeff = torch.rand((n_features,), device=device).type(dtype)
