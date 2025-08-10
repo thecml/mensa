@@ -146,7 +146,7 @@ if __name__ == "__main__":
                 model = make_rsf_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
-        elif model_name == "weibull_aft":
+        elif model_name == "weibullaft":
             config = load_config(cfg.WEIBULLAFT_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
             for event_index in range(n_events):
@@ -206,8 +206,8 @@ if __name__ == "__main__":
             for i in range(n_events):
                 model = make_dsm_model(config)
                 model.fit(train_dict['X'].cpu().numpy(), train_dict['T'][:,i].cpu().numpy(), train_dict['E'][:,i].cpu().numpy(),
-                        val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy()),
-                        learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
+                          val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'][:,i].cpu().numpy(), valid_dict['E'][:,i].cpu().numpy()),
+                          learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
                 trained_models.append(model)
         elif model_name == "dcm":
             config = load_config(cfg.DCM_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
@@ -266,7 +266,7 @@ if __name__ == "__main__":
                 extra_preds = np.minimum(extra_preds, 1)
                 preds = pd.DataFrame(extra_preds, columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
-        elif model_name == "weibull_aft":
+        elif model_name == "weibullaft":
             all_preds = []
             times_numpy = time_bins.cpu().numpy()
             X_test_df = pd.DataFrame(test_dict['X'].cpu().numpy(),
@@ -303,7 +303,10 @@ if __name__ == "__main__":
         elif model_name == "dsm":
             all_preds = []
             for trained_model in trained_models:
-                model_preds = trained_model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()))
+                trained_model.torch_model.float()
+                X_np  = test_dict['X'].detach().cpu().numpy().astype(np.float32, copy=False)
+                t_list = time_bins.detach().cpu().numpy().astype(np.float32, copy=False).tolist()
+                model_preds = trained_model.predict_survival(X_np, t=t_list)
                 model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
                 all_preds.append(model_preds)
         elif model_name == "dcm":

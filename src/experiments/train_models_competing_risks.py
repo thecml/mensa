@@ -186,7 +186,7 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             model = make_dsm_model(config)
             model.fit(train_dict['X'].cpu().numpy(), train_dict['T'].cpu().numpy(), train_dict['E'].cpu().numpy(),
-                      val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'].cpu().numpy(), valid_dict['T'].cpu().numpy()),
+                      val_data=(valid_dict['X'].cpu().numpy(), valid_dict['T'].cpu().numpy(), valid_dict['E'].cpu().numpy()),
                       learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "mensa":
             config = load_config(cfg.MENSA_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
@@ -255,7 +255,10 @@ if __name__ == "__main__":
         elif model_name == "dsm":
             all_preds = []
             for i in range(n_events):
-                model_pred = model.predict_survival(test_dict['X'].cpu().numpy(), t=list(time_bins.cpu().numpy()), risk=i+1)
+                trained_model.torch_model.float()
+                X_np  = test_dict['X'].detach().cpu().numpy().astype(np.float32, copy=False)
+                t_list = time_bins.detach().cpu().numpy().astype(np.float32, copy=False).tolist()
+                model_pred = model.predict_survival(X_np, t=t_list, risk=i+1)
                 model_pred = pd.DataFrame(model_pred, columns=time_bins.cpu().numpy())
                 all_preds.append(model_pred)
         elif model_name == "mensa":

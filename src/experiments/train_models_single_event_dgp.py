@@ -112,7 +112,7 @@ if __name__ == "__main__":
             batch_size = config['batch_size']
             model = make_dsm_model(config)
             model.fit(train_dict['X'].numpy(), train_dict['T'].numpy(), train_dict['E'].numpy(),
-                      val_data=(valid_dict['X'].numpy(), valid_dict['T'].numpy(), valid_dict['T'].numpy()),
+                      val_data=(valid_dict['X'].numpy(), valid_dict['T'].numpy(), valid_dict['E'].numpy()),
                       learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "deepsurv":
             config = dotdict(cfg.DEEPSURV_PARAMS)
@@ -173,7 +173,10 @@ if __name__ == "__main__":
             extra_preds = spline(time_bins.cpu().numpy())
             model_preds = np.minimum(extra_preds, 1)
         elif model_name == 'dsm':
-            model_preds = model.predict_survival(test_dict['X'].numpy(), t=list(time_bins.cpu().numpy()))
+            model.torch_model.float()
+            X_np  = test_dict['X'].detach().cpu().numpy().astype(np.float32, copy=False)
+            t_list = time_bins.detach().cpu().numpy().astype(np.float32, copy=False).tolist()  
+            model_preds = model.predict_survival(X_np, t=t_list)
         elif model_name == "deepsurv":
             model_preds, time_bins_deepsurv = make_deepsurv_prediction(model, test_dict['X'].to(device),
                                                                        config=config, dtype=dtype)
