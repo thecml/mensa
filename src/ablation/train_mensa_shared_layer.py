@@ -110,7 +110,7 @@ if __name__ == "__main__":
     
     # Train model
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                patience=10, weight_decay=weight_decay,
+                patience=20, weight_decay=weight_decay,
                 batch_size=batch_size, verbose=False)
     
     # Make predictions

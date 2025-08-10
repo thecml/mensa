@@ -82,26 +82,6 @@ def create_representation(input_dim, layers, dropout_rate, activation, bias=True
 
     return nn.Sequential(*modules)
 
-def add_transient_state(data_dict):
-    # Modify 'E': Add 1 if all columns are 0, else 0
-    condition_e = (data_dict['E'] == 0).all(dim=1).unsqueeze(1)
-    new_column_e = condition_e.long()
-    data_dict['E'] = torch.cat([new_column_e, data_dict['E']], dim=1)
-    
-    # Modify 'T': Add the maximum or minimum value based on 'E'
-    max_values = data_dict['T'].max(dim=1, keepdim=True).values
-    
-    # If all 'E' columns are 0, take the maximum; otherwise, take the minimum of active events
-    new_column_t = torch.where(
-        condition_e,  # Condition: all 'E' columns are 0
-        max_values,   # If true, take maximum
-        torch.where(data_dict['E'][:, 1:] == 1, data_dict['T'], float('inf')).min(dim=1, keepdim=True).values
-    )
-    
-    data_dict['T'] = torch.cat([new_column_t, data_dict['T']], dim=1)
-    
-    return data_dict
-
 class MLP(torch.nn.Module):
     """"
     input_dim: the input dimension, i.e., number of features.
@@ -112,14 +92,13 @@ class MLP(torch.nn.Module):
     discount: not used yet.
     """
     def __init__(self, input_dim, n_dists, layers, dropout_rate,
-                 temp, n_states, use_shared=True, discount=1.0):
+                 temp, n_states, discount=1.0):
         super(MLP, self).__init__()
 
         self.n_dists = n_dists
         self.temp = float(temp)
         self.discount = float(discount)
         self.n_states = n_states
-        self.use_shared = use_shared
 
         if layers is None:
             layers = []
@@ -131,12 +110,7 @@ class MLP(torch.nn.Module):
         self.shape = nn.Parameter(-torch.ones(self.n_dists * n_states))
         self.scale = nn.Parameter(-torch.ones(self.n_dists * n_states))
 
-        if self.use_shared:
-            self.embedding = create_representation(input_dim, layers, dropout_rate, 'ReLU6')
-        else:
-            self.embeddings = nn.ModuleList([
-                create_representation(input_dim, layers, dropout_rate, 'ReLU6') for _ in range(n_states)
-            ])
+        self.embedding = create_representation(input_dim, layers, dropout_rate, 'ReLU6')
 
         self.shapeg = nn.ModuleList([nn.Linear(lastdim, self.n_dists, bias=True) for _ in range(n_states)])
         self.scaleg = nn.ModuleList([nn.Linear(lastdim, self.n_dists, bias=True) for _ in range(n_states)])
@@ -155,14 +129,13 @@ class MLP(torch.nn.Module):
         outcomes = []
         n_samples = x.shape[0]
 
-        if self.use_shared:
-            xrep_shared = self.embedding(x)
+        xrep_shared = self.embedding(x)
 
         base_shape = self.shape.view(self.n_states, self.n_dists)
         base_scale = self.scale.view(self.n_states, self.n_dists)
 
         for i in range(self.n_states):
-            xrep = xrep_shared if self.use_shared else self.embeddings[i](x)
+            xrep = xrep_shared
             
             xrep = xrep + self.adapters[i](xrep)
 
@@ -192,16 +165,16 @@ class MENSA:
     """
     def __init__(self, n_features, n_events, n_dists=5,
                  layers=[32, 32], dropout_rate=0.5,
-                 use_shared=True, trajectories=[], device='cpu'):
+                 trajectories=[], device='cpu'):
         self.n_features = n_features
         self.n_states = n_events + 1 # K + 1 states
+        self.n_events = n_events
         self.device = device
         
-        self.use_shared = use_shared
         self.trajectories = trajectories
         
-        self.model = MLP(n_features, n_dists, layers, dropout_rate, temp=1000,
-                         n_states=self.n_states, use_shared=use_shared)
+        self.model = MLP(n_features, n_dists, layers, dropout_rate,
+                         temp=1000, n_states=self.n_states)
         
     def get_model(self):
         return self.model
@@ -219,29 +192,38 @@ class MENSA:
 
         multi_event = True if train_dict['T'].ndim > 1 else False
 
+        # Add transient state
         if multi_event:
-            T_tr, E_tr = add_event_free_column(train_dict['T'], train_dict['E'], n_events=self.n_states-1, horizon=None)
-            T_va, E_va = add_event_free_column(valid_dict['T'], valid_dict['E'], n_events=self.n_states-1, horizon=None)
+            train_times, train_events = add_event_free_column(train_dict['T'], train_dict['E'],
+                                                              n_events=self.n_events, horizon=None)
+            valid_times, valid_events = add_event_free_column(valid_dict['T'], valid_dict['E'],
+                                                              n_events=self.n_events, horizon=None)
         else:
-            _, E_tr = add_event_free_column(train_dict['T'].reshape(-1), train_dict['E'], n_events=self.n_states-1, horizon=None)
-            _, E_va = add_event_free_column(valid_dict['T'].reshape(-1), valid_dict['E'], n_events=self.n_states-1, horizon=None)
-            T_tr, T_va = train_dict['T'], valid_dict['T']
+            _, train_events = add_event_free_column(train_dict['T'].reshape(-1), train_dict['E'],
+                                                    n_events=self.n_events, horizon=None)
+            _, valid_events = add_event_free_column(valid_dict['T'].reshape(-1), valid_dict['E'],
+                                                    n_events=self.n_events, horizon=None)
+            train_times, valid_times = train_dict['T'], valid_dict['T']
 
-        train_loader = DataLoader(TensorDataset(train_dict['X'].to(self.device),
-                                                T_tr.to(self.device),
-                                                E_tr.to(self.device)),
-                                batch_size=batch_size, shuffle=True)
-        valid_loader = DataLoader(TensorDataset(valid_dict['X'].to(self.device),
-                                                T_va.to(self.device),
-                                                E_va.to(self.device)),
-                                batch_size=batch_size, shuffle=False)
+        train_loader = DataLoader(
+            TensorDataset(train_dict['X'].to(self.device),
+                        train_times.to(self.device),
+                        train_events.to(self.device)),
+            batch_size=batch_size, shuffle=True)
 
+        valid_loader = DataLoader(
+            TensorDataset(valid_dict['X'].to(self.device),
+                        valid_times.to(self.device),
+                        valid_events.to(self.device)),
+            batch_size=batch_size, shuffle=False)
+        
+        # Compute event weights
         if multi_event:
-            event_counts = torch.sum(E_tr[:, 0:], dim=0).float()  # shape: [K]
-            event_weights = 1.0 / (event_counts + 1e-8)
-            event_weights = event_weights / event_weights.sum() * event_counts.shape[0]  # normalize
+            event_counts = torch.sum(train_events[:, 0:], dim=0).float()
         else:
-            event_weights = None
+            event_counts = torch.tensor([torch.sum(train_events).float()], device=train_events.device)
+        event_weights = 1.0 / (event_counts + 1e-8)
+        event_weights = event_weights / event_weights.sum() * event_counts.shape[0]
 
         self.model.to(self.device)
         min_delta = 0.001

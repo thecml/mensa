@@ -99,13 +99,13 @@ if __name__ == "__main__":
                   n_events=n_events, n_dists=n_dists, trajectories=trajectories,
                   device=device)
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-              weight_decay=weight_decay, patience=10,
+              weight_decay=weight_decay, patience=20,
               batch_size=batch_size, verbose=True)
     
     # Make predictions
     all_preds = []
     for i in range(n_events):
-        model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1) #TODO: i+1
+        model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
         model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
         all_preds.append(model_preds)
     

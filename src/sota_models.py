@@ -256,19 +256,6 @@ def make_deephit_single(in_features, out_features, time_bins, device, config):
     model.label_transform = labtrans
     return model
     
-def make_deephit_multi(config, in_features, out_features, num_risks, duration_index):
-    num_nodes_shared = config['num_nodes_shared']
-    num_nodes_indiv = config['num_nodes_indiv']
-    batch_norm = config['batch_norm']
-    dropout = config['dropout']
-    net = CauseSpecificNet(in_features, num_nodes_shared, num_nodes_indiv, num_risks,
-                           out_features, batch_norm, dropout)
-    optimizer = tt.optim.AdamWR(lr=config['lr'],
-                                decoupled_weight_decay=config['weight_decay'],
-                                cycle_eta_multiplier=config['eta_multiplier'])
-    model = DeepHit(net, optimizer, alpha=config['alpha'], sigma=config['sigma'],
-                    duration_index=duration_index)
-
 def train_deephit_model(model, x_train, y_train, valid_data, config):
     epochs = config['epochs']
     batch_size = config['batch_size']

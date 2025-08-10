@@ -7,9 +7,9 @@ def safe_log(x):
 def conditional_weibull_loss_multi(f, s, e, n_risks: int, weights=None):
     loss = 0.0
     for k in range(n_risks):
-        temp = (e[:, k] == 1)
-        uncensored_loss = torch.sum(temp * f[:, k].T)
-        censored_loss = torch.sum((~temp) * s[:, k].T)
+        observed = (e[:, k] == 1)
+        uncensored_loss = torch.sum(observed * f[:, k].T)
+        censored_loss = torch.sum((~observed) * s[:, k].T)
         if weights is not None:
             loss += weights[k] * (uncensored_loss + censored_loss)
         else:
@@ -17,12 +17,15 @@ def conditional_weibull_loss_multi(f, s, e, n_risks: int, weights=None):
     loss = -loss / e.shape[0]
     return loss
 
-def conditional_weibull_loss(f, s, e, n_risks: int):    
+def conditional_weibull_loss(f, s, e, n_risks: int, weights=None):    
     loss = 0.0
     for k in range(n_risks):
-        temp = (e == k)
-        uncensored_loss = torch.sum(temp*f[:, k].T)
-        censored_loss = torch.sum(~temp*s[:, k].T)
-        loss += (uncensored_loss + censored_loss)    
+        observed = (e == k)
+        uncensored_loss = torch.sum(observed*f[:, k].T)
+        censored_loss = torch.sum(~observed*s[:, k].T)
+        if weights is not None:
+            loss += weights[k] * (uncensored_loss + censored_loss)
+        else:
+            loss += (uncensored_loss + censored_loss)
     loss = -loss / e.shape[0]
     return loss
