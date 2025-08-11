@@ -118,15 +118,11 @@ if __name__ == "__main__":
         all_preds.append(model_preds)
     
     # Calculate local and global CI
-    y_test_time = test_dict['T'].cpu().numpy()
-    y_test_event = test_dict['E'].cpu().numpy()
     all_preds_arr = [df.to_numpy() for df in all_preds]
-    global_ci = global_C_index(all_preds_arr, y_test_time, y_test_event)
-    local_ci = local_C_index(all_preds_arr, y_test_time, y_test_event)
-    
-    # Check for NaN or inf and replace with 0.5
-    global_ci = 0.5 if np.isnan(global_ci) or np.isinf(global_ci) else global_ci
-    local_ci = 0.5 if np.isnan(local_ci) or np.isinf(local_ci) else local_ci
+    global_ci = global_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
+                               test_dict['E'].cpu().numpy())
+    local_ci = local_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
+                             test_dict['E'].cpu().numpy())
     
     # Make evaluation for each event
     model_results = pd.DataFrame()
@@ -141,12 +137,21 @@ if __name__ == "__main__":
         lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
                                             y_train_time, y_train_event)
         
-        ci = lifelines_eval.concordance()[0]
+        time_points = np.quantile(y_test_time[y_test_event == 1], [0.25, 0.5, 0.75])
+        aucs = []
+        for t in time_points:
+            try:
+                auc = lifelines_eval.auc(t)
+            except ValueError:
+                auc = 0.5
+            aucs.append(auc)
+        mean_auc = np.mean(aucs)
+        
         ibs = lifelines_eval.integrated_brier_score()
-        mae = lifelines_eval.mae(method="Margin")
+        mae_margin = lifelines_eval.mae(method="Margin")
         d_calib = lifelines_eval.d_calibration()[0]
         
-        metrics = [ci, ibs, mae, d_calib, global_ci, local_ci]
+        metrics = [global_ci, local_ci, mean_auc, ibs, mae_margin, d_calib]
         print(metrics)
         
         if use_trajectory:
@@ -156,7 +161,7 @@ if __name__ == "__main__":
         
         res_sr = pd.Series([model_name, dataset_name, seed, event_id+1] + metrics,
                             index=["ModelName", "DatasetName", "Seed", "EventId",
-                                   "CI", "IBS", "MAEM", "DCalib", "GlobalCI", "LocalCI"])
+                                   "GlobalCI", "LocalCI", "AUC", "IBS", "MAEM", "DCalib"])
         model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
         
     # Save results

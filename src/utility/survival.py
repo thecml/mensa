@@ -671,7 +671,7 @@ def predict_survival_curve_truth_pred(truth_model, pred_model, x, time_steps):
         surv1_truth[:,i] = truth_model.survival(time_steps[i], x)
     return surv1_truth, surv1_estimate, time_steps, time_steps.max()
 
-def compute_l1_difference(truth_preds, model_preds, n_samples, steps, device='cpu'):
+def survival_l1(truth_preds, model_preds, n_samples, steps, device='cpu'):
     t_m = steps.max().to(device)
     surv1 = truth_preds.to(device)
     surv2 = model_preds.to(device)

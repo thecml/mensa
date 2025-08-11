@@ -165,12 +165,18 @@ class MENSA:
     """
     def __init__(self, n_features, n_events, n_dists=5,
                  layers=[32, 32], dropout_rate=0.5,
-                 trajectories=[], device='cpu'):
+                 trajectories=[], use_transient=True,
+                 device='cpu'):
         self.n_features = n_features
-        self.n_states = n_events + 1 # K + 1 states
+        self.use_transient = use_transient
         self.n_events = n_events
         self.device = device
         
+        if self.use_transient:
+            self.n_states = n_events + 1 # K + 1 states
+        else:
+            self.n_states = n_events
+            
         self.trajectories = trajectories
         
         self.model = MLP(n_features, n_dists, layers, dropout_rate,
@@ -192,18 +198,16 @@ class MENSA:
 
         multi_event = True if train_dict['T'].ndim > 1 else False
 
-        # Add transient state
-        if multi_event:
+        # Add transient state if toggled
+        if self.use_transient and multi_event:
             train_times, train_events = add_event_free_column(train_dict['T'], train_dict['E'],
-                                                              n_events=self.n_events, horizon=None)
+                                                            n_events=self.n_events, horizon=None)
             valid_times, valid_events = add_event_free_column(valid_dict['T'], valid_dict['E'],
-                                                              n_events=self.n_events, horizon=None)
+                                                            n_events=self.n_events, horizon=None)
         else:
-            _, train_events = add_event_free_column(train_dict['T'].reshape(-1), train_dict['E'],
-                                                    n_events=self.n_events, horizon=None)
-            _, valid_events = add_event_free_column(valid_dict['T'].reshape(-1), valid_dict['E'],
-                                                    n_events=self.n_events, horizon=None)
-            train_times, valid_times = train_dict['T'], valid_dict['T']
+           train_events, valid_events = train_dict['E'], valid_dict['E']
+           train_times, valid_times = train_dict['T'], valid_dict['T']
+
 
         train_loader = DataLoader(
             TensorDataset(train_dict['X'].to(self.device),
@@ -244,14 +248,14 @@ class MENSA:
 
                 params = self.model.forward(xi)
 
-                if multi_event: # TODO: Compute weight inside the batch
+                if multi_event:
                     f, s = self.compute_risks_multi(params, ti)
                     loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
                     for trajectory in self.trajectories:
                         loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
                 else:
                     f, s = self.compute_risks(params, ti)
-                    loss = conditional_weibull_loss(f, s, ei, self.model.n_states)  # TODO: Use weights
+                    loss = conditional_weibull_loss(f, s, ei, self.model.n_states, event_weights)
 
                 if not torch.isfinite(loss):
                     continue

@@ -20,15 +20,15 @@ from scipy.interpolate import interp1d
 
 # Local
 from data_loader import SingleEventSyntheticDataLoader
-from utility.survival import (make_time_bins, convert_to_structured, compute_l1_difference)
+from utility.survival import (make_time_bins, convert_to_structured, survival_l1)
 from utility.data import dotdict
 from utility.config import load_config
 from mensa.model import MENSA
 from utility.data import format_data_deephit_single
 
 # SOTA
-from sota_models import (make_coxph_model, make_coxboost_model, make_dsm_model,
-                         make_rsf_model, train_deepsurv_model, make_deepsurv_prediction,
+from sota_models import (make_coxnet_model, make_coxph_model, make_coxboost_model, make_dsm_model,
+                         make_rsf_model, make_weibull_aft_model, train_deepsurv_model, make_deepsurv_prediction,
                          DeepSurv, make_deephit_single, train_deephit_model)
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 
@@ -47,7 +47,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["coxph", "coxboost", "rsf", "deepsurv", 'deephit', "mtlr", "dsm", "mensa"]
+MODELS = ["coxph", "coxnet", "coxboost", "rsf", "weibullaft", "deepsurv", 'deephit', "mtlr", "dsm", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -56,6 +56,8 @@ if __name__ == "__main__":
     parser.add_argument('--k_tau', type=float, default=0.25)
     parser.add_argument('--copula_name', type=str, default="clayton")
     parser.add_argument('--linear', action='store_true') # store_true = False by default
+    
+    dataset_name = "synthetic_se"
     
     args = parser.parse_args()
     seed = args.seed
@@ -94,19 +96,27 @@ if __name__ == "__main__":
         random.seed(0)
         
         if model_name == "coxph":
-            config = dotdict(cfg.COXPH_PARAMS)
+            config = load_config(cfg.COXPH_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_coxph_model(config)
             model.fit(X_train, y_train)
+        elif model_name == "coxnet":
+            config = load_config(cfg.COXBOOST_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
+            model = make_coxnet_model(config)
+            model.fit(X_train, y_train)
         elif model_name == "coxboost":
-            config = dotdict(cfg.COXBOOST_PARAMS)
+            config = load_config(cfg.COXBOOST_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_coxboost_model(config)
             model.fit(X_train, y_train)
         elif model_name == "rsf":
-            config = dotdict(cfg.RSF_PARAMS)
+            config = load_config(cfg.RSF_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_rsf_model(config)
             model.fit(X_train, y_train)
+        elif model_name == "weibullaft":
+            config = load_config(cfg.WEIBULLAFT_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
+            model = make_weibull_aft_model(config)
+            model.fit(X_train, y_train)
         elif model_name == "dsm":
-            config = dotdict(cfg.DSM_PARAMS)
+            config = load_config(cfg.DSM_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_iter = config['n_iter']
             learning_rate = config['learning_rate']
             batch_size = config['batch_size']
@@ -115,7 +125,7 @@ if __name__ == "__main__":
                       val_data=(valid_dict['X'].numpy(), valid_dict['T'].numpy(), valid_dict['E'].numpy()),
                       learning_rate=learning_rate, batch_size=batch_size, iters=n_iter)
         elif model_name == "deepsurv":
-            config = dotdict(cfg.DEEPSURV_PARAMS)
+            config = load_config(cfg.DEEPSURV_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = DeepSurv(in_features=n_features, config=config)
             data_train = pd.DataFrame(train_dict['X'])
             data_train['time'] = train_dict['T']
@@ -126,7 +136,7 @@ if __name__ == "__main__":
             model = train_deepsurv_model(model, data_train, data_valid, time_bins, config=config,
                                          random_state=0, reset_model=True, device=device, dtype=dtype)
         elif model_name == "deephit":
-            config = dotdict(cfg.DEEPHIT_PARAMS)
+            config = load_config(cfg.DEEPHIT_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_deephit_single(in_features=n_features, out_features=len(time_bins),
                                         time_bins=time_bins.cpu().numpy(), device=device, config=config)
             labtrans = model.label_transform
@@ -140,7 +150,7 @@ if __name__ == "__main__":
             data_valid = X_valid.copy()
             data_valid["time"] = pd.Series(y_valid['time'])
             data_valid["event"] = pd.Series(y_valid['event']).astype(int)
-            config = dotdict(cfg.MTLR_PARAMS)
+            config = load_config(cfg.MTLR_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             num_time_bins = len(time_bins)
             model = mtlr(in_features=n_features, num_time_bins=num_time_bins, config=config)
             model = train_mtlr_model(model, data_train, data_valid, time_bins.cpu().numpy(),
@@ -165,13 +175,18 @@ if __name__ == "__main__":
         
         # Compute survival function
         n_samples = test_dict['X'].shape[0]
-        if model_name in ['coxph', "coxboost", 'rsf']:
+        if model_name in ["coxph", "coxnet", "coxboost", "rsf"]:
             model_preds = model.predict_survival_function(X_test)
             model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
             spline = interp1d(model.unique_times_, model_preds,
                               kind='linear', fill_value='extrapolate')
             extra_preds = spline(time_bins.cpu().numpy())
             model_preds = np.minimum(extra_preds, 1)
+        elif model_name == "weibullaft":
+            times_numpy = time_bins.cpu().numpy()
+            X_test_df = pd.DataFrame(X_test, columns=model.feature_names_)
+            surv_df = model.model.predict_survival_function(X_test_df, times=times_numpy)
+            model_preds = np.minimum(np.asarray(surv_df.T), 1.0)
         elif model_name == 'dsm':
             model.torch_model.float()
             X_np  = test_dict['X'].detach().cpu().numpy().astype(np.float32, copy=False)
@@ -204,10 +219,10 @@ if __name__ == "__main__":
         for i in range(time_bins.shape[0]):
             truth_preds_e[:,i] = dgps[1].survival(time_bins[i], test_dict['X'].to(device))
         model_preds_th = torch.tensor(model_preds, device=device, dtype=dtype)
-        l1_e = float(compute_l1_difference(truth_preds_e, model_preds_th, n_samples,
-                                           steps=time_bins, device=device))
+        l1_survival = float(survival_l1(truth_preds_e, model_preds_th, n_samples,
+                                 steps=time_bins, device=device))
         
-        metrics = [l1_e]
+        metrics = [l1_survival]
         print(f'{model_name}: ' + f'{metrics}')
         result_row = pd.Series([model_name, seed, linear, copula_name, k_tau] + metrics,
                                index=["ModelName", "Seed", "Linear", "Copula", "KTau", "L1"])

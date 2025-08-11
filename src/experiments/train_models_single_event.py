@@ -27,7 +27,7 @@ from utility.data import format_data_deephit_single
 from data_loader import get_data_loader
 
 # SOTA
-from sota_models import (make_coxph_model, make_coxboost_model, make_dsm_model, make_rsf_model, train_deepsurv_model,
+from sota_models import (make_coxnet_model, make_coxph_model, make_coxboost_model, make_dsm_model, make_rsf_model, make_weibull_aft_model, train_deepsurv_model,
                          make_deepsurv_prediction, DeepSurv, make_deephit_single, train_deephit_model)
 from utility.mtlr import mtlr, train_mtlr_model, make_mtlr_prediction
 
@@ -46,7 +46,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["coxph", "coxboost", "rsf", "dsm", "deepsurv", "deephit", "mtlr", "mensa"]
+MODELS = ["coxph", "coxnet", "coxboost", "rsf", "weibullaft", "deepsurv", "deephit", "mtlr", "dsm", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -74,16 +74,24 @@ if __name__ == "__main__":
     if dataset_name != "synthetic_se":
         cat_features = dl.cat_features
         num_features = dl.num_features
-        n_events = dl.n_events
+        trajectories = dl.trajectories
         X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
         X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
         X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
-        X_train, X_valid, X_test= preprocess_data(X_train, X_valid, X_test, cat_features,
-                                                  num_features, as_array=True)
+        X_train, X_valid, X_test = preprocess_data(X_train, X_valid, X_test, cat_features,
+                                                num_features, as_array=True)
         train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
+        train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int32)
+        train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.float32)
         valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
+        valid_dict['E'] = torch.tensor(valid_dict['E'], device=device, dtype=torch.int32)
+        valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.float32)
         test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
-        n_samples = train_dict['X'].shape[0]
+        test_dict['E'] = torch.tensor(test_dict['E'], device=device, dtype=torch.int32)
+        test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.float32)
+    
+    n_samples = train_dict['X'].shape[0]
+    n_features = train_dict['X'].shape[1]
     
     # Make time bins
     time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
@@ -110,6 +118,10 @@ if __name__ == "__main__":
             config = load_config(cfg.COXPH_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_coxph_model(config)
             model.fit(X_train, y_train)
+        elif model_name == "coxnet":
+            config = load_config(cfg.COXBOOST_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
+            model = make_coxnet_model(config)
+            model.fit(X_train, y_train)
         elif model_name == "coxboost":
             config = load_config(cfg.COXBOOST_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_coxboost_model(config)
@@ -117,6 +129,10 @@ if __name__ == "__main__":
         elif model_name == "rsf":
             config = load_config(cfg.RSF_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_rsf_model(config)
+            model.fit(X_train, y_train)
+        elif model_name == "weibullaft":
+            config = load_config(cfg.WEIBULLAFT_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
+            model = make_weibull_aft_model(config)
             model.fit(X_train, y_train)
         elif model_name == "dsm":
             config = load_config(cfg.DSM_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
@@ -177,14 +193,20 @@ if __name__ == "__main__":
             raise NotImplementedError()
         
         # Compute survival function
-        n_samples = test_dict['X'].shape[0]
-        if model_name in ['coxph', 'coxboost', 'rsf']:
+        if model_name in ["coxph", "coxnet", "coxboost", "rsf"]:
             model_preds = model.predict_survival_function(X_test)
             model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
             spline = interp1d(model.unique_times_, model_preds,
                               kind='linear', fill_value='extrapolate')
             extra_preds = spline(time_bins.cpu().numpy())
-            model_preds = np.minimum(extra_preds, 1)  
+            model_preds = np.minimum(extra_preds, 1)
+            model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
+        elif model_name == "weibullaft":
+            times_numpy = time_bins.cpu().numpy()
+            X_test_df = pd.DataFrame(X_test, columns=model.feature_names_)
+            surv_df = model.model.predict_survival_function(X_test_df, times=times_numpy)
+            preds_array = np.minimum(np.asarray(surv_df.T), 1.0)
+            model_preds = pd.DataFrame(preds_array, columns=times_numpy)
         elif model_name == 'dsm':
             model.torch_model.float()
             X_np  = test_dict['X'].detach().cpu().numpy().astype(np.float32, copy=False)
@@ -208,7 +230,7 @@ if __name__ == "__main__":
         elif model_name == "deephit":
             model_preds = model.predict_surv(test_dict['X']).cpu().numpy()
         elif model_name == "mensa":
-            model_preds = model.predict(test_dict['X'], time_bins, risk=1) # use event preds
+            model_preds = model.predict(test_dict['X'], time_bins, risk=1)
         else:
             raise NotImplementedError()
         
@@ -234,7 +256,7 @@ if __name__ == "__main__":
                 auc = 0.5
             aucs.append(auc)
         mean_auc = np.mean(aucs)
-
+        
         ibs = lifelines_eval.integrated_brier_score()
         mae_margin = lifelines_eval.mae(method="Margin")
         d_calib = lifelines_eval.d_calibration()[0]

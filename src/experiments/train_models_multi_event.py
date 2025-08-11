@@ -74,8 +74,6 @@ if __name__ == "__main__":
     cat_features = dl.cat_features
     num_features = dl.num_features
     trajectories = dl.trajectories
-    event_cols = [f'e{i+1}' for i in range(n_events)]
-    time_cols = [f't{i+1}' for i in range(n_events)]
     X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
     X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
     X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
