@@ -95,49 +95,14 @@ if __name__ == "__main__":
     lr = config['lr']
     batch_size = config['batch_size']
     layers = config['layers']
-    weight_decay = 0
-    dropout_rate = 0
+    weight_decay = config['weight_decay']
+    dropout_rate = config['dropout_rate']
     model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
                   n_events=n_events, n_dists=n_dists, trajectories=trajectories,
                   device=device)
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
               weight_decay=weight_decay, patience=20,
-              batch_size=batch_size, verbose=True)
-        
-    # Make predictions
-    all_preds = []
-    for i in range(n_events):
-        model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
-        model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-        all_preds.append(model_preds)
-    
-    # Calculate local and global CI
-    all_preds_arr = [df.to_numpy() for df in all_preds]
-    global_ci = global_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                               test_dict['E'].cpu().numpy())
-    local_ci = local_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
-                             test_dict['E'].cpu().numpy())
-            
-    # Make evaluation for each event
-    model_results = pd.DataFrame()
-    for event_id, surv_pred in enumerate(all_preds):
-        n_train_samples = len(train_dict['X'])
-        n_test_samples= len(test_dict['X'])
-        y_train_time = train_dict['T'][:,event_id]
-        y_train_event = train_dict['E'][:,event_id]
-        y_test_time = test_dict['T'][:,event_id]
-        y_test_event = test_dict['E'][:,event_id]
-        
-        lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
-                                            y_train_time, y_train_event)
-        
-        ci = lifelines_eval.concordance()[0]
-        ibs = lifelines_eval.integrated_brier_score()
-        mae = lifelines_eval.mae(method="Margin")
-        d_calib = lifelines_eval.d_calibration()[0]
-        
-        metrics = [ci, ibs, mae, d_calib, global_ci, local_ci]
-        print(metrics)
+              batch_size=batch_size, verbose=False)
         
     # Save model
     path = Path.joinpath(cfg.MODELS_DIR, f"mensa_{DATASET}_{n_dists}_dists.pkl")
