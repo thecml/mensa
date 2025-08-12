@@ -2,6 +2,8 @@ def map_model_name(model_name):
     name_map = {
         "dgp": "DGP",
         "coxph": "CoxPH",
+        "coxnet": "CoxNet",
+        "weibullaft": "Weibull",
         "dsm": "DSM",
         "rsf": "RSF",
         "coxboost": "GBSA",
@@ -17,6 +19,8 @@ def map_model_name(model_name):
 def map_model_type(model_name):
     model_type_map = {
         "coxph": "SE",
+        "coxnet": "SE",
+        "weibullaft": "SE",
         "coxboost": "SE",
         "rsf": "SE",
         "mtlr": "SE",

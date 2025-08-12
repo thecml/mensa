@@ -26,10 +26,9 @@ if __name__ == "__main__":
     dataset_names = ['mimic_me', 'rotterdam_me', 'proact_me', 'ebmt_me']
     
     # Sorted in desired order
-    model_names = ["coxph", "coxboost", "rsf", "mtlr", "deepsurv", "deephit", "dsm", "hierarch", "mensa"]
+    model_names = ["coxph", "coxnet", "weibullaft", "coxboost", "rsf", "mtlr", "deepsurv", "deephit", "dsm", "hierarch", "mensa"]
     
     disc_metrics = ["GlobalCI", "LocalCI", "AUC"]
-    
     for model_name in model_names:
         row_parts = [map_model_name(model_name), map_model_type(model_name)]
         
@@ -64,7 +63,6 @@ if __name__ == "__main__":
 
     for model_name in model_names:
         row_parts = [map_model_name(model_name), map_model_type(model_name)]
-
         for dataset_name in dataset_names:
             
             avg_seed_df = (

@@ -3,8 +3,8 @@ theta_layer_size: [50]
 layer_size_fine_bins:
 - [50, 5]
 lr: 0.0005
-reg_constant: 0
-n_batches: 10
+reg_constant: 0.01
+n_batches: 5
 batch_size: 32
 backward_c_optim: false
 hierarchical_loss: true
