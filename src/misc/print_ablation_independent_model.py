@@ -52,7 +52,7 @@ if __name__ == "__main__":
         for model_name in model_names:
             text = ""
             if model_name == "not_independent":
-                model_name_display = "Joint"
+                model_name_display = "Jointly"
             else:
                 model_name_display = "Indep."
             text += f"& {model_name_display} & "

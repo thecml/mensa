@@ -18,10 +18,10 @@ use_trajectory=("True" "False")
 dataset_names=('rotterdam_me' 'ebmt_me')
 
 for seed in "${seeds[@]}"; do
-    for ut in "${use_trajectory[@]}"; do
+    for tl in "${use_trajectory[@]}"; do
         for dataset_name in "${dataset_names[@]}"; do
-            echo "Running with seed=$seed, use_trajectory=$ut, dataset_name=$dataset_name"
-            if [ "$ut" = "True" ]; then
+            echo "Running with seed=$seed, use_trajectory=$tl, dataset_name=$dataset_name"
+            if [ "$tl" = "True" ]; then
                 python3 $base_path/../src/ablation/train_mensa_trajectory_loss.py --seed "$seed" --use_trajectory --dataset_name "$dataset_name"
             else
                 python3 $base_path/../src/ablation/train_mensa_trajectory_loss.py --seed "$seed" --dataset_name "$dataset_name"
