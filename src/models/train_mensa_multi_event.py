@@ -48,7 +48,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 SEED = 0
-DATASET = "proact_me"
+DATASET = "mimic_me"
 
 if __name__ == "__main__":
     # Load and split data
