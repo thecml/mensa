@@ -44,12 +44,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--use_transient', action='store_true') # store_true = False by default
+    parser.add_argument('--independent_model', action='store_true') # store_true = False by default
     parser.add_argument('--dataset_name', type=str, default='proact_me')
     
     args = parser.parse_args()
     seed = args.seed
-    use_transient = args.use_transient
+    independent_model = args.independent_model
     dataset_name = args.dataset_name
     
     # Load and split data
@@ -97,53 +97,57 @@ if __name__ == "__main__":
     layers = config['layers']
     weight_decay = config['weight_decay']
     dropout_rate = config['dropout_rate']
-    if use_transient:
+    
+    all_preds = []
+    
+    if not independent_model:
+        # Multi-event model
         model = MENSA(n_features, layers=layers, n_events=n_events,
                       n_dists=n_dists, trajectories=trajectories,
-                      dropout_rate=dropout_rate,
-                      device=device)
+                      dropout_rate=dropout_rate, device=device)
+        model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
+                  patience=20, weight_decay=weight_decay,
+                  batch_size=batch_size, verbose=False)
+
+        for i in range(n_events):
+            preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
+            preds = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
+            all_preds.append(preds)
     else:
-        model = MENSA(n_features, layers=layers, n_events=n_events,
-                      n_dists=n_dists, use_transient=False,
-                      trajectories=trajectories,
-                      dropout_rate=dropout_rate,
-                      device=device)
-    
-    # Train model
-    model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-                patience=20, weight_decay=weight_decay,
-                batch_size=batch_size, verbose=False)
-    
-    # Make predictions
-    all_preds = []
-    for i in range(n_events):
-        if use_transient:
-            model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
-        else:
-            model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i)
-        model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-        all_preds.append(model_preds)
-    
-    # Calculate local and global CI
+        # Independent single-event models
+        for i in range(n_events):
+            train_i = {'X': train_dict['X'], 'T': train_dict['T'][:, i:i+1], 'E': train_dict['E'][:, i:i+1]}
+            valid_i = {'X': valid_dict['X'], 'T': valid_dict['T'][:, i:i+1], 'E': valid_dict['E'][:, i:i+1]}
+            test_i  = {'X': test_dict['X'],  'T': test_dict['T'][:, i:i+1],  'E': test_dict['E'][:, i:i+1]}
+
+            model = MENSA(n_features, layers=layers, n_events=1,
+                          n_dists=n_dists, trajectories=trajectories,
+                          dropout_rate=dropout_rate, device=device)
+            model.fit(train_i, valid_i, learning_rate=lr, n_epochs=n_epochs,
+                      patience=20, weight_decay=weight_decay,
+                      batch_size=batch_size, verbose=False)
+
+            preds = model.predict(test_i['X'].to(device), time_bins, risk=1)
+            preds = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
+            all_preds.append(preds)
+
+    # Global/local CI
     all_preds_arr = [df.to_numpy() for df in all_preds]
     global_ci = global_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
                                test_dict['E'].cpu().numpy())
     local_ci = local_C_index(all_preds_arr, test_dict['T'].cpu().numpy(),
                              test_dict['E'].cpu().numpy())
-    
-    # Make evaluation for each event
+
+    # Per-event evaluation
     model_results = pd.DataFrame()
     for event_id, surv_pred in enumerate(all_preds):
-        n_train_samples = len(train_dict['X'])
-        n_test_samples= len(test_dict['X'])
-        y_train_time = train_dict['T'][:,event_id]
-        y_train_event = train_dict['E'][:,event_id]
-        y_test_time = test_dict['T'][:,event_id]
-        y_test_event = test_dict['E'][:,event_id]
-        
+        y_train_time = train_dict['T'][:, event_id].cpu().numpy()
+        y_train_event = train_dict['E'][:, event_id].cpu().numpy()
+        y_test_time = test_dict['T'][:, event_id].cpu().numpy()
+        y_test_event = test_dict['E'][:, event_id].cpu().numpy()
+
         lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
                                             y_train_time, y_train_event)
-        
         time_points = np.quantile(y_test_time[y_test_event == 1], [0.25, 0.5, 0.75])
         aucs = []
         for t in time_points:
@@ -153,29 +157,24 @@ if __name__ == "__main__":
                 auc = 0.5
             aucs.append(auc)
         mean_auc = np.mean(aucs)
-        
+
         ibs = lifelines_eval.integrated_brier_score()
         mae_margin = lifelines_eval.mae(method="Margin")
         d_calib = lifelines_eval.d_calibration()[0]
-        
-        metrics = [global_ci, local_ci, mean_auc, ibs, mae_margin, d_calib]
-        print(metrics)
-        
-        if use_transient:
-            model_name = "with_transient"
-        else:
-            model_name = "no_transient"
-        
-        res_sr = pd.Series([model_name, dataset_name, seed, event_id+1] + metrics,
-                            index=["ModelName", "DatasetName", "Seed", "EventId",
-                                   "GlobalCI", "LocalCI", "AUC", "IBS", "MAEM", "DCalib"])
+
+        model_name = "independent" if independent_model else "not_independent"
+        res_sr = pd.Series([model_name, dataset_name, seed, event_id+1,
+                            global_ci, local_ci, mean_auc, ibs, mae_margin, d_calib],
+                           index=["ModelName", "DatasetName", "Seed", "EventId",
+                                  "GlobalCI", "LocalCI", "AUC", "IBS", "MAEM", "DCalib"])
         model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
-        
+
     # Save results
-    filename = f"{cfg.RESULTS_DIR}/transient_state.csv"
+    filename = f"{cfg.RESULTS_DIR}/independent_model.csv"
     if os.path.exists(filename):
         results = pd.read_csv(filename)
     else:
         results = pd.DataFrame(columns=model_results.columns)
     results = results.append(model_results, ignore_index=True)
     results.to_csv(filename, index=False)
+ 

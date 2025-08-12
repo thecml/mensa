@@ -48,18 +48,18 @@ if __name__ == "__main__":
         
         for model_name in model_names:
             if model_name == "deepsurv":
-                config = dotdict(cfg.DEEPSURV_PARAMS)
+                config = load_config(cfg.DEEPSURV_CONFIGS_DIR, f"synthetic_se.yaml")
                 model = DeepSurv(in_features=n_features, config=config)
             elif model_name == "deephit":
-                config = dotdict(cfg.DEEPHIT_PARAMS)
+                config = load_config(cfg.DEEPHIT_CONFIGS_DIR, f"synthetic_se.yaml")
                 model = make_deephit_single(in_features=n_features, out_features=len(time_bins),
                                             time_bins=time_bins.cpu().numpy(), device=device, config=config)
             elif model_name == "mtlr":
-                config = dotdict(cfg.MTLR_PARAMS)
+                config = load_config(cfg.MTLR_CONFIGS_DIR, f"synthetic_se.yaml")
                 num_time_bins = len(time_bins)
                 model = mtlr(in_features=n_features, num_time_bins=num_time_bins, config=config)
             elif model_name == "dsm":
-                config = dotdict(cfg.DSM_PARAMS)
+                config = load_config(cfg.DSM_CONFIGS_DIR, f"synthetic_se.yaml")
                 n_iter = 1
                 learning_rate = config['learning_rate']
                 batch_size = config['batch_size']

@@ -22,7 +22,7 @@ def calculate_d_calib(df, model_name, dataset_name):
 def calculate_improvement(metric, baseline, metric_name):
     improvement = round(((float(metric) - float(baseline)) / float(baseline)) * 100, N_DECIMALS)
     sign = "+" if improvement > 0 else ""
-    if metric_name in ["CI", "GlobalCI", "LocalCI"]:
+    if metric_name in ["GlobalCI", "LocalCI", "AUC"]:
         color = "dimRed" if improvement < 0 else "dimGreen"
     elif metric_name == "IBS":
         color = "dimGreen" if improvement < 0 else "dimRed"
@@ -37,24 +37,24 @@ def calculate_improvement(metric, baseline, metric_name):
     return improvement_text
 
 if __name__ == "__main__":
-    path = Path.joinpath(cfg.RESULTS_DIR, f"shared_layer.csv")
+    path = Path.joinpath(cfg.RESULTS_DIR, f"independent_model.csv")
     df = pd.read_csv(path)
 
-    cols_to_scale = ["CI", "IBS", "GlobalCI", "LocalCI"]
+    cols_to_scale = ["GlobalCI", "LocalCI", "AUC", "IBS"]
     df[cols_to_scale] = df[cols_to_scale] * 100
 
-    dataset_names = ["proact_me", "rotterdam_me"]
-    model_names = ["with_shared", "no_shared"]
-    metric_names = ["CI", "IBS", "MAEM", "GlobalCI", "LocalCI", "DCalib"]
+    dataset_names = ["rotterdam_me", "proact_me"]
+    model_names = ["not_independent", "independent"]
+    metric_names = ["GlobalCI", "LocalCI", "AUC", "IBS", "MAEM", "DCalib"]
 
     for dataset_name in dataset_names:
         baseline_results = {}
         for model_name in model_names:
             text = ""
-            if model_name == "with_shared":
-                model_name_display = "With"
+            if model_name == "not_independent":
+                model_name_display = "Joint"
             else:
-                model_name_display = "Without"
+                model_name_display = "Indep."
             text += f"& {model_name_display} & "
 
             for i, metric_name in enumerate(metric_names):
@@ -62,7 +62,7 @@ if __name__ == "__main__":
                     d_calib = calculate_d_calib(df, model_name, dataset_name)
                     text += f"{d_calib}"
                 else:
-                    if metric_name in ["CI", "IBS", "MAEM"]:
+                    if metric_name in ["AUC", "IBS", "MAEM"]:
                         avg_seed_df = (df.groupby(["ModelName", "DatasetName", "EventId"], as_index=False).mean(numeric_only=True))
                         results = avg_seed_df.loc[(avg_seed_df['DatasetName'] == dataset_name)
                                                   & (avg_seed_df['ModelName'] == model_name)]
@@ -78,7 +78,7 @@ if __name__ == "__main__":
                     mean = f"%.{N_DECIMALS}f" % round(np.mean(results), N_DECIMALS)
                     std = f"%.{N_DECIMALS}f" % round(np.std(results), N_DECIMALS)
 
-                    if model_name == "with_shared":
+                    if model_name == "not_independent":
                         # Store the baseline value for this metric
                         baseline_results[metric_name] = np.mean(results)
                         text += f"{mean}$\\pm${std} & "

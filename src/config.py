@@ -79,7 +79,7 @@ COXBOOST_PARAMS = {
 }
 
 DEEPSURV_PARAMS = {
-    'hidden_size': 100,
+    'hidden_size': 32,
     'verbose': False,
     'lr': 0.001,
     'c1': 0.01,

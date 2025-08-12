@@ -50,13 +50,13 @@ if __name__ == "__main__":
 
         for model_name in model_names:
             if model_name == "deepsurv":
-                config = dotdict(cfg.DEEPSURV_PARAMS)
+                config = load_config(cfg.DEEPSURV_CONFIGS_DIR, f"synthetic_se.yaml")
                 trained_models = []
                 for i in range(n_events):
                     model = DeepSurv(in_features=n_features, config=config)
                     trained_models.append(model)
             elif model_name == "deephit":
-                config = dotdict(cfg.DEEPHIT_PARAMS)
+                config = load_config(cfg.DEEPHIT_CONFIGS_DIR, f"synthetic_se.yaml")
                 max_time = torch.tensor([dl.get_data()[1].max()], dtype=dtype, device=device)
                 time_bins_dh = time_bins
                 if max_time not in time_bins_dh:
@@ -66,10 +66,10 @@ if __name__ == "__main__":
                 model.net.to(device)
             elif model_name == "mtlr":
                 num_time_bins = len(time_bins.cpu().numpy()) + 1
-                config = dotdict(cfg.MTLRCR_PARAMS)
+                config = load_config(cfg.MTLR_CONFIGS_DIR, f"synthetic_se.yaml")
                 model = MTLRCR(in_features=n_features, num_time_bins=num_time_bins, num_events=n_events)
             elif model_name == "dsm":
-                config = dotdict(cfg.DSM_PARAMS)
+                config = load_config(cfg.DSM_CONFIGS_DIR, f"synthetic_se.yaml")
                 n_iter = 1
                 learning_rate = config['learning_rate']
                 batch_size = config['batch_size']

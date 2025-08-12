@@ -129,10 +129,10 @@ if __name__ == "__main__":
     for event_id, surv_pred in enumerate(all_preds):
         n_train_samples = len(train_dict['X'])
         n_test_samples= len(test_dict['X'])
-        y_train_time = train_dict['T'][:,event_id]
-        y_train_event = train_dict['E'][:,event_id]
-        y_test_time = test_dict['T'][:,event_id]
-        y_test_event = test_dict['E'][:,event_id]
+        y_train_time = train_dict['T'][:,event_id].cpu().numpy()
+        y_train_event = train_dict['E'][:,event_id].cpu().numpy()
+        y_test_time = test_dict['T'][:,event_id].cpu().numpy()
+        y_test_event = test_dict['E'][:,event_id].cpu().numpy()
         
         lifelines_eval = LifelinesEvaluator(surv_pred.T, y_test_time, y_test_event,
                                             y_train_time, y_train_event)
