@@ -260,7 +260,7 @@ if __name__ == "__main__":
                             index=["ModelName", "DatasetName", "Seed",
                                    "CI", "AUC", "IBS", "MAEM", "DCalib"])
         model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
-            
+        
         # Save results
         filename = f"{cfg.RESULTS_DIR}/single_event.csv"
         if os.path.exists(filename):

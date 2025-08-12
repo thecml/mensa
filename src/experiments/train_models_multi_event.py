@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--dataset_name', type=str, default="proact_me")
+    parser.add_argument('--dataset_name', type=str, default="ebmt_me")
     
     args = parser.parse_args()
     seed = args.seed
@@ -374,7 +374,12 @@ if __name__ == "__main__":
                                 index=["ModelName", "DatasetName", "Seed", "EventId",
                                        "GlobalCI", "LocalCI", "AUC", "IBS", "MAEM", "DCalib"])
             model_results = pd.concat([model_results, res_sr.to_frame().T], ignore_index=True)
-            
+        
+        # Fill NaN values in numeric columns with column mean
+        model_results = model_results.replace([np.inf, -np.inf], np.nan)
+        numeric_cols = model_results.select_dtypes(include=[np.number]).columns
+        model_results[numeric_cols] = model_results[numeric_cols].apply(lambda col: col.fillna(col.mean()))        
+        
         # Save results
         filename = f"{cfg.RESULTS_DIR}/multi_event.csv"
         if os.path.exists(filename):
