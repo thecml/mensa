@@ -120,7 +120,7 @@ class MLP(torch.nn.Module):
         self.adapters = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(lastdim, adapter_hidden, bias=True),
-                nn.ReLU(),
+                nn.ReLU6(),
                 nn.Linear(adapter_hidden, lastdim, bias=True),
             ) for _ in range(n_states)
         ])
