@@ -102,14 +102,14 @@ def format_data_deephit_competing(train_dict, valid_dict, time_bins):
         def transform(self, durations, events):
             durations, is_event = super().transform(durations, events > 0)
             events[is_event == 0] = 0
-            return durations, events.astype('int32')
+            return durations, events.astype('int64')
     train_dict_dh = dict()
     train_dict_dh['X'] = train_dict['X'].cpu().numpy()
     train_dict_dh['E'] = train_dict['E'].cpu().numpy()
     train_dict_dh['T'] = train_dict['T'].cpu().numpy()
     valid_dict_dh = dict()
     valid_dict_dh['X'] = valid_dict['X'].cpu().numpy()
-    valid_dict_dh['E'] = valid_dict['E'].cpu().numpy()
+    valid_dict_dh['E'] = valid_dict['E'].cpu().numpy() 
     valid_dict_dh['T'] = valid_dict['T'].cpu().numpy()
     labtrans = LabTransform(time_bins.cpu().numpy())
     get_target = lambda data: (data['T'], data['E'])

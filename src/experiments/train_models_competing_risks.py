@@ -73,7 +73,6 @@ if __name__ == "__main__":
     # Preprocess data
     cat_features = dl.cat_features
     num_features = dl.num_features
-    trajectories = dl.trajectories
     X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
     X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
     X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
@@ -93,7 +92,7 @@ if __name__ == "__main__":
     n_features = train_dict['X'].shape[1]
     
     # Make time bins
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
+    time_bins = make_time_bins(train_dict['T'].cpu(), event=None, dtype=dtype).to(device)
     time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
 
     # Evaluate models
@@ -118,8 +117,8 @@ if __name__ == "__main__":
             config = load_config(cfg.COXBOOST_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
             for i in range(n_events):
-                train_times = train_dict['T'][:,i].cpu().numpy()
-                train_events = train_dict['E'][:,i].cpu().numpy()
+                train_times = train_dict['T'].cpu().numpy()
+                train_events = (train_dict['E'].cpu().numpy() == i+1)*1.0
                 y_train = convert_to_structured(train_times, train_events)
                 model = make_coxnet_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
@@ -147,9 +146,9 @@ if __name__ == "__main__":
         elif model_name == "weibullaft":
             config = load_config(cfg.WEIBULLAFT_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
-            for event_index in range(n_events):
-                train_times = train_dict['T'][:, event_index].cpu().numpy()
-                train_events = train_dict['E'][:, event_index].cpu().numpy()
+            for i in range(n_events):
+                train_times = train_dict['T'].cpu().numpy()
+                train_events = (train_dict['E'].cpu().numpy() == i+1)*1.0
                 y_train = convert_to_structured(train_times, train_events)
                 model = make_weibull_aft_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
@@ -325,10 +324,10 @@ if __name__ == "__main__":
         for event_id, surv_preds in enumerate(all_preds):
             n_train_samples = len(train_dict['X'])
             n_test_samples= len(test_dict['X'])
-            y_train_time = train_dict['T']
-            y_train_event = (train_dict['E'] == event_id+1)*1.0
-            y_test_time = test_dict['T']
-            y_test_event = (test_dict['E'] == event_id+1)*1.0
+            y_train_time = train_dict['T'].cpu().numpy()
+            y_train_event = ((train_dict['E'] == event_id+1)*1.0).cpu().numpy()
+            y_test_time = test_dict['T'].cpu().numpy()
+            y_test_event = ((test_dict['E'] == event_id+1)*1.0).cpu().numpy()
             
             lifelines_eval = LifelinesEvaluator(surv_preds.T, y_test_time, y_test_event,
                                                 y_train_time, y_train_event)

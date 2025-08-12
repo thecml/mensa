@@ -76,7 +76,7 @@ if __name__ == "__main__":
     dgps = dl.dgps
     
     # Make time bins
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
+    time_bins = make_time_bins(train_dict['T'].cpu(), event=None, dtype=dtype).to(device)
     time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
 
     # Format data to work easier with sksurv API
@@ -177,7 +177,7 @@ if __name__ == "__main__":
         n_samples = test_dict['X'].shape[0]
         if model_name in ["coxph", "coxnet", "coxboost", "rsf"]:
             model_preds = model.predict_survival_function(X_test)
-            model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
+            model_preds = np.row_stack([fn(model.unique_times_) for fn in model_preds])
             spline = interp1d(model.unique_times_, model_preds,
                               kind='linear', fill_value='extrapolate')
             extra_preds = spline(time_bins.cpu().numpy())

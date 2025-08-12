@@ -160,9 +160,9 @@ class SingleEventSyntheticDataLoader(BaseDataLoader):
         n_features = df.shape[1] - 2
         for dataframe in dataframes:
             data_dict = dict()
-            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=dtype)
-            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=dtype)
-            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=dtype)
+            data_dict['X'] = torch.tensor(dataframe.loc[:, 'X0':f'X{n_features-1}'].to_numpy(), dtype=torch.float32)
+            data_dict['E'] = torch.tensor(dataframe['event'].to_numpy(), dtype=torch.int32)
+            data_dict['T'] = torch.tensor(dataframe['time'].to_numpy(), dtype=torch.float32)
             dicts.append(data_dict)
             
         return dicts[0], dicts[1], dicts[2]

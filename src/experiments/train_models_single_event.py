@@ -60,41 +60,34 @@ if __name__ == "__main__":
     
     # Load and split data
     dl = get_data_loader(dataset_name)
-    if dataset_name == "synthetic_se":
-        data_config = load_config(cfg.DGP_CONFIGS_DIR, f"synthetic_se.yaml")
-        dl = dl.load_data(data_config=data_config, linear=False, copula_name="clayton",
-                          k_tau=0.5, device=device, dtype=dtype)
-    else:
-        dl = dl.load_data()
+    dl = dl.load_data()
         
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
                                                       random_state=seed)
     
     # Preprocess data
-    if dataset_name != "synthetic_se":
-        cat_features = dl.cat_features
-        num_features = dl.num_features
-        trajectories = dl.trajectories
-        X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
-        X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
-        X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
-        X_train, X_valid, X_test = preprocess_data(X_train, X_valid, X_test, cat_features,
+    cat_features = dl.cat_features
+    num_features = dl.num_features
+    X_train = pd.DataFrame(train_dict['X'], columns=dl.columns)
+    X_valid = pd.DataFrame(valid_dict['X'], columns=dl.columns)
+    X_test = pd.DataFrame(test_dict['X'], columns=dl.columns)
+    X_train, X_valid, X_test = preprocess_data(X_train, X_valid, X_test, cat_features,
                                                 num_features, as_array=True)
-        train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
-        train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int32)
-        train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.float32)
-        valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
-        valid_dict['E'] = torch.tensor(valid_dict['E'], device=device, dtype=torch.int32)
-        valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.float32)
-        test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
-        test_dict['E'] = torch.tensor(test_dict['E'], device=device, dtype=torch.int32)
-        test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.float32)
+    train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
+    train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int32)
+    train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.float32)
+    valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
+    valid_dict['E'] = torch.tensor(valid_dict['E'], device=device, dtype=torch.int32)
+    valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.float32)
+    test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
+    test_dict['E'] = torch.tensor(test_dict['E'], device=device, dtype=torch.int32)
+    test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.float32)
     
     n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
     
     # Make time bins
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
+    time_bins = make_time_bins(train_dict['T'].cpu(), event=None, dtype=dtype).to(device)
     time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
 
     # Format data to work easier with sksurv API
@@ -195,12 +188,12 @@ if __name__ == "__main__":
         # Compute survival function
         if model_name in ["coxph", "coxnet", "coxboost", "rsf"]:
             model_preds = model.predict_survival_function(X_test)
-            model_preds = np.row_stack([fn(time_bins.cpu().numpy()) for fn in model_preds])
+            model_preds = np.row_stack([fn(model.unique_times_) for fn in model_preds])
             spline = interp1d(model.unique_times_, model_preds,
                               kind='linear', fill_value='extrapolate')
             extra_preds = spline(time_bins.cpu().numpy())
-            model_preds = np.minimum(extra_preds, 1)
-            model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
+            extra_preds = np.minimum(extra_preds, 1)
+            model_preds = pd.DataFrame(extra_preds, columns=time_bins.cpu().numpy())
         elif model_name == "weibullaft":
             times_numpy = time_bins.cpu().numpy()
             X_test_df = pd.DataFrame(X_test, columns=model.feature_names_)
@@ -238,10 +231,10 @@ if __name__ == "__main__":
         model_results = pd.DataFrame()
         surv_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
         
-        y_train_time = train_dict['T']
-        y_train_event = (train_dict['E'])*1.0
-        y_test_time = test_dict['T']
-        y_test_event = (test_dict['E'])*1.0
+        y_train_time = train_dict['T'].cpu().numpy()
+        y_train_event = train_dict['E'].cpu().numpy()
+        y_test_time = test_dict['T'].cpu().numpy()
+        y_test_event = test_dict['E'].cpu().numpy()
         lifelines_eval = LifelinesEvaluator(surv_preds.T, y_test_time, y_test_event,
                                             y_train_time, y_train_event)
         

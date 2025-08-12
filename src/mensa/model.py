@@ -208,7 +208,6 @@ class MENSA:
            train_events, valid_events = train_dict['E'], valid_dict['E']
            train_times, valid_times = train_dict['T'], valid_dict['T']
 
-
         train_loader = DataLoader(
             TensorDataset(train_dict['X'].to(self.device),
                         train_times.to(self.device),
@@ -225,7 +224,7 @@ class MENSA:
         if multi_event:
             event_counts = torch.sum(train_events[:, 0:], dim=0).float()
         else:
-            event_counts = torch.tensor([torch.sum(train_events).float()], device=train_events.device)
+            event_counts = torch.bincount(train_events)
         event_weights = 1.0 / (event_counts + 1e-8)
         event_weights = event_weights / event_weights.sum() * event_counts.shape[0]
 
@@ -288,7 +287,7 @@ class MENSA:
                             loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
                     else:
                         f, s = self.compute_risks(params, ti)
-                        loss = conditional_weibull_loss(f, s, ei, self.model.n_states)
+                        loss = conditional_weibull_loss(f, s, ei, self.model.n_states, event_weights)
 
                     total_valid_loss += loss.item()
 
