@@ -13,7 +13,7 @@ if [ -f "$results_path" ]; then
   rm $results_path
 fi
 
-seeds=($(seq 0 24))
+seeds=($(seq 0 9))
 use_transient=("True" "False")
 dataset_names=('rotterdam_me' 'proact_me')
 
