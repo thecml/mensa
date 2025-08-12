@@ -91,7 +91,7 @@ if __name__ == "__main__":
     # Evaluate models
     config = load_config(cfg.MENSA_CONFIGS_DIR, f"{DATASET.partition('_')[0]}.yaml")
     n_epochs = config['n_epochs']
-    n_dists = 10 # [1, 3, 5, 10]
+    n_dists = 7 # [1, 3, 5, 7]
     lr = config['lr']
     batch_size = config['batch_size']
     layers = config['layers']

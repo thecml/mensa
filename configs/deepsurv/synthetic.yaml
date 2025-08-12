@@ -1,4 +1,4 @@
-hidden_size: 100
+hidden_size: 32
 verbose: false
 lr: 0.001
 c1: 0.01

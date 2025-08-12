@@ -41,7 +41,7 @@ if __name__ == "__main__":
                                                         linear=True, copula_name=None,
                                                         k_tau=0, device=device, dtype=dtype)
         train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
-                                                        random_state=0)
+                                                          random_state=0)
         n_samples = train_dict['X'].shape[0]
         time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
         time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
