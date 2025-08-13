@@ -50,7 +50,7 @@ dtype = torch.float32
 torch.set_default_dtype(dtype)
 
 # Setup device
-device = "cpu" # torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 DATASET = "ebmt_me"
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     dl = get_data_loader(DATASET)
     dl = dl.load_data()
     train_dict, valid_dict, test_dict = dl.split_data(train_size=0.7, valid_size=0.1, test_size=0.2,
-                                                      random_state=8)
+                                                      random_state=0)
     n_events = dl.n_events
     
     # Preprocess data

@@ -233,13 +233,13 @@ class MENSA:
         best_valid_loss = float('inf')
         epochs_no_improve = 0
         best_model_state = None
-
+        
         pbar = trange(n_epochs, disable=not verbose)
 
         for itr in pbar:
             self.model.train()
             total_train_loss = 0
-
+            
             # Training step
             for xi, ti, ei in train_loader:
                 xi, ti, ei = xi.to(self.device), ti.to(self.device), ei.to(self.device)
