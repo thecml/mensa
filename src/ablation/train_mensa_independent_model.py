@@ -121,7 +121,7 @@ if __name__ == "__main__":
             test_i  = {'X': test_dict['X'],  'T': test_dict['T'][:, i:i+1],  'E': test_dict['E'][:, i:i+1]}
 
             model = MENSA(n_features, layers=layers, n_events=1,
-                          n_dists=n_dists, trajectories=trajectories,
+                          n_dists=n_dists, trajectories=[],
                           dropout_rate=dropout_rate, device=device)
             model.fit(train_i, valid_i, learning_rate=lr, n_epochs=n_epochs,
                       patience=20, weight_decay=weight_decay,
