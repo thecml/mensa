@@ -911,7 +911,10 @@ class EBMTDataLoader(BaseDataLoader):
         self.y_e = df[self.E_columns].to_numpy()
 
         self.n_events = 5
-        self.trajectories = [(3, 1), (4, 1), (5, 1), (3, 2), (4, 2), (5, 2), (4, 3), (5, 3)]
+        self.trajectories = [
+            (1, 3), (2, 3),
+            (1, 5), (2, 5), (3, 5), (4, 5),
+        ]
 
         return self
 
@@ -938,7 +941,7 @@ class RotterdamMultiDataLoader(BaseDataLoader):
     """
     def load_data(self, n_samples:int = None):
         '''
-        Events: 0 censor, 1 death, 2 recur
+        Events: 0 censor, 1 recur, 2 death
         '''
         df = pd.read_csv(f'{cfg.DATA_DIR}/rotterdam.csv')
         
@@ -963,7 +966,7 @@ class RotterdamMultiDataLoader(BaseDataLoader):
         self.num_features = self._get_num_features(self.X)
         self.cat_features = self._get_cat_features(self.X)
         self.n_events = 2
-        self.trajectories = [(2, 1)]
+        self.trajectories = [(1, 2)]
         return self
         
     def split_data(self, train_size: float, valid_size: float,

@@ -250,8 +250,8 @@ class MENSA:
                 if multi_event:
                     f, s = self.compute_risks_multi(params, ti)
                     loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
-                    for trajectory in self.trajectories:
-                        loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
+                    for (i, j) in self.trajectories:
+                        loss += self.compute_risk_trajectory(i, j, ti, ei, params)
                 else:
                     f, s = self.compute_risks(params, ti)
                     loss = conditional_weibull_loss(f, s, ei, self.model.n_states, event_weights)
@@ -283,8 +283,8 @@ class MENSA:
                     if multi_event:
                         f, s = self.compute_risks_multi(params, ti)
                         loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
-                        for trajectory in self.trajectories:
-                            loss += self.compute_risk_trajectory(trajectory[0], trajectory[1], ti, ei, params)
+                        for (i, j) in self.trajectories:
+                            loss += self.compute_risk_trajectory(i, j, ti, ei, params)
                     else:
                         f, s = self.compute_risks(params, ti)
                         loss = conditional_weibull_loss(f, s, ei, self.model.n_states, event_weights)
@@ -332,11 +332,11 @@ class MENSA:
         return torch.stack(f_risks, 1), torch.stack(s_risks, 1)
         
     def compute_risk_trajectory(self, i, j, ti, ei, params): 
-        # eg: i = 2, j = 0, j happen before i, S_i(T_j)
-        t = ti[:,j].reshape(-1,1).expand(-1, self.model.n_dists) #(n, k)
-        k = params[i][0]
-        b = params[i][1]
-        gate = nn.LogSoftmax(dim=1)(params[i][2])
+        # i happend before j, maximize S_j(t_i)
+        t = ti[:,i].reshape(-1,1).expand(-1, self.model.n_dists) #(n, k)
+        k = params[j][0]
+        b = params[j][1]
+        gate = nn.LogSoftmax(dim=1)(params[j][2])
         s = -(torch.pow(torch.exp(b)*t, torch.exp(k)))
         s = (s + gate)
         s = torch.logsumexp(s, dim=1) #log_survival
