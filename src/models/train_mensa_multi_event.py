@@ -36,18 +36,22 @@ from data_loader import get_data_loader
 
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
 
-np.random.seed(0)
-torch.manual_seed(0)
-random.seed(0)
+SEED = 0
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed_all(SEED)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 # Set precision
 dtype = torch.float32
 torch.set_default_dtype(dtype)
 
 # Setup device
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = "cpu" # torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-SEED = 0
 DATASET = "ebmt_me"
 
 if __name__ == "__main__":
