@@ -51,27 +51,27 @@ if __name__ == "__main__":
         
         for model_name in model_names:
             if model_name == "deepsurv":
-                config = load_config(cfg.DEEPSURV_CONFIGS_DIR, f"synthetic_se.yaml")
+                config = load_config(cfg.DEEPSURV_CONFIGS_DIR, f"synthetic.yaml")
                 models = []
                 for i in range(n_events):
                     model = DeepSurv(in_features=n_features, config=config)
                     models.append(model)
             elif model_name == "deephit":
-                config = load_config(cfg.DEEPHIT_CONFIGS_DIR, f"synthetic_se.yaml")
+                config = load_config(cfg.DEEPHIT_CONFIGS_DIR, f"synthetic.yaml")
                 models = []
                 for i in range(n_events):
                     model = make_deephit_single(in_features=n_features, out_features=len(time_bins),
                                                 time_bins=time_bins.cpu().numpy(), device=device, config=config)
                     models.append(model)
             elif model_name == "mtlr":
-                config = load_config(cfg.MTLR_CONFIGS_DIR, f"synthetic_se.yaml")
+                config = load_config(cfg.MTLR_CONFIGS_DIR, f"synthetic.yaml")
                 models = []
                 for i in range(n_events):
                     num_time_bins = len(time_bins)
                     model = mtlr(in_features=n_features, num_time_bins=num_time_bins, config=config)
                     models.append(model)
             elif model_name == "dsm":
-                config = load_config(cfg.DSM_CONFIGS_DIR, f"synthetic_se.yaml")
+                config = load_config(cfg.DSM_CONFIGS_DIR, f"synthetic.yaml")
                 n_iter = 1
                 learning_rate = config['learning_rate']
                 batch_size = config['batch_size']
@@ -154,6 +154,7 @@ if __name__ == "__main__":
                     sum_flops += flops.total()
             elif model_name == "dsm":
                 for model in models:
+                    model.torch_model.float()
                     flops = FlopCountAnalysis(model.torch_model, test_dict['X'][0].unsqueeze(0).to("cpu"))
                     sum_flops += flops.total()
             elif model_name == "hierarch":
