@@ -248,7 +248,7 @@ if __name__ == "__main__":
             all_preds = []
             times_numpy = time_bins.cpu().numpy()
             X_test_df = pd.DataFrame(test_dict['X'].cpu().numpy(),
-                                    columns=trained_models[0].feature_names_)
+                                     columns=trained_models[0].feature_names_)
             for trained_model in trained_models:
                 surv_df = trained_model.model.predict_survival_function(X_test_df, times=times_numpy)
                 preds_array = np.minimum(np.asarray(surv_df.T), 1.0)

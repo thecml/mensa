@@ -196,7 +196,8 @@ if __name__ == "__main__":
             model_preds = pd.DataFrame(extra_preds, columns=time_bins.cpu().numpy())
         elif model_name == "weibullaft":
             times_numpy = time_bins.cpu().numpy()
-            X_test_df = pd.DataFrame(X_test, columns=model.feature_names_)
+            X_test_df = pd.DataFrame(test_dict['X'].cpu().numpy(),
+                                     columns=model.feature_names_)
             surv_df = model.model.predict_survival_function(X_test_df, times=times_numpy)
             preds_array = np.minimum(np.asarray(surv_df.T), 1.0)
             model_preds = pd.DataFrame(preds_array, columns=times_numpy)

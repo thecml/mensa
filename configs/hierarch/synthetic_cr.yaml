@@ -1,8 +1,8 @@
 # Model
-theta_layer_size: [100]
+theta_layer_size: [32]
 layer_size_fine_bins:
-- [50, 5]
-- [50, 5]
+- [32, 5]
+- [32, 5]
 lr: 0.001
 reg_constant: 0.01
 n_batches: 5
