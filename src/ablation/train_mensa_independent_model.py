@@ -97,7 +97,8 @@ if __name__ == "__main__":
     layers = config['layers']
     weight_decay = config['weight_decay']
     dropout_rate = config['dropout_rate']
-    
+    dropout_rate = config['dropout_rate']
+    traj_lambda = config.get('traj_lambda', 0.0)
     all_preds = []
     
     if not independent_model:
@@ -107,7 +108,8 @@ if __name__ == "__main__":
                       dropout_rate=dropout_rate, device=device)
         model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
                   patience=20, weight_decay=weight_decay,
-                  batch_size=batch_size, verbose=False)
+                  batch_size=batch_size, traj_lambda=traj_lambda,
+                  verbose=False)
 
         for i in range(n_events):
             preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
