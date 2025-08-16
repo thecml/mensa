@@ -243,12 +243,13 @@ if __name__ == "__main__":
             layers = config['layers']
             weight_decay = config['weight_decay']
             dropout_rate = config['dropout_rate']
+            traj_lambda = config.get('traj_lambda', 0.0)
             model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
                         n_events=n_events, n_dists=n_dists, trajectories=trajectories,
                         device=device)
             model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
                     weight_decay=weight_decay, patience=20,
-                    batch_size=batch_size, verbose=False)
+                    batch_size=batch_size, traj_lambda=traj_lambda, verbose=True)
         else:
             raise NotImplementedError()
         
