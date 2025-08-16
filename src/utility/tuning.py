@@ -21,14 +21,50 @@ def get_mensa_sweep_cfg():
                 "values": [32]
             },
             "n_dists": {
-                "values": [1, 3, 5, 10]
+                "values": [1, 3, 5]
             },
             "dropout_rate": {
                 "values": [0, 0.1, 0.25, 0.5]
             },
             'weight_decay': {
                 "values": [0, 1e-3, 1e-4, 1e-5]
+            },
+            'traj_lambda': {
+                "values": [0.0, 0.25, 0.5, 0.75]
             }
+        }
+    }
+
+def get_mensa_sweep_lambda_cfg():
+    return {
+        "method": "bayes",
+        "metric": {
+            "name": "c_harrell",
+            "goal": "maximize"
+        },
+        "parameters": {
+            "layers": {
+                "values": [[128]]
+            },
+            "lr": {
+                "values": [0.001]
+            },
+            "n_epochs": {
+                "values": [1000]
+            },
+            "batch_size": {
+                "values": [32]
+            },
+            "n_dists": {
+                "values": [3]
+            },
+            "dropout_rate": {
+                "values": [0.1]
+            },
+            'weight_decay': {
+                "values": [0.0001]
+            },
+
         }
     }
 

@@ -1,7 +1,8 @@
-layers: [128]
+layers: [16]
 lr: 0.001
 n_epochs: 1000
-n_dists: 3
+n_dists: 1
 batch_size: 32
-weight_decay: 0.0001
-dropout_rate: 0.1
+weight_decay: 0
+dropout_rate: 0.5
+traj_lambda: 0.5

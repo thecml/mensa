@@ -187,7 +187,7 @@ class MENSA:
     
     def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=20000, 
             patience=100, optimizer='adam', weight_decay=0.001, learning_rate=5e-4,
-            betas=(0.9, 0.999), verbose=False):
+            betas=(0.9, 0.999), traj_lambda=0.0, verbose=False):
 
         optim_dict = [{'params': self.model.parameters(), 'lr': learning_rate}]
 
@@ -249,12 +249,15 @@ class MENSA:
 
                 if multi_event:
                     f, s = self.compute_risks_multi(params, ti)
-                    loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
+                    dens_loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
+                    traj_loss = 0.0
                     for (i, j) in self.trajectories:
-                        loss += self.compute_risk_trajectory(i, j, ti, ei, params)
+                        traj_loss += self.compute_risk_trajectory(i, j, ti, ei, params)
+                    loss = (1 - traj_lambda) * dens_loss + traj_lambda * traj_loss
                 else:
                     f, s = self.compute_risks(params, ti)
-                    loss = conditional_weibull_loss(f, s, ei, self.model.n_states, event_weights)
+                    dens_loss = conditional_weibull_loss(f, s, ei, self.model.n_states, event_weights)
+                    loss = dens_loss
 
                 if not torch.isfinite(loss):
                     continue
@@ -282,12 +285,15 @@ class MENSA:
 
                     if multi_event:
                         f, s = self.compute_risks_multi(params, ti)
-                        loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
+                        dens_loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
+                        traj_loss = 0.0
                         for (i, j) in self.trajectories:
-                            loss += self.compute_risk_trajectory(i, j, ti, ei, params)
+                            traj_loss += self.compute_risk_trajectory(i, j, ti, ei, params)
+                        loss = (1 - traj_lambda) * dens_loss + traj_lambda * traj_loss
                     else:
                         f, s = self.compute_risks(params, ti)
-                        loss = conditional_weibull_loss(f, s, ei, self.model.n_states, event_weights)
+                        dens_loss = conditional_weibull_loss(f, s, ei, self.model.n_states, event_weights)
+                        loss = dens_loss
 
                     total_valid_loss += loss.item()
 

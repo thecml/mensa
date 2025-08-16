@@ -104,7 +104,7 @@ if __name__ == "__main__":
                   device=device)
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
               weight_decay=weight_decay, patience=20,
-              batch_size=batch_size, verbose=True)
+              batch_size=batch_size, verbose=True, traj_lambda=0.5)
     
     # Make predictions
     all_preds = []
