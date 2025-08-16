@@ -196,8 +196,8 @@ if __name__ == "__main__":
         elif model_name == "mtlrcr":
             train_events = train_dict['E'].type(torch.int32).cpu().numpy()
             valid_events = valid_dict['E'].type(torch.int32).cpu().numpy()
-            y_train = encode_mtlr_format(train_dict['T'], train_events, time_bins.cpu().numpy())
-            y_valid = encode_mtlr_format(valid_dict['T'], valid_events, time_bins.cpu().numpy())            
+            y_train = encode_mtlr_format(train_dict['T'].cpu().numpy(), train_events, time_bins.cpu().numpy())
+            y_valid = encode_mtlr_format(valid_dict['T'].cpu().numpy(), valid_events, time_bins.cpu().numpy())            
             num_time_bins = len(time_bins.cpu().numpy()) + 1
             config = load_config(cfg.MTLR_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = MTLRCR(in_features=n_features, num_time_bins=num_time_bins, num_events=n_events)
