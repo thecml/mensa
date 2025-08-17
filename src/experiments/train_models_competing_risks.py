@@ -207,7 +207,7 @@ if __name__ == "__main__":
                                   verbose=True, device=device, C1=config['c1'],
                                   early_stop=config['early_stop'], patience=config['patience'])
         elif model_name == "dsm":
-            config = load_config(cfg.DSM_CONFIGS_DIR, f"{dataset_name}.yaml")
+            config = load_config(cfg.DSM_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             n_iter = config['n_iter']
             learning_rate = config['learning_rate']
             batch_size = config['batch_size']
