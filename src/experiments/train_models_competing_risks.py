@@ -292,7 +292,7 @@ if __name__ == "__main__":
         elif model_name == "dsm":
             all_preds = []
             for i in range(n_events):
-                trained_model.torch_model.float()
+                model.torch_model.float()
                 X_np  = test_dict['X'].detach().cpu().numpy().astype(np.float32, copy=False)
                 t_list = time_bins.detach().cpu().numpy().astype(np.float32, copy=False).tolist()
                 model_pred = model.predict_survival(X_np, t=t_list, risk=i+1)
