@@ -14,7 +14,7 @@ if [ -f "$results_path" ]; then
 fi
 
 seeds=($(seq 0 9))
-dataset_names=('seer_cr' 'mimic_cr' 'rotterdam_cr')
+dataset_names=('seer_cr' 'rotterdam_cr')
 
 for seed in "${seeds[@]}"; do
     for dataset_name in "${dataset_names[@]}"; do
