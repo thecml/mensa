@@ -23,13 +23,13 @@ if __name__ == "__main__":
     path = Path.joinpath(cfg.RESULTS_DIR, f"competing_risks.csv")
     df = pd.read_csv(path)
 
-    cols_to_scale = ["CI", "IBS", "GlobalCI", "LocalCI"]
+    cols_to_scale = ["GlobalCI", "LocalCI", "AUC", "IBS"]
     df[cols_to_scale] = df[cols_to_scale] * 100
     df.loc[df["DatasetName"] == "rotterdam_cr", "MAEM"] /= 100
         
     dataset_names = ["seer_cr", "rotterdam_cr"]
-    model_names = ["deepsurv", 'deephit', 'hierarch', 'mtlrcr', 'dsm', 'mensa']
-    metric_names = ["GlobalCI", "LocalCI", "IBS", "MAEM", "DCalib"] 
+    model_names = ["coxph", "coxnet", "weibullaft", "coxboost", "rsf", "mtlrcr", "deepsurv", "deephit", "dsm", "hierarch", "mensa"]
+    metric_names = ["GlobalCI", "LocalCI", "AUC", "IBS", "MAEM", "DCalib"]
     
     for dataset_name in dataset_names:
         for model_name in model_names:
@@ -41,8 +41,8 @@ if __name__ == "__main__":
                     d_calib = calculate_d_calib(df, model_name, dataset_name)
                     text += f"{d_calib}"
                 else:
-                    if metric_name in ["CI", "IBS", "MAEM"]:
-                        avg_seed_df = (df.groupby(["ModelName", "DatasetName", "EventId"], as_index=False).mean(numeric_only=True))
+                    if metric_name in ["GlobalCI", "LocalCI", "AUC", "IBS", "MAEM"]:
+                        avg_seed_df = (df.groupby(["ModelName", "DatasetName", "Seed"], as_index=False).mean(numeric_only=True))
                         results = avg_seed_df.loc[(avg_seed_df['DatasetName'] == dataset_name)
                                                 & (avg_seed_df['ModelName'] == model_name)]
                     else:
@@ -50,8 +50,8 @@ if __name__ == "__main__":
                         results = avg_event_df.loc[(avg_event_df['DatasetName'] == dataset_name)
                                                    & (avg_event_df['ModelName'] == model_name)]
                     results = results[metric_name]
-                    mean = f"%.{N_DECIMALS}f" % round(np.mean(results), N_DECIMALS)
-                    std = f"%.{N_DECIMALS}f" % round(np.std(results), N_DECIMALS)
+                    mean = f"%.{1}f" % round(np.mean(results), 1)
+                    std = f"%.{2}f" % round(np.std(results), 2)
                     text += f"{mean}$\pm${std} & "
             text += " \\\\"
             print(text)

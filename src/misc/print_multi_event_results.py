@@ -27,7 +27,6 @@ if __name__ == "__main__":
     
     # Sorted in desired order
     model_names = ["coxph", "coxnet", "weibullaft", "coxboost", "rsf", "mtlr", "deepsurv", "deephit", "dsm", "hierarch", "mensa"]
-    
     disc_metrics = ["GlobalCI", "LocalCI", "AUC"]
     for model_name in model_names:
         row_parts = [map_model_name(model_name), map_model_type(model_name)]
@@ -35,13 +34,13 @@ if __name__ == "__main__":
         for dataset_name in dataset_names:
             for metric_name in disc_metrics:
                 if metric_name in ["CI", "AUC", "IBS", "MAEM"]:
-                    avg_seed_df = (
-                        df.groupby(["ModelName", "DatasetName", "EventId"], as_index=False)
+                    avg_event_df = (
+                        df.groupby(["ModelName", "DatasetName", "Seed"], as_index=False)
                         .mean(numeric_only=True)
                     )
-                    results = avg_seed_df.loc[
-                        (avg_seed_df['DatasetName'] == dataset_name) &
-                        (avg_seed_df['ModelName'] == model_name)
+                    results = avg_event_df.loc[
+                        (avg_event_df['DatasetName'] == dataset_name) &
+                        (avg_event_df['ModelName'] == model_name)
                     ]
                 else:
                     avg_event_df = (
@@ -65,22 +64,23 @@ if __name__ == "__main__":
         row_parts = [map_model_name(model_name), map_model_type(model_name)]
         for dataset_name in dataset_names:
             
-            avg_seed_df = (
-                df.groupby(["ModelName", "DatasetName", "EventId"], as_index=False)
+            avg_event_df = (
+                df.groupby(["ModelName", "DatasetName", "Seed"], as_index=False)
                   .mean(numeric_only=True)
             )
-            results = avg_seed_df.loc[
-                (avg_seed_df['DatasetName'] == dataset_name) &
-                (avg_seed_df['ModelName'] == model_name)
+            
+            results = avg_event_df.loc[
+                (avg_event_df['DatasetName'] == dataset_name) &
+                (avg_event_df['ModelName'] == model_name)
             ]["IBS"]
 
             mean = f"{np.mean(results):.1f}"
             std  = f"{np.std(results):.2f}"
             row_parts.append(f"{mean}\\text{{\\tiny{{$\\pm${std}}}}}")
 
-            results = avg_seed_df.loc[
-                (avg_seed_df['DatasetName'] == dataset_name) &
-                (avg_seed_df['ModelName'] == model_name)
+            results = avg_event_df.loc[
+                (avg_event_df['DatasetName'] == dataset_name) &
+                (avg_event_df['ModelName'] == model_name)
             ]["MAEM"].copy()
 
             if dataset_name in ["mimic_me", "rotterdam_me", "ebmt_me"]:
