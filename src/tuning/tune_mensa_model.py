@@ -99,14 +99,30 @@ def train_model():
     # Make predictions for all events on validation set
     all_preds = []
     event_metrics = []
-    for ev in range(n_events):
+    if dataset_name != "seer_se":
+        for ev in range(n_events):
+            preds = model.predict(valid_dict['X'].to(device), time_bins, risk=ev+1)
+            df_pred = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
+            all_preds.append(df_pred)
+            y_train_time = train_dict['T'][:, ev]
+            y_train_event = train_dict['E'][:, ev]
+            y_valid_time = valid_dict['T'][:, ev]
+            y_valid_event = valid_dict['E'][:, ev]
+            lifelines_eval = LifelinesEvaluator(df_pred.T, y_valid_time, y_valid_event,
+                                                y_train_time, y_train_event)
+            ci = lifelines_eval.concordance()[0]
+            ibs = lifelines_eval.integrated_brier_score()
+            mae = lifelines_eval.mae(method="Margin")
+            d_calib = lifelines_eval.d_calibration()[0]
+            event_metrics.append((ci, ibs, mae, d_calib))
+    else:
         preds = model.predict(valid_dict['X'].to(device), time_bins, risk=ev+1)
         df_pred = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
         all_preds.append(df_pred)
-        y_train_time = train_dict['T'][:, ev]
-        y_train_event = train_dict['E'][:, ev]
-        y_valid_time = valid_dict['T'][:, ev]
-        y_valid_event = valid_dict['E'][:, ev]
+        y_train_time = train_dict['T']
+        y_train_event = train_dict['E']
+        y_valid_time = valid_dict['T']
+        y_valid_event = valid_dict['E']
         lifelines_eval = LifelinesEvaluator(df_pred.T, y_valid_time, y_valid_event,
                                             y_train_time, y_train_event)
         ci = lifelines_eval.concordance()[0]
