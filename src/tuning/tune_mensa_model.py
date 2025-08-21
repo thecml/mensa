@@ -4,7 +4,7 @@ import numpy as np
 import os
 import config as cfg
 import torch
-from utility.evaluation import global_C_index
+from utility.evaluation import global_C_index, local_C_index  # <- added local_C_index
 from utility.tuning import get_mensa_sweep_cfg
 from utility.config import load_config
 from utility.survival import make_time_bins, preprocess_data
@@ -23,7 +23,7 @@ random.seed(0)
 os.environ["WANDB_SILENT"] = "true"
 import wandb
 
-N_RUNS = cfg.N_RUNS
+N_RUNS = 10
 PROJECT_NAME = "mensa"
 
 # Setup precision
@@ -37,9 +37,7 @@ def main():
     global dataset_name
     
     parser = argparse.ArgumentParser()
-    
-    parser.add_argument('--dataset_name', type=str, default="seer_se")
-    
+    parser.add_argument('--dataset_name', type=str, default="rotterdam_me")
     args = parser.parse_args()
     dataset_name = args.dataset_name
     
@@ -53,7 +51,7 @@ def train_model():
     wandb.init(config=config_defaults, group=dataset_name, tags=["mensa"])
     config = wandb.config
     
-    # Load and split data
+    # Load and split data (fixed seed=0)
     dl = get_data_loader(dataset_name)
     dl = dl.load_data()
     n_events = dl.n_events
@@ -80,7 +78,7 @@ def train_model():
     n_features = train_dict['X'].shape[1]
 
     # Make time bins
-    time_bins = make_time_bins(train_dict['T'], event=None, dtype=dtype).to(device)
+    time_bins = make_time_bins(train_dict['T'].cpu(), event=None, dtype=dtype).to(device)
     time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
 
     # Train model
@@ -91,25 +89,54 @@ def train_model():
     layers = config['layers']
     weight_decay = config['weight_decay']
     dropout_rate = config['dropout_rate']
+    traj_lambda = config['traj_lambda']
     model = MENSA(n_features, layers=layers, dropout_rate=dropout_rate,
                   n_events=n_events, n_dists=n_dists, device=device)
     model.fit(train_dict, valid_dict, learning_rate=lr, n_epochs=n_epochs,
-              weight_decay=weight_decay, patience=20,
-              batch_size=batch_size, verbose=True)
+              weight_decay=weight_decay, patience=20, batch_size=batch_size,
+              traj_lambda=traj_lambda, verbose=False)
     
-    # Make predictions
-    model_preds = model.predict(valid_dict['X'].to(device), time_bins, risk=1)
-    surv_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-    y_train_time = train_dict['T'][:,0]
-    y_train_event = train_dict['E'][:,0]
-    y_valid_time = valid_dict['T'][:,0]
-    y_valid_event = valid_dict['E'][:,0]
-    lifelines_eval = LifelinesEvaluator(surv_preds.T, y_valid_time, y_valid_event,
-                                        y_train_time, y_train_event)
-    ci = lifelines_eval.concordance()[0]
+    # Make predictions for all events on validation set
+    all_preds = []
+    event_metrics = []
+    for ev in range(n_events):
+        preds = model.predict(valid_dict['X'].to(device), time_bins, risk=ev+1)
+        df_pred = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
+        all_preds.append(df_pred)
+        y_train_time = train_dict['T'][:, ev]
+        y_train_event = train_dict['E'][:, ev]
+        y_valid_time = valid_dict['T'][:, ev]
+        y_valid_event = valid_dict['E'][:, ev]
+        lifelines_eval = LifelinesEvaluator(df_pred.T, y_valid_time, y_valid_event,
+                                            y_train_time, y_train_event)
+        ci = lifelines_eval.concordance()[0]
+        ibs = lifelines_eval.integrated_brier_score()
+        mae = lifelines_eval.mae(method="Margin")
+        d_calib = lifelines_eval.d_calibration()[0]
+        event_metrics.append((ci, ibs, mae, d_calib))
+    
+    # Average metrics across events
+    ci_avg = float(np.mean([m[0] for m in event_metrics]))
+    ibs_avg = float(np.mean([m[1] for m in event_metrics]))
+    mae_avg = float(np.mean([m[2] for m in event_metrics]))
+    dcal_avg = float(np.mean([m[3] for m in event_metrics]))
+    
+    # Global / Local CI across events
+    all_preds_arr = [df.to_numpy() for df in all_preds]
+    global_ci = float(global_C_index(all_preds_arr, valid_dict['T'].cpu().numpy(),
+                                     valid_dict['E'].cpu().numpy()))
+    local_ci = float(local_C_index(all_preds_arr, valid_dict['T'].cpu().numpy(),
+                                   valid_dict['E'].cpu().numpy()))
     
     # Log to wandb
-    wandb.log({"c_harrell": ci})
+    wandb.log({
+        "ci": ci_avg,
+        "ibs": ibs_avg,
+        "mae": mae_avg,
+        "d_calib": dcal_avg,
+        "global_ci": global_ci,
+        "local_ci": local_ci
+    })
     
 if __name__ == "__main__":
     main()
