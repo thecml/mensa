@@ -116,14 +116,14 @@ class MLP(torch.nn.Module):
         self.scaleg = nn.ModuleList([nn.Linear(lastdim, self.n_dists, bias=True) for _ in range(n_states)])
         self.gate   = nn.ModuleList([nn.Linear(lastdim, self.n_dists, bias=False) for _ in range(n_states)])
         
-        #adapter_hidden = max(16, lastdim // 2)
-        #self.adapters = nn.ModuleList([
-        #    nn.Sequential(
-        #        nn.Linear(lastdim, adapter_hidden, bias=True),
-        #        nn.ReLU6(),
-        #        nn.Linear(adapter_hidden, lastdim, bias=True),
-        #    ) for _ in range(n_states)
-        #])
+        adapter_hidden = max(16, lastdim // 2)
+        self.adapters = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(lastdim, adapter_hidden, bias=True),
+                nn.ReLU6(),
+                nn.Linear(adapter_hidden, lastdim, bias=True),
+            ) for _ in range(n_states)
+        ])
         
     def forward(self, x):
         outcomes = []
@@ -137,7 +137,7 @@ class MLP(torch.nn.Module):
         for i in range(self.n_states):
             xrep = xrep_shared
             
-            #xrep = xrep + self.adapters[i](xrep)
+            xrep = xrep + self.adapters[i](xrep)
 
             shp_lin = self.shapeg[i](xrep)
             scl_lin = self.scaleg[i](xrep)
