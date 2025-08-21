@@ -116,7 +116,7 @@ def train_model():
             d_calib = lifelines_eval.d_calibration()[0]
             event_metrics.append((ci, ibs, mae, d_calib))
     else:
-        preds = model.predict(valid_dict['X'].to(device), time_bins, risk=ev+1)
+        preds = model.predict(valid_dict['X'].to(device), time_bins, risk=1)
         df_pred = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
         all_preds.append(df_pred)
         y_train_time = train_dict['T']
