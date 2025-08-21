@@ -130,7 +130,7 @@ def train_model():
     
     # Log to wandb
     wandb.log({
-        "ci": ci_avg,
+        "c_harrell": ci_avg,
         "ibs": ibs_avg,
         "mae": mae_avg,
         "d_calib": dcal_avg,
