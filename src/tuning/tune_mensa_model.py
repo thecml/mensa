@@ -97,9 +97,9 @@ def train_model():
               traj_lambda=traj_lambda, verbose=False)
     
     # Make predictions for all events on validation set
-    all_preds = []
-    event_metrics = []
     if dataset_name != "seer_se":
+        all_preds = []
+        event_metrics = []
         for ev in range(n_events):
             preds = model.predict(valid_dict['X'].to(device), time_bins, risk=ev+1)
             df_pred = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
@@ -115,6 +115,29 @@ def train_model():
             mae = lifelines_eval.mae(method="Margin")
             d_calib = lifelines_eval.d_calibration()[0]
             event_metrics.append((ci, ibs, mae, d_calib))
+        
+        # Average metrics across events
+        ci_avg = float(np.mean([m[0] for m in event_metrics]))
+        ibs_avg = float(np.mean([m[1] for m in event_metrics]))
+        mae_avg = float(np.mean([m[2] for m in event_metrics]))
+        dcal_avg = float(np.mean([m[3] for m in event_metrics]))
+        
+        # Global / Local CI across events
+        all_preds_arr = [df.to_numpy() for df in all_preds]
+        global_ci = float(global_C_index(all_preds_arr, valid_dict['T'].cpu().numpy(),
+                                        valid_dict['E'].cpu().numpy()))
+        local_ci = float(local_C_index(all_preds_arr, valid_dict['T'].cpu().numpy(),
+                                    valid_dict['E'].cpu().numpy()))
+
+        # Log to wandb
+        wandb.log({
+            "c_harrell": ci_avg,
+            "ibs": ibs_avg,
+            "mae": mae_avg,
+            "d_calib": dcal_avg,
+            "global_ci": global_ci,
+            "local_ci": local_ci
+        })
     else:
         preds = model.predict(valid_dict['X'].to(device), time_bins, risk=1)
         df_pred = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
@@ -129,30 +152,13 @@ def train_model():
         ibs = lifelines_eval.integrated_brier_score()
         mae = lifelines_eval.mae(method="Margin")
         d_calib = lifelines_eval.d_calibration()[0]
-        event_metrics.append((ci, ibs, mae, d_calib))
     
-    # Average metrics across events
-    ci_avg = float(np.mean([m[0] for m in event_metrics]))
-    ibs_avg = float(np.mean([m[1] for m in event_metrics]))
-    mae_avg = float(np.mean([m[2] for m in event_metrics]))
-    dcal_avg = float(np.mean([m[3] for m in event_metrics]))
-    
-    # Global / Local CI across events
-    all_preds_arr = [df.to_numpy() for df in all_preds]
-    global_ci = float(global_C_index(all_preds_arr, valid_dict['T'].cpu().numpy(),
-                                     valid_dict['E'].cpu().numpy()))
-    local_ci = float(local_C_index(all_preds_arr, valid_dict['T'].cpu().numpy(),
-                                   valid_dict['E'].cpu().numpy()))
-    
-    # Log to wandb
-    wandb.log({
-        "c_harrell": ci_avg,
-        "ibs": ibs_avg,
-        "mae": mae_avg,
-        "d_calib": dcal_avg,
-        "global_ci": global_ci,
-        "local_ci": local_ci
-    })
+        wandb.log({
+            "c_harrell": ci,
+            "ibs": ibs,
+            "mae": mae,
+            "d_calib": d_calib,
+        })
     
 if __name__ == "__main__":
     main()
