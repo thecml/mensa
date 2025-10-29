@@ -85,8 +85,7 @@ def train_model():
     time_bins = torch.cat((torch.tensor([0]).to(device), time_bins))
     
     # Train model
-    n_features = X_train.shape[1]
-    model = make_nfg_model(n_features, config)
+    model = make_nfg_model(config)
     model.fit(train_dict['X'].cpu().numpy(),
               train_dict['T'].cpu().numpy(),
               train_dict['E'].cpu().numpy())

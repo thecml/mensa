@@ -139,7 +139,7 @@ def make_dsm_model(config):
     layers = config['network_layers']
     return DeepSurvivalMachines(k=k, layers=layers)
 
-def make_nfg_model(n_features, config):
+def make_nfg_model(config):
     layers = config['layers']
     layers_surv = config['layers_surv']
     dropout = config['dropout']

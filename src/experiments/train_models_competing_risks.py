@@ -28,7 +28,7 @@ from mensa.model import MENSA
 
 # SOTA
 from sota_models import (make_coxnet_model, make_coxph_model, make_coxboost_model, make_deephit_cr, make_dsm_model, make_rsf_model, make_weibull_aft_model, train_deepsurv_model,
-                         make_deepsurv_prediction, DeepSurv, make_deephit_cr, train_deephit_model)
+                         make_deepsurv_prediction, DeepSurv, make_deephit_cr, train_deephit_model, make_nfg_model)
 from utility.mtlr import train_mtlr_cr
 from hierarchical import util
 from hierarchical.helper import format_hierarchical_hyperparams
@@ -51,7 +51,7 @@ torch.set_default_dtype(dtype)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Define models
-MODELS = ["coxph", "coxnet", "coxboost", "rsf", "weibullaft", "deepsurv", "deephit", "hierarch", "mtlrcr", "dsm", "mensa"]
+MODELS = ["coxph", "coxnet", "coxboost", "rsf", "nfg", "weibullaft", "deepsurv", "deephit", "hierarch", "mtlrcr", "dsm", "mensa"]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -143,6 +143,12 @@ if __name__ == "__main__":
                 model = make_rsf_model(config)
                 model.fit(train_dict['X'].cpu(), y_train)
                 trained_models.append(model)
+        elif model_name == "nfg":
+            config = load_config(cfg.NFG_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
+            model = make_nfg_model(config)
+            model.fit(train_dict['X'].cpu().numpy(),
+                      train_dict['T'].cpu().numpy(),
+                      train_dict['E'].cpu().numpy())
         elif model_name == "weibullaft":
             config = load_config(cfg.WEIBULLAFT_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
@@ -244,6 +250,14 @@ if __name__ == "__main__":
                 extra_preds = np.minimum(extra_preds, 1)
                 preds = pd.DataFrame(extra_preds, columns=time_bins.cpu().numpy())
                 all_preds.append(preds)
+        elif model_name == "nfg":
+            all_preds = []
+            for i in range(n_events):
+                model_preds = model.predict_survival(test_dict['X'].cpu().numpy(),
+                                                     t=list(time_bins.cpu().numpy()),
+                                                     risk=i+1)
+                model_pred = pd.DataFrame(model_pred, columns=time_bins.cpu().numpy())
+                all_preds.append(model_pred)    
         elif model_name == "weibullaft":
             all_preds = []
             times_numpy = time_bins.cpu().numpy()
