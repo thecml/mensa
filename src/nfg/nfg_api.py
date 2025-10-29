@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 class NeuralFineGray(DSMBase):
 
-  def __init__(self, cuda = torch.cuda.is_available(), cause_specific = False, normalise = "None", **params):
+  def __init__(self, cuda = 0, cause_specific = False, normalise = "None", **params):
     self.params = params
     self.fitted = False
     self.cuda = cuda

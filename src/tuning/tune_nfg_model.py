@@ -40,8 +40,7 @@ def main():
     global dataset_name
     
     parser = argparse.ArgumentParser()
-    
-    parser.add_argument('--dataset_name', type=str, default="seer_se") # seer_se / mimic_se
+    parser.add_argument('--dataset_name', type=str, default="seer_cr")
     
     args = parser.parse_args()
     dataset_name = args.dataset_name
@@ -97,10 +96,10 @@ def train_model():
                                          t=list(time_bins.cpu().numpy()),
                                          risk=1)
     surv_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
-    y_train_time = train_dict['T']
-    y_train_event = (train_dict['E'])*1.0
-    y_valid_time = valid_dict['T']
-    y_valid_event = (valid_dict['E'])*1.0
+    y_train_time = train_dict['T'].cpu().numpy()
+    y_train_event = ((train_dict['E'] == 1)*1.0).cpu().numpy()
+    y_valid_time = valid_dict['T'].cpu().numpy()
+    y_valid_event = ((valid_dict['E'] == 1)*1.0).cpu().numpy()
     lifelines_eval = LifelinesEvaluator(surv_preds.T, y_valid_time, y_valid_event,
                                         y_train_time, y_train_event)
     ci = lifelines_eval.concordance()[0]
