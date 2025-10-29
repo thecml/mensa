@@ -262,15 +262,18 @@ if __name__ == "__main__":
                 all_preds.append(preds)
         elif model_name == "nfg":
             all_preds = []
+            # Ensure float64 data
             X_test_np = test_dict['X'].detach().cpu().numpy().astype(np.float64, copy=False)
             time_bins_np = time_bins.detach().cpu().numpy().astype(np.float64, copy=False)
 
             for i in range(n_events):
-                model_pred = model.predict_survival(X_test_np,
-                                                    t=list(time_bins_np),
-                                                    risk=i + 1)
-                model_pred = pd.DataFrame(model_pred, columns=time_bins_np)
-                all_preds.append(model_pred)
+                preds_np = model.predict_survival(
+                    X_test_np,
+                    t=list(time_bins_np),
+                    risk=i + 1
+                )
+                preds_df = pd.DataFrame(preds_np, columns=time_bins_np)
+                all_preds.append(preds_df)
         elif model_name == "weibullaft":
             all_preds = []
             times_numpy = time_bins.cpu().numpy()
