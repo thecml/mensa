@@ -20,7 +20,7 @@ class NeuralFineGray(DSMBase):
   def _gen_torch_model(self, inputdim, optimizer, risks):
     model = NeuralFineGrayTorch(inputdim, **self.params,
                                      risks = risks,
-                                     optimizer = optimizer)
+                                     optimizer = optimizer).double()
     if self.cuda > 0:
       model = model.cuda()
     return model

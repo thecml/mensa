@@ -44,7 +44,7 @@ torch.cuda.manual_seed_all(0)
 random.seed(0)
 
 # Set precision
-dtype = torch.float32
+dtype = torch.float64
 torch.set_default_dtype(dtype)
 
 # Setup device
@@ -80,13 +80,13 @@ if __name__ == "__main__":
                                                num_features, as_array=True)
     train_dict['X'] = torch.tensor(X_train, device=device, dtype=dtype)
     train_dict['E'] = torch.tensor(train_dict['E'], device=device, dtype=torch.int32)
-    train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.float32)
+    train_dict['T'] = torch.tensor(train_dict['T'], device=device, dtype=torch.float64)
     valid_dict['X'] = torch.tensor(X_valid, device=device, dtype=dtype)
     valid_dict['E'] = torch.tensor(valid_dict['E'], device=device, dtype=torch.int32)
-    valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.float32)
+    valid_dict['T'] = torch.tensor(valid_dict['T'], device=device, dtype=torch.float64)
     test_dict['X'] = torch.tensor(X_test, device=device, dtype=dtype)
     test_dict['E'] = torch.tensor(test_dict['E'], device=device, dtype=torch.int32)
-    test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.float32)
+    test_dict['T'] = torch.tensor(test_dict['T'], device=device, dtype=torch.float64)
     
     n_samples = train_dict['X'].shape[0]
     n_features = train_dict['X'].shape[1]
