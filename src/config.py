@@ -165,9 +165,9 @@ MENSA_PARAMS = {
 }
 
 NFG_PARAMS = {
-    "layers": [100],
+    "layers": [32],
     "act": 'ReLU',
-    "layers_surv": [100, 100, 100],
+    "layers_surv": [32],
     "dropout": 0.0,
     "optimizer": "Adam",
     "multihead": True
