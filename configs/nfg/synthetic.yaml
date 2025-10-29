@@ -1,5 +1,6 @@
-network_layers: [32]
-learning_rate: 0.001
-n_iter: 10000
-batch_size: 32
-k: 3
+layers: [100]
+act: 'ReLU'
+layers_surv: [100, 100, 100]
+dropout: 0.0
+optimizer: "Adam"
+multihead: True
