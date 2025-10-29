@@ -24,6 +24,7 @@ from utility.loss import cox_nll
 from utility.survival import cox_survival, calculate_baseline_hazard
 from weibullaft.weibull_aft import WeibullAFTWrapper
 from pycox.models.cox_time import MLPVanillaCoxTime
+from nfg.nfg_api import NeuralFineGray
 
 Numeric = Union[float, int, bool]
 NumericArrayLike = Union[List[Numeric], Tuple[Numeric], np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
@@ -137,6 +138,12 @@ def make_dsm_model(config):
     k = config['k']
     layers = config['network_layers']
     return DeepSurvivalMachines(k=k, layers=layers)
+
+def make_nfg_model(n_features, config):
+    layers = config['layers']
+    layers_surv = config['layers_surv']
+    dropout = config['dropout']
+    return NeuralFineGray(layers=layers, layers_surv=layers_surv, dropout=dropout)
 
 def make_dcm_model(config):
     k = config['k']

@@ -368,3 +368,24 @@ def get_dsm_sweep_cfg():
             }
         }
     }
+    
+def get_nfg_sweep_cfg():
+    return {
+        "method": "bayes",
+        "metric": {
+            "name": "c_harrell",
+            "goal": "maximize"
+        },
+        "parameters": {
+            "layers": {
+                "values": [[32], [64], [128]]
+            },
+            "layers_surv": {
+                "values": [[32], [64], [128]]
+            },
+            "dropout": {
+                "values": [0.0, 0.25, 0.5]
+            }
+        }
+    }
+

@@ -162,3 +162,12 @@ MENSA_PARAMS = {
     'weight_decay': 0,
     'dropout_rate': 0.25,
 }
+
+NFG_PARAMS = {
+    "layers": [32],
+    "act": 'ReLU',
+    "layers_surv": [100],
+    "dropout": 0.,
+    "optimizer": "Adam",
+    "multihead": True
+}
