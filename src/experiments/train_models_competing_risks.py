@@ -146,9 +146,19 @@ if __name__ == "__main__":
         elif model_name == "nfg":
             config = load_config(cfg.NFG_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             model = make_nfg_model(config)
-            model.fit(train_dict['X'].cpu().numpy(),
-                      train_dict['T'].cpu().numpy(),
-                      train_dict['E'].cpu().numpy())
+
+            # Ensure all data are float64 (including NumPy arrays)
+            X_train_np = train_dict['X'].detach().cpu().numpy().astype(np.float64, copy=False)
+            T_train_np = train_dict['T'].detach().cpu().numpy().astype(np.float64, copy=False)
+            E_train_np = train_dict['E'].detach().cpu().numpy().astype(np.int32, copy=False)
+
+            X_valid_np = valid_dict['X'].detach().cpu().numpy().astype(np.float64, copy=False)
+            T_valid_np = valid_dict['T'].detach().cpu().numpy().astype(np.float64, copy=False)
+            E_valid_np = valid_dict['E'].detach().cpu().numpy().astype(np.int32, copy=False)
+
+            # Train model (keep validation data in float64 too)
+            model.fit(X_train_np, T_train_np, E_train_np,
+                    val_data=(X_valid_np, T_valid_np, E_valid_np))
         elif model_name == "weibullaft":
             config = load_config(cfg.WEIBULLAFT_CONFIGS_DIR, f"{dataset_name.partition('_')[0]}.yaml")
             trained_models = []
@@ -252,12 +262,15 @@ if __name__ == "__main__":
                 all_preds.append(preds)
         elif model_name == "nfg":
             all_preds = []
+            X_test_np = test_dict['X'].detach().cpu().numpy().astype(np.float64, copy=False)
+            time_bins_np = time_bins.detach().cpu().numpy().astype(np.float64, copy=False)
+
             for i in range(n_events):
-                model_preds = model.predict_survival(test_dict['X'].cpu().numpy(),
-                                                     t=list(time_bins.cpu().numpy()),
-                                                     risk=i+1)
-                model_pred = pd.DataFrame(model_pred, columns=time_bins.cpu().numpy())
-                all_preds.append(model_pred)    
+                model_pred = model.predict_survival(X_test_np,
+                                                    t=list(time_bins_np),
+                                                    risk=i + 1)
+                model_pred = pd.DataFrame(model_pred, columns=time_bins_np)
+                all_preds.append(model_pred)
         elif model_name == "weibullaft":
             all_preds = []
             times_numpy = time_bins.cpu().numpy()
