@@ -16,6 +16,9 @@ models/*
 # Results
 results/*
 
+# Plots
+plots/*
+
 # NN weights
 weight*
 survtrace.pt
