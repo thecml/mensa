@@ -46,7 +46,7 @@ dtype = torch.float32
 torch.set_default_dtype(dtype)
 
 SEED = 0
-DATASET = "ebmt_me"
+DATASET = "seer_se"
 
 # Setup device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     # Make predictions
     all_preds = []
     for i in range(n_events):
-        model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
+        model_preds = model.predict_survival(test_dict['X'].to(device), time_bins, risk=i+1)
         model_preds = pd.DataFrame(model_preds, columns=time_bins.cpu().numpy())
         all_preds.append(model_preds)
             

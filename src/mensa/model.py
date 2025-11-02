@@ -1,28 +1,55 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-import torch.nn.utils as nn_utils  # at top of file
+from typing import List, Tuple
+import torch.nn.utils as nn_utils
 
-import wandb
 import numpy as np
-
 from tqdm import trange
 
-from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi, safe_log
+from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi
+from mensa.mlp import MLP
+from mensa.utility import safe_exp, safe_log
 
-def _exp_safe(x, max_val=20.0):
-    # exp(20) ~ 4.85e8; prevents overflow while keeping gradient flow
-    return torch.exp(torch.clamp(x, max=max_val))
-
-def add_event_free_column(T, E, n_events, horizon=None):
+def add_event_free_column(
+    T: torch.Tensor,
+    E: torch.Tensor,
+    n_events: int,
+    horizon: float = None
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
-    Treat 'event-free' as state 0, just like any other event.
-    - If a sample has no observed event among 1..K, set E[:,0]=1.
-    - For multi-event times (T.ndim==2): create T[:,0].
-      Use `horizon` if given, otherwise use per-row max time across events.
-    Shapes in -> out:
-      E: [N, K]      -> [N, K+1]
-      T: [N] or [N,K] -> [N] (single) or [N, K+1] (multi)
+    Add an 'event-free' (transient) state column to time and event tensors.
+
+    Extends event indicators and times to include a state representing
+    subjects who remain event-free (no observed event among 1..K).
+    This transient state becomes index 0, with other events shifted to 1..K.
+
+    Parameters
+    ----------
+    T : torch.Tensor
+        Event times, shape (N,) or (N, K).
+    E : torch.Tensor
+        Event indicators, shape (N, K).
+    n_events : int
+        Number of observed event types (K).
+    horizon : float, optional
+        Fixed time assigned to event-free samples for state 0.
+        If None, uses the per-sample maximum time across events.
+
+    Returns
+    -------
+    T_ext : torch.Tensor
+        Extended time tensor of shape (N,) or (N, K+1).
+    E_ext : torch.Tensor
+        Extended event indicator tensor of shape (N, K+1),
+        where column 0 marks event-free cases.
+
+    Notes
+    -----
+    - If a sample has no event among 1..K, then E_ext[n, 0] = 1.
+    - For multi-event data (T.ndim == 2), a new time column T[:,0]
+      is created using `horizon` or max(T, dim=1).
+    - This function is used when `use_transient=True` in MENSA.
     """
     N = E.size(0)
     device = E.device
@@ -60,134 +87,169 @@ def add_event_free_column(T, E, n_events, horizon=None):
 
     return T_ext, E_ext
 
-def create_representation(input_dim, layers, dropout_rate, activation, bias=True):
-    if activation == 'ReLU6':
-        act = nn.ReLU6()
-    elif activation == 'ReLU':
-        act = nn.ReLU()
-    elif activation == 'SeLU':
-        act = nn.SELU()
-    elif activation == 'Tanh':
-        act = nn.Tanh()
-
-    modules = []
-    prevdim = input_dim
-
-    for hidden in layers:
-        modules.append(nn.Linear(prevdim, hidden, bias=bias))
-        modules.append(nn.BatchNorm1d(hidden))
-        modules.append(act)
-        modules.append(nn.Dropout(p=dropout_rate))
-        prevdim = hidden
-
-    return nn.Sequential(*modules)
-
-class MLP(torch.nn.Module):
-    """"
-    input_dim: the input dimension, i.e., number of features.
-    num_dists: number of Weibull distributions.
-    layers: layers and size of the network, e.g., [32, 32].
-    temp: 1000 default, temperature for softmax function.
-    num_events: number of events (K).
-    discount: not used yet.
-    """
-    def __init__(self, input_dim, n_dists, layers, dropout_rate,
-                 temp, n_states, discount=1.0):
-        super(MLP, self).__init__()
-
-        self.n_dists = n_dists
-        self.temp = float(temp)
-        self.discount = float(discount)
-        self.n_states = n_states
-
-        if layers is None:
-            layers = []
-        self.layers = layers
-
-        lastdim = input_dim if len(layers) == 0 else layers[-1]
-
-        self.act = nn.SELU()
-        self.shape = nn.Parameter(-torch.ones(self.n_dists * n_states))
-        self.scale = nn.Parameter(-torch.ones(self.n_dists * n_states))
-
-        self.embedding = create_representation(input_dim, layers, dropout_rate, 'ReLU6')
-
-        self.shapeg = nn.ModuleList([nn.Linear(lastdim, self.n_dists, bias=True) for _ in range(n_states)])
-        self.scaleg = nn.ModuleList([nn.Linear(lastdim, self.n_dists, bias=True) for _ in range(n_states)])
-        self.gate   = nn.ModuleList([nn.Linear(lastdim, self.n_dists, bias=False) for _ in range(n_states)])
-        
-        adapter_hidden = max(16, lastdim // 2)
-        self.adapters = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(lastdim, adapter_hidden, bias=True),
-                nn.ReLU6(),
-                nn.Linear(adapter_hidden, lastdim, bias=True),
-            ) for _ in range(n_states)
-        ])
-        
-    def forward(self, x):
-        outcomes = []
-        n_samples = x.shape[0]
-
-        xrep_shared = self.embedding(x)
-
-        base_shape = self.shape.view(self.n_states, self.n_dists)
-        base_scale = self.scale.view(self.n_states, self.n_dists)
-
-        for i in range(self.n_states):
-            xrep = xrep_shared
-            
-            xrep = xrep + self.adapters[i](xrep)
-
-            shp_lin = self.shapeg[i](xrep)
-            scl_lin = self.scaleg[i](xrep)
-
-            shp_act = self.act(shp_lin)
-            scl_act = self.act(scl_lin)
-
-            shape = shp_act + base_shape[i].expand(n_samples, -1)
-            scale = scl_act + base_scale[i].expand(n_samples, -1)
-
-            gate_logits = self.gate[i](xrep) / self.temp
-
-            outcomes.append((shape, scale, gate_logits))
-
-        return outcomes
-        
 class MENSA:
-    """
-    This is a wrapper class for the actual model that implements a convenient fit() function.
-    n_features: number of features
-    n_events: number of events (K)
-    n_dists: number of Weibull distributions
-    layers: layers and size of the network, e.g., [32, 32].
-    device: device to use, e.g., cpu or cuda
-    """
-    def __init__(self, n_features, n_events, n_dists=5,
-                 layers=[32, 32], dropout_rate=0.5,
-                 trajectories=[], use_transient=True,
-                 device='cpu'):
+    def __init__(
+        self,
+        n_features: int,
+        n_events: int,
+        n_dists: int = 5,
+        layers: list = [32, 32],
+        dropout_rate: float = 0.5,
+        trajectories: list = [],
+        use_transient: bool = True,
+        device: str = 'cpu'
+    ):
+        """
+        Initialize a MENSA model wrapper.
+
+        This class wraps the underlying MLP-based survival model and provides
+        a convenient interface for fitting and evaluating MENSA.
+
+        Parameters
+        ----------
+        n_features : int
+            Number of input features.
+        n_events : int
+            Number of distinct events (K) to model.
+        n_dists : int, optional (default=5)
+            Number of Weibull mixture components per event.
+        layers : list of int, optional (default=[32, 32])
+            Sizes of hidden layers in the shared MLP backbone.
+        dropout_rate : float, optional (default=0.5)
+            Dropout rate applied between hidden layers.
+        trajectories : list of tuple, optional
+            List of known event trajectories (i → j) used to enforce temporal consistency.
+        use_transient : bool, optional (default=True)
+            Whether to include an additional transient state (K + 1 total states).
+        device : str, optional (default='cpu')
+            Computational device to use, e.g., "cpu" or "cuda".
+
+        Notes
+        -----
+        - When `use_transient=True`, the model includes an additional latent
+        transient state, increasing the total number of modeled states to K + 1.
+        - The underlying model is constructed as an `MLP` instance that outputs
+        the Weibull mixture parameters (shape, scale, gate) for each state.
+        """
         self.n_features = n_features
         self.use_transient = use_transient
         self.n_events = n_events
         self.device = device
-        
+
+        # Determine total number of modelled states (P)
+        # In MENSA, P = K + 1 when a transient state is included,
+        # otherwise P = K, where K is the number of observed events.
         if self.use_transient:
-            self.n_states = n_events + 1 # K + 1 states
+            self.n_states = n_events + 1
         else:
             self.n_states = n_events
-            
+
         self.trajectories = trajectories
-        
-        self.model = MLP(n_features, n_dists, layers, dropout_rate,
-                         temp=1000, n_states=self.n_states)
-        
+
+        self.model = MLP(
+            n_features, n_dists, layers, dropout_rate,
+            temp=1000, n_states=self.n_states
+        )
+
     def get_model(self):
+        """
+        Return the underlying neural survival model.
+
+        Returns
+        -------
+        torch.nn.Module
+            The core model containing all learnable parameters and layers.
+        """
         return self.model
     
-    def fit(self, train_dict, valid_dict, batch_size=1024, n_epochs=20000, 
-            patience=100, optimizer='adam', weight_decay=0.001, learning_rate=5e-4,
-            betas=(0.9, 0.999), traj_lambda=0.0, verbose=False):
+    def fit(
+        self,
+        train_dict: dict,
+        valid_dict: dict,
+        batch_size: int = 32,
+        n_epochs: int = 100,
+        patience: int = 10,
+        optimizer: str = 'adam',
+        weight_decay: float = 0,
+        learning_rate: float = 0.001,
+        betas: tuple = (0.9, 0.999),
+        traj_lambda: float = 0.0,
+        verbose: bool = False
+    ):
+        """
+        Train the MENSA model with early stopping on a validation set.
+
+        This method wraps the full training loop, including loss computation,
+        optimization, gradient clipping, and early stopping based on validation loss.
+        It supports both single-event and multi-event survival modeling, with an
+        optional trajectory-consistency regularization term.
+
+        Parameters
+        ----------
+        train_dict : dict
+            Training data containing:
+                'X' : torch.Tensor, shape (N, D)
+                    Input features.
+                'T' : torch.Tensor, shape (N,) or (N, K)
+                    Observed event or censoring times.
+                'E' : torch.Tensor, shape (N,) or (N, K)
+                    Event indicators (1 if event occurred, 0 if censored).
+        valid_dict : dict
+            Validation data in the same format as `train_dict`.
+        batch_size : int, optional (default=32)
+            Mini-batch size for stochastic optimization.
+        n_epochs : int, optional (default=100)
+            Maximum number of training epochs.
+        patience : int, optional (default=10)
+            Number of epochs without improvement in validation loss
+            before triggering early stopping.
+        optimizer : {'adam', 'adamw'}, optional (default='adam')
+            Optimization algorithm to use.
+        weight_decay : float, optional (default=0)
+            L2 regularization coefficient.
+        learning_rate : float, optional (default=0.001)
+            Initial learning rate for the optimizer.
+        betas : tuple of float, optional (default=(0.9, 0.999))
+            Beta coefficients for Adam/AdamW optimizers.
+        traj_lambda : float, optional (default=0.0)
+            Weight assigned to the trajectory consistency loss term.
+            Set to > 0 to enforce temporal ordering between related events.
+        verbose : bool, optional (default=False)
+            Whether to display a progress bar with training and validation losses.
+
+        Notes
+        -----
+        - MENSA models transitions between P states, where P = K (+1 if a transient
+        event-free state is included). Each state p ∈ 𝒫 corresponds to either
+        a terminal or intermediate event.
+        - If `use_transient=True`, an additional event-free (transient) state is added
+        to the data. This allows the model to capture transitions from “no event”
+        to any absorbing or intermediate state.
+        - When the input times `T` have multiple columns, the model trains under a
+        **multi-state (multi-event)** likelihood, assuming conditional independence
+        between transitions given the covariates. Otherwise, it defaults to the
+        **single-transition (competing-risks)** formulation, where only one state
+        can be reached per subject.
+        - The total training loss combines the conditional Weibull likelihood
+        with an optional trajectory-consistency penalty that enforces valid
+        temporal ordering between states:
+
+            L_total = (1 - λ) * L_Weibull + λ * L_traj
+
+        - The training loop performs:
+            1. Forward pass to compute Weibull mixture parameters for each state.
+            2. Computation of log-density and log-survival terms.
+            3. Weighted accumulation of per-state losses.
+            4. Optional addition of trajectory loss for predefined state pairs (i → j).
+            5. Gradient clipping (max norm = 1.0) for stability.
+            6. Early stopping based on validation loss.
+
+        Returns
+        -------
+        None
+            The model is trained in-place. The best-performing weights (on the
+            validation set) are automatically restored at the end of training.
+        """
 
         optim_dict = [{'params': self.model.parameters(), 'lr': learning_rate}]
 
@@ -316,7 +378,33 @@ class MENSA:
                     self.model.load_state_dict(best_model_state)
                 break
         
-    def compute_risks(self, params, ti):
+    def compute_risks(
+        self,
+        params: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
+        ti: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Compute log-density (f) and log-survival (s) terms for each risk
+        under a mixture of Weibull distributions. This is for single/competing-risks.
+        For multi-event, see compute_risks_multi().
+
+        Parameters
+        ----------
+        params : list of tuples [(k, b, gate), ...]
+            Model parameters per risk/state.
+            - k: log shape parameter tensor
+            - b: log scale parameter tensor
+            - gate: mixture logits per risk (before log-softmax)
+        ti : torch.Tensor, shape (N,)
+            Observed times (censored or event).
+
+        Returns
+        -------
+        f_risks : torch.Tensor, shape (N, K)
+            Log-density terms per risk.
+        s_risks : torch.Tensor, shape (N, K)
+            Log-survival terms per risk.
+        """
         f_risks, s_risks = [], []
         eps = 1e-12
         ti = torch.clamp(ti.reshape(-1,1).expand(-1, self.model.n_dists), min=eps)
@@ -325,7 +413,7 @@ class MENSA:
             k = params[i][0]; b = params[i][1]
             gate = nn.LogSoftmax(dim=1)(params[i][2])
 
-            ek = _exp_safe(k); eb = _exp_safe(b)
+            ek = safe_exp(k); eb = safe_exp(b)
             s = -(torch.pow(eb*ti, ek)) # log S mixture terms before logsumexp
             f = k + b + ((ek - 1.0) * (b + safe_log(ti)))
             f = f + s
@@ -337,7 +425,45 @@ class MENSA:
 
         return torch.stack(f_risks, 1), torch.stack(s_risks, 1)
         
-    def compute_risk_trajectory(self, i, j, ti, ei, params): 
+    def compute_risk_trajectory(
+        self,
+        i: int,
+        j: int,
+        ti: torch.Tensor,
+        ei: torch.Tensor,
+        params: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+    ) -> torch.Tensor:
+        """
+        Compute the trajectory consistency loss between two risks (i → j).
+
+        This term penalizes violations of the known temporal ordering between risks:
+        if event i must occur before event j, the model should assign a high
+        survival probability S_j(t_i) to event j at the time t_i of event i.
+        In other words, at the time i occurs, j should still be "alive".
+
+        Parameters
+        ----------
+        i : int
+            Index of the preceding risk/event (the cause).
+        j : int
+            Index of the subsequent risk/event (the consequence).
+        ti : torch.Tensor, shape (N, E)
+            Observed times for each sample and event.
+            ti[:, i] gives the time of event i.
+        ei : torch.Tensor, shape (N, E)
+            Event indicators where ei[n, k] = 1 if event k occurred for sample n.
+        params : list of tuples [(k, b, gate), ...]
+            Model parameters per risk/state, where:
+            - k : torch.Tensor, log(shape) parameter tensor
+            - b : torch.Tensor, log(scale) parameter tensor
+            - gate : torch.Tensor, mixture logits per Weibull component
+
+        Returns
+        -------
+        result : torch.Tensor, scalar
+            The average negative log-survival of risk j at times of event i
+            among samples where both events occurred. Lower is better.
+        """
         # i happend before j, maximize S_j(t_i)
         t = ti[:,i].reshape(-1,1).expand(-1, self.model.n_dists) #(n, k)
         k = params[j][0]
@@ -350,14 +476,47 @@ class MENSA:
         result = -torch.sum(condition*s) / ei.shape[0]
         return result
     
-    def compute_risks_multi(self, params, ti):
+    def compute_risks_multi(
+        self,
+        params: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
+        ti: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Compute log-density (f) and log-survival (s) terms for multiple events,
+        each with its own time-to-event measurement.
+
+        This extends `compute_risks()` to handle the multi-event case,
+        where each event k has a distinct observed time t_k.  
+        Each event may follow its own Weibull mixture distribution
+        parameterized by (shape, scale, gate).
+
+        Parameters
+        ----------
+        params : list of tuples [(k, b, gate), ...]
+            Model parameters for each event/risk:
+            - k : torch.Tensor, log(shape) parameter tensor per mixture component.
+            - b : torch.Tensor, log(scale) parameter tensor per mixture component.
+            - gate : torch.Tensor, logits for mixture weights per sample and component.
+        ti : torch.Tensor, shape (N, E)
+            Observed times for all events, where ti[n, e] is the observed (or censored)
+            time for event e in sample n.
+
+        Returns
+        -------
+        f : torch.Tensor, shape (N, E)
+            Log-density terms per sample and event.
+            Represents log f(t_e | x; θ_e) = log likelihood of observing event e at time t_e.
+        s : torch.Tensor, shape (N, E)
+            Log-survival terms per sample and event.
+            Represents log S(t_e | x; θ_e) = log probability of *not* having event e by time t_e.
+        """
         f_risks = []
         s_risks = []
         eps = 1e-12
         ti = torch.clamp(ti, min=eps)
 
         for i in range(self.model.n_states):
-            # t_i: [B, 1] -> expand to [B, n_dists]
+            # Expand per-event times to match mixture dimension
             t_i = ti[:, i].reshape(-1, 1).expand(-1, self.model.n_dists)
 
             k = params[i][0]
@@ -367,17 +526,17 @@ class MENSA:
             gate = nn.LogSoftmax(dim=1)(gate_logits)
 
             # Safe exponentials
-            ek = _exp_safe(k)
-            eb = _exp_safe(b)
+            ek = safe_exp(k)
+            eb = safe_exp(b)
 
-            # log-survival component per mixture: s_ik = - ( (exp(b)*t)^exp(k) )
+            # Log-survival per mixture component
             s_comp = -(torch.pow(eb * t_i, ek))
 
-            # log-density component per mixture (before mixing)
+            # Log-density per mixture component (before mixture aggregation)
             f_comp = k + b + (ek - 1.0) * (b + safe_log(t_i))
             f_comp = f_comp + s_comp
 
-            # Mix in log-space
+            # Mixture aggregation in log-space
             s = torch.logsumexp(s_comp + gate, dim=1)
             f = torch.logsumexp(f_comp + gate, dim=1)
 
@@ -388,9 +547,41 @@ class MENSA:
         s = torch.stack(s_risks, dim=1)
         return f, s
 
-    def predict(self, x_test, time_bins, risk=0):
+    def predict_survival(
+        self,
+        x_test: torch.Tensor,
+        time_bins: torch.Tensor,
+        risk: int = 0
+    ) -> np.ndarray:
         """
-        Courtesy of https://github.com/autonlab/DeepSurvivalMachines
+        Predict the survival function S(t) = P(T > t | x) for a specified risk
+        using the fitted Weibull mixture model.
+
+        This implementation follows the formulation used in
+        DeepSurvivalMachines (AutonLab), adapted for multi-risk settings.
+
+        Parameters
+        ----------
+        x_test : torch.Tensor, shape (N, D)
+            Input feature matrix for test samples.
+        time_bins : torch.Tensor, shape (T,)
+            Discretized grid of times (in ascending order) at which survival
+            probabilities should be estimated.
+        risk : int, optional (default=0)
+            Index of the risk/event for which to predict the survival curve.
+
+        Returns
+        -------
+        surv : np.ndarray, shape (N, T)
+            Predicted survival probabilities for each sample and time.
+            Each entry represents P(T > t | x) ∈ [0, 1].
+            Decreases monotonically with time.
+
+        Examples
+        --------
+        >>> surv = model.predict(x_test, torch.linspace(0, 10, 100), risk=1)
+        >>> surv.shape
+        (num_samples, 100)
         """
         t = list(time_bins.cpu().numpy())
         params = self.model.forward(x_test)
@@ -424,3 +615,40 @@ class MENSA:
             cdfs.append(lcdfs.detach().cpu().numpy())
         
         return np.exp(np.array(cdfs)).T
+    
+    def predict_cdf(
+        self,
+        x_test: torch.Tensor,
+        time_bins: torch.Tensor,
+        risk: int = 0
+    ) -> np.ndarray:
+        """
+        Predict the cumulative distribution function F(t) = P(T ≤ t | x)
+        for a specified risk using the fitted Weibull mixture model.
+
+        Parameters
+        ----------
+        x_test : torch.Tensor, shape (N, D)
+            Input feature matrix for test samples.
+        time_bins : torch.Tensor, shape (T,)
+            Discretized grid of times (in ascending order) at which cumulative
+            probabilities should be estimated.
+        risk : int, optional (default=0)
+            Index of the risk/event for which to predict the CDF.
+
+        Returns
+        -------
+        cdf : np.ndarray, shape (N, T)
+            Predicted cumulative probabilities for each sample and time.
+            Each entry represents P(T ≤ t | x) ∈ [0, 1].
+            Increases monotonically with time.
+
+        Examples
+        --------
+        >>> cdf = model.predict_cdf(x_test, torch.linspace(0, 10, 100), risk=1)
+        >>> cdf.shape
+        (num_samples, 100)
+        """
+        surv = self.predict_survival(x_test, time_bins, risk)
+        cdf = 1.0 - surv
+        return np.clip(cdf, 0.0, 1.0)

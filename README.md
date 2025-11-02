@@ -1,24 +1,125 @@
 # MENSA: A Multi-Event Network for Survival Analysis with Trajectory-based Likelihood Estimation
 
-Most existing time-to-event methods focus on either single-event or competing-risk settings, leaving multi-event scenarios relatively underexplored. In many real-world applications, the same patient may experience multiple events that are non-exclusive, and sometimes semi-competing. A common workaround is to train separate single-event models, but this approach fails to exploit dependencies and shared structure across events. To address these limitations, we propose MENSA (Multi-Event Network for Survival Analysis), a deep learning model that jointly learns flexible time-to-event distributions for multiple events, whether competing or co-occurring. Moreover, we introduce a novel trajectory-based likelihood that captures the temporal ordering between events. Across five benchmark datasets, MENSA consistently improves prediction performance over many state-of-the-art baselines.
+**Accepted at ML4H 2025**  
+[Preprint on arXiv](https://arxiv.org/abs/2409.06525)
 
-Preprint: https://arxiv.org/abs/2409.06525
+Most existing time-to-event methods focus on either single-event or competing-risk settings, leaving multi-event scenarios relatively underexplored. In many real-world applications, the same patient may experience multiple, potentially semi-competing events. A common workaround is to train separate single-event models, but this approach fails to exploit shared dependencies and structure across events.
 
-<p align="left"><img src="https://github.com/thecml/mensa/blob/main/mensa.png">
-Figure 1. MENSA generates survival predictions for multiple events based on patient covariates.
+MENSA (Multi-Event Network for Survival Analysis) jointly models all events using shared neural representations and Weibull mixtures. It flexibly supports:
+- Single-transition (competing-risks) and multi-transition (multi-state) survival formulations.
+- An optional trajectory-based likelihood enforcing valid temporal ordering between events.
+- Event-free (transient) states for modeling transitions from baseline to terminal or intermediate states.
 
-How to reproduce the results
+Across four benchmark datasets, MENSA consistently improves predictive performance over many state-of-the-art baselines.
+
+<p align="left">
+  <img src="https://github.com/thecml/mensa/blob/main/mensa.png" width="700">
+  <br>
+  <em>Figure 1. MENSA jointly learns survival distributions across multiple events.</em>
+</p>
+
+Using MENSA
 --------
-The code was tested in a virtual environment with Python 3.9 and PyTorch 1.13.1.
 
-1. First, install the required packages specified in the [Requirements.txt](https://github.com/thecml/mensa/blob/main/requirements.txt) file.
-2. Install the src directory by runnning: pip install -e .
-3. Refer to config.py to set appropriate paths. By default, the results are in the /results folder.
-4. To reproduce the paper results, please first obtain the raw datasets and put them in the /data folder.
-5. After obtaining the raw datasets, run the data preprocessing scripts in /src/data/.
-6. The experiments can then be executed by running the bash scripts in /scripts.
+The codebase supports both research replication and standalone model training.  
+Below are concise examples to help you train and use MENSA on your own data.
 
-Demo
+### 1. Setup
+```python
+from mensa.models.mensa import MENSA
+
+# Example: 50 features, 4 events, 3 Weibull components per event
+model = MENSA(
+    n_features=50,
+    n_events=4,
+    n_dists=3,
+    layers=[32],
+    dropout_rate=0.3,
+    trajectories=[(1, 4), (2, 4), (3, 4)],  # optional
+    use_transient=True,
+    device='cuda'
+)
+```
+
+### 2. Training
+```
+train_dict = {
+    'X': X_train,   # torch.Tensor [N, D]
+    'T': T_train,   # torch.Tensor [N] or [N, K]
+    'E': E_train    # torch.Tensor [N] or [N, K]
+}
+
+valid_dict = {
+    'X': X_val,
+    'T': T_val,
+    'E': E_val
+}
+
+model.fit(
+    train_dict,
+    valid_dict,
+    batch_size=32,
+    n_epochs=100,
+    patience=10,
+    verbose=True
+)
+```
+
+The training automatically:
+
+- Adds an event-free transient state if enabled.
+- Uses conditional Weibull log-likelihood (multi-event or single-event).
+- Optionally adds trajectory-based regularization.
+- Performs gradient clipping and early stopping.
+
+### 3. Prediction
+
+After training, you can predict survival or CDF curves for any event/state:
+
+```
+import torch
+import numpy as np
+
+time_bins = torch.linspace(0, 1000, 200)  # time grid
+risk = 2  # select which event/state to predict
+
+# Predict survival probabilities
+S = model.predict_survival(X_test, time_bins, risk=risk)
+
+# Or the corresponding cumulative distribution (1 - S)
+F = model.predict_cdf(X_test, time_bins, risk=risk)
+```
+
+Structure overview
+--------
+```
+mensa/
+├── models/
+│   ├── mlp.py          # Base MLP architecture
+│   ├── mensa.py        # MENSA wrapper (fit, predict, multi-event logic)
+│   ├── losses.py       # Conditional Weibull likelihoods
+│   ├── utility.py      # Utility, e.g., add_event_free_column, _exp_safe, etc.
+├── scripts/            # Example training scripts
+├── notebooks/          # Notebooks
+└── requirements.txt
+```
+
+Environment setup
+--------
+The code was tested with:
+
+- Python 3.9
+- PyTorch 1.13.1
+
+```
+# Install dependencies
+pip install -r requirements.txt
+
+# Install the source package
+pip install -e .
+```
+
+Demo notebook
 --------
 See this [Notebook](https://github.com/thecml/mensa/blob/main/notebooks/demo.ipynb) for practical examples.
 

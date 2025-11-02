@@ -212,7 +212,7 @@ if __name__ == "__main__":
         elif model_name == "deephit":
             model_preds = model.predict_surv(test_dict['X']).cpu().numpy()
         elif model_name == "mensa":
-            model_preds = model.predict(test_dict['X'].to(device), time_bins, risk=1) # use event preds
+            model_preds = model.predict_survival(test_dict['X'].to(device), time_bins, risk=1) # use event preds
         else:
             raise NotImplementedError()
             

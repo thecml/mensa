@@ -112,7 +112,7 @@ if __name__ == "__main__":
                   verbose=False)
 
         for i in range(n_events):
-            preds = model.predict(test_dict['X'].to(device), time_bins, risk=i+1)
+            preds = model.predict_survival(test_dict['X'].to(device), time_bins, risk=i+1)
             preds = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
             all_preds.append(preds)
     else:
@@ -129,7 +129,7 @@ if __name__ == "__main__":
                       patience=20, weight_decay=weight_decay,
                       batch_size=batch_size, verbose=False)
 
-            preds = model.predict(test_i['X'].to(device), time_bins, risk=1)
+            preds = model.predict_survival(test_i['X'].to(device), time_bins, risk=1)
             preds = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
             all_preds.append(preds)
 

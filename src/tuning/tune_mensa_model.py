@@ -101,7 +101,7 @@ def train_model():
         all_preds = []
         event_metrics = []
         for ev in range(n_events):
-            preds = model.predict(valid_dict['X'].to(device), time_bins, risk=ev+1)
+            preds = model.predict_survival(valid_dict['X'].to(device), time_bins, risk=ev+1)
             df_pred = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
             all_preds.append(df_pred)
             y_train_time = train_dict['T'][:, ev]
@@ -139,7 +139,7 @@ def train_model():
             "local_ci": local_ci
         })
     else:
-        preds = model.predict(valid_dict['X'].to(device), time_bins, risk=1)
+        preds = model.predict_survival(valid_dict['X'].to(device), time_bins, risk=1)
         df_pred = pd.DataFrame(preds, columns=time_bins.cpu().numpy())
         y_train_time = train_dict['T']
         y_train_event = train_dict['E']
