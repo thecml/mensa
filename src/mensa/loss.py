@@ -118,3 +118,47 @@ def conditional_weibull_loss_multi(
             loss += (uncensored_loss + censored_loss)
     loss = -loss / e.shape[0]
     return loss
+
+def trajectory_loss(
+    i: int,
+    j: int,
+    ei: torch.Tensor,
+    log_surv: torch.Tensor
+) -> torch.Tensor:
+    """
+    Compute the trajectory consistency loss between two risks (i → j).
+
+    This penalizes violations of known event ordering:
+    if event i occurs before j, then at the time of i,
+    j should still have high survival probability (S_j(t_i) high).
+
+    Parameters
+    ----------
+    i : int
+        Index of the preceding event (cause).
+    j : int
+        Index of the subsequent event (consequence).
+    ei : torch.Tensor, shape (N, E)
+        Event indicators where ei[n, k] = 1 if event k occurred.
+    log_surv : torch.Tensor, shape (N, E)
+        Log-survival probabilities (log S) from compute_risks_multi().
+
+    Returns
+    -------
+    torch.Tensor, scalar
+        Mean negative log-survival of event j among samples where both
+        events occurred. Lower values indicate better temporal consistency.
+    """
+    mask = (ei[:, i] == 1) & (ei[:, j] == 1)
+
+    if mask.sum() == 0:
+        # No valid samples for this pair in the batch
+        return torch.tensor(0.0, device=ei.device)
+
+    # Select log-survival of j for the masked samples
+    log_Sj = log_surv[mask, j]
+
+    # Negative mean log-survival = trajectory penalty
+    loss = -log_Sj.mean()
+
+    return loss

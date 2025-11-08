@@ -52,7 +52,7 @@ torch.set_default_dtype(dtype)
 # Setup device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-DATASET = "ebmt_me"
+DATASET = "rotterdam_me"
 
 if __name__ == "__main__":
     # Load and split data

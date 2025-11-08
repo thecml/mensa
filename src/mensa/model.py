@@ -7,7 +7,7 @@ import torch.nn.utils as nn_utils
 import numpy as np
 from tqdm import trange
 
-from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi
+from mensa.loss import conditional_weibull_loss, conditional_weibull_loss_multi, trajectory_loss
 from mensa.mlp import MLP
 from mensa.utility import safe_exp, safe_log
 
@@ -314,7 +314,7 @@ class MENSA:
                     dens_loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
                     traj_loss = 0.0
                     for (i, j) in self.trajectories:
-                        traj_loss += self.compute_risk_trajectory(i, j, ti, ei, params)
+                        traj_loss += trajectory_loss(i, j, ei, s)
                     loss = (1 - traj_lambda) * dens_loss + traj_lambda * traj_loss
                 else:
                     f, s = self.compute_risks(params, ti)
@@ -350,7 +350,7 @@ class MENSA:
                         dens_loss = conditional_weibull_loss_multi(f, s, ei, self.model.n_states, event_weights)
                         traj_loss = 0.0
                         for (i, j) in self.trajectories:
-                            traj_loss += self.compute_risk_trajectory(i, j, ti, ei, params)
+                            traj_loss += trajectory_loss(i, j, ei, s)
                         loss = (1 - traj_lambda) * dens_loss + traj_lambda * traj_loss
                     else:
                         f, s = self.compute_risks(params, ti)
@@ -424,58 +424,7 @@ class MENSA:
             f_risks.append(f); s_risks.append(s)
 
         return torch.stack(f_risks, 1), torch.stack(s_risks, 1)
-        
-    def compute_risk_trajectory(
-        self,
-        i: int,
-        j: int,
-        ti: torch.Tensor,
-        ei: torch.Tensor,
-        params: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
-    ) -> torch.Tensor:
-        """
-        Compute the trajectory consistency loss between two risks (i → j).
-
-        This term penalizes violations of the known temporal ordering between risks:
-        if event i must occur before event j, the model should assign a high
-        survival probability S_j(t_i) to event j at the time t_i of event i.
-        In other words, at the time i occurs, j should still be "alive".
-
-        Parameters
-        ----------
-        i : int
-            Index of the preceding risk/event (the cause).
-        j : int
-            Index of the subsequent risk/event (the consequence).
-        ti : torch.Tensor, shape (N, E)
-            Observed times for each sample and event.
-            ti[:, i] gives the time of event i.
-        ei : torch.Tensor, shape (N, E)
-            Event indicators where ei[n, k] = 1 if event k occurred for sample n.
-        params : list of tuples [(k, b, gate), ...]
-            Model parameters per risk/state, where:
-            - k : torch.Tensor, log(shape) parameter tensor
-            - b : torch.Tensor, log(scale) parameter tensor
-            - gate : torch.Tensor, mixture logits per Weibull component
-
-        Returns
-        -------
-        result : torch.Tensor, scalar
-            The average negative log-survival of risk j at times of event i
-            among samples where both events occurred. Lower is better.
-        """
-        # i happend before j, maximize S_j(t_i)
-        t = ti[:,i].reshape(-1,1).expand(-1, self.model.n_dists) #(n, k)
-        k = params[j][0]
-        b = params[j][1]
-        gate = nn.LogSoftmax(dim=1)(params[j][2])
-        s = -(torch.pow(torch.exp(b)*t, torch.exp(k)))
-        s = (s + gate)
-        s = torch.logsumexp(s, dim=1) #log_survival
-        condition = torch.logical_and(ei[:, i] == 1, ei[:, j] == 1)
-        result = -torch.sum(condition*s) / ei.shape[0]
-        return result
-    
+            
     def compute_risks_multi(
         self,
         params: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
