@@ -42,7 +42,7 @@ model = MENSA(
 ```
 
 ### 2. Training
-```
+```python
 train_dict = {
     'X': X_train,   # torch.Tensor [N, D]
     'T': T_train,   # torch.Tensor [N] or [N, K]
@@ -76,7 +76,7 @@ The training automatically:
 
 After training, you can predict survival or CDF curves for any event/state:
 
-```
+```python
 import torch
 import numpy as np
 
