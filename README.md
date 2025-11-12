@@ -97,8 +97,8 @@ mensa/
 ├── models/
 │   ├── mlp.py          # Base MLP architecture
 │   ├── mensa.py        # MENSA wrapper (fit, predict, multi-event logic)
-│   ├── losses.py       # Conditional Weibull likelihoods
-│   ├── utility.py      # Utility, e.g., add_event_free_column, _exp_safe, etc.
+│   ├── losses.py       # Loss functions
+│   ├── utility.py      # Utility
 ├── scripts/            # Example training scripts
 ├── notebooks/          # Notebooks
 └── requirements.txt
