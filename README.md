@@ -13,7 +13,7 @@ MENSA (Multi-Event Network for Survival Analysis) jointly models all events usin
 Across four benchmark datasets, MENSA consistently improves predictive performance over many state-of-the-art baselines.
 
 <p align="left">
-  <img src="https://github.com/thecml/mensa/blob/main/mensa.png" width="700">
+  <img src="https://github.com/thecml/mensa/blob/main/mensa.png" width="1000">
   <br>
   <em>Figure 1. MENSA jointly learns survival distributions across multiple events.</em>
 </p>
