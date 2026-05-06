@@ -1,11 +1,11 @@
 # MENSA: A Multi-Event Network for Survival Analysis with Trajectory-based Likelihood Estimation
 
-**Accepted at ML4H 2025**  
-[Preprint on arXiv](https://arxiv.org/abs/2409.06525)
+**ML4H 2025, PMLR 297:543–571, 2026**  
+[Full paper](https://proceedings.mlr.press/v297/lillelund26a.html)
 
 Most existing time-to-event methods focus on either single-event or competing-risk settings, leaving multi-event scenarios relatively underexplored. In many real-world applications, the same patient may experience multiple, potentially semi-competing events. A common workaround is to train separate single-event models, but this approach fails to exploit shared dependencies and structure across events.
 
-MENSA (Multi-Event Network for Survival Analysis) jointly models all events using shared neural representations and Weibull mixtures. It flexibly supports:
+We introduce MENSA (Multi-Event Network for Survival Analysis), which jointly models all events using shared neural representations and Weibull mixtures. It flexibly supports:
 - Single-transition (competing-risks) and multi-transition (multi-state) survival formulations.
 - An optional trajectory-based likelihood enforcing valid temporal ordering between events.
 - Event-free (transient) states for modeling transitions from baseline to terminal or intermediate states.
