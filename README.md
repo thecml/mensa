@@ -1,6 +1,5 @@
 # MENSA: A Multi-Event Network for Survival Analysis with Trajectory-based Likelihood Estimation
 
-**ML4H 2025, PMLR 297:543–571, 2026**  
 [Full paper](https://proceedings.mlr.press/v297/lillelund26a.html)
 
 Most existing time-to-event methods focus on either single-event or competing-risk settings, leaving multi-event scenarios relatively underexplored. In many real-world applications, the same patient may experience multiple, potentially semi-competing events. A common workaround is to train separate single-event models, but this approach fails to exploit shared dependencies and structure across events.
