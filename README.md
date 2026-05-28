@@ -1,4 +1,4 @@
-# MENSA: A Multi-Event Network for Survival Analysis with Trajectory-based Likelihood Estimation
+# MENSA: A Multi-Event Network for Survival Analysis
 
 [Full paper](https://proceedings.mlr.press/v297/lillelund26a.html)
 
