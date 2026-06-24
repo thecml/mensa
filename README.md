@@ -131,7 +131,7 @@ Citation
 If you find this paper useful in your work, please consider citing it:
  
 ```
-@inproceedings{lillelund_mensa_2025,
+@inproceedings{lillelund_mensa_2026,
   title     = {{MENSA}: A Multi-Event Network for Survival Analysis with Trajectory-Based Likelihood Estimation},
   author    = {Lillelund, Christian Marius and Gharari Foomani, Ali Hossein and Sun, Weijie and Qi, Shi-ang and Greiner, Russell and {The Pooled Resource Open-Access ALS Clinical Trials Consortium ({PRO-ACT})}},
   booktitle = {Proceedings of the Fifth Machine Learning for Health Symposium},
